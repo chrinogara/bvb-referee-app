@@ -350,6 +350,19 @@ export default function LiveCourts() {
     return data
   }, [courts, assignments, liveMatches, sessionOrder])
 
+  // Default start time:
+  //   • Session 1 (first match of the day) → 09:00 on the tournament day
+  //   • Other sessions → current time
+  function defaultStartTime() {
+    if (sessionOrder === 1 && tournament?.start_date) {
+      const base = new Date(tournament.start_date)
+      base.setDate(base.getDate() + (dayNumber - 1))
+      base.setHours(9, 0, 0, 0)
+      return base.toISOString()
+    }
+    return new Date().toISOString()
+  }
+
   async function handleToggleMatch(court, start) {
     try {
       const existing = liveMatches.find(
@@ -361,7 +374,7 @@ export default function LiveCourts() {
           dayNumber,
           court,
           sessionOrder,
-          startTime: new Date().toISOString(),
+          startTime: defaultStartTime(),
           isTest: sandboxMode,
         })
         if (error) {

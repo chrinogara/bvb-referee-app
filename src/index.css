@@ -1,0 +1,49 @@
+@import "tailwindcss";
+
+@theme {
+  --color-navy: #2D3270;
+  --color-navy-dark: #1E2255;
+  --color-navy-light: #3D4490;
+  --color-orange: #E85D26;
+  --color-orange-dark: #C44D1E;
+  --color-orange-light: #F07040;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+#root {
+  min-height: 100svh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #4B5563;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #6B7280;
+}
+
+/* Grade colors */
+.grade-excellent { @apply text-emerald-400; }
+.grade-good { @apply text-green-400; }
+.grade-adequate { @apply text-yellow-400; }
+.grade-below { @apply text-orange-400; }
+.grade-poor { @apply text-red-400; }

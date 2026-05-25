@@ -1,0 +1,851 @@
+import { useState, useEffect, useMemo, useRef } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useReferees } from '../hooks/useReferees'
+import { useTournaments } from '../hooks/useTournaments'
+import { useEvaluations } from '../hooks/useEvaluations'
+import { useAppStore } from '../store/appStore'
+import { CRITERIA, computeScore, SCORE_LABELS, getGrade } from '../lib/scoring'
+import { generateEvaluationPDF, downloadPDF, sharePDFWhatsApp } from '../lib/pdf'
+import { cn, refereeName, roleColor, scoreColor } from '../lib/utils'
+import { Header } from '../components/layout/Header'
+import { Button } from '../components/ui/Button'
+import { Card, CardHeader, CardBody } from '../components/ui/Card'
+import { Select, Textarea } from '../components/ui/Input'
+import { ScoreCircle } from '../components/ui/ScoreCircle'
+import { Badge } from '../components/ui/Badge'
+import { toast } from '../components/ui/Toast'
+import {
+  AlertTriangle,
+  ChevronDown,
+  ChevronUp,
+  Download,
+  Share2,
+  Save,
+  CheckCircle,
+  Search,
+  X,
+} from 'lucide-react'
+
+// ─── Score button color map ───────────────────────────────────────────────────
+
+const SCORE_COLORS = {
+  1: {
+    active: 'bg-red-500 text-white ring-2 ring-red-400 ring-offset-1 ring-offset-gray-900 scale-[1.04]',
+    idle:   'bg-red-500/10 text-red-400 border border-red-500/25 hover:bg-red-500/20',
+  },
+  2: {
+    active: 'bg-orange-500 text-white ring-2 ring-orange-400 ring-offset-1 ring-offset-gray-900 scale-[1.04]',
+    idle:   'bg-orange-500/10 text-orange-400 border border-orange-500/25 hover:bg-orange-500/20',
+  },
+  3: {
+    active: 'bg-yellow-500 text-white ring-2 ring-yellow-400 ring-offset-1 ring-offset-gray-900 scale-[1.04]',
+    idle:   'bg-yellow-500/10 text-yellow-400 border border-yellow-500/25 hover:bg-yellow-500/20',
+  },
+  4: {
+    active: 'bg-green-500 text-white ring-2 ring-green-400 ring-offset-1 ring-offset-gray-900 scale-[1.04]',
+    idle:   'bg-green-500/10 text-green-400 border border-green-500/25 hover:bg-green-500/20',
+  },
+  5: {
+    active: 'bg-emerald-500 text-white ring-2 ring-emerald-400 ring-offset-1 ring-offset-gray-900 scale-[1.04]',
+    idle:   'bg-emerald-500/10 text-emerald-400 border border-emerald-500/25 hover:bg-emerald-500/20',
+  },
+}
+
+// ─── Three-step protocol strip ────────────────────────────────────────────────
+
+function ThreeStepProtocol() {
+  return (
+    <div className="rounded-lg bg-[#2D3270]/40 border border-[#2D3270] p-3 mb-3">
+      <p className="text-[10px] font-bold uppercase tracking-widest text-[#7B85C9] mb-2.5">
+        Three-Step Protocol
+      </p>
+      <div className="flex flex-col gap-2">
+        {[
+          { num: '01', title: 'WHISTLE', desc: 'Immediate & decisive' },
+          { num: '02', title: 'INFORMATION GATHERING', desc: 'Brief, visible, systematic' },
+          { num: '03', title: 'SIGNAL DECISION', desc: 'Correct official hand signal' },
+        ].map((step) => (
+          <div key={step.num} className="flex items-start gap-2.5">
+            <span className="text-[10px] font-black text-[#E85D26] w-5 shrink-0 pt-px">
+              {step.num}
+            </span>
+            <div className="leading-tight">
+              <span className="text-xs font-bold text-white">{step.title}</span>
+              <span className="text-xs text-[#7B85C9]"> — {step.desc}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// ─── Referee search/select ────────────────────────────────────────────────────
+
+function RefereeSelector({ referees, value, onChange, error }) {
+  const [open, setOpen] = useState(false)
+  const [query, setQuery] = useState('')
+  const ref = useRef(null)
+
+  const sorted = useMemo(
+    () => [...referees].sort((a, b) => a.last_name.localeCompare(b.last_name)),
+    [referees]
+  )
+
+  const filtered = useMemo(() => {
+    if (!query.trim()) return sorted
+    const q = query.toLowerCase()
+    return sorted.filter(
+      (r) =>
+        r.last_name.toLowerCase().includes(q) ||
+        r.first_name.toLowerCase().includes(q)
+    )
+  }, [sorted, query])
+
+  const selected = referees.find((r) => r.id === value)
+
+  // Close on outside click
+  useEffect(() => {
+    if (!open) return
+    function handleClick(e) {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [open])
+
+  return (
+    <div className="flex flex-col gap-1" ref={ref}>
+      <label className="text-xs font-medium text-gray-400 uppercase tracking-wide">
+        Referee <span className="text-red-400">*</span>
+      </label>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className={cn(
+          'flex items-center justify-between bg-gray-800 border rounded-lg px-3 py-3',
+          'text-sm transition-colors duration-150 text-left w-full',
+          error
+            ? 'border-red-500/50'
+            : open
+            ? 'border-[#E85D26]/60 ring-1 ring-[#E85D26]/30'
+            : 'border-white/15 hover:border-white/25'
+        )}
+      >
+        <span className={selected ? 'text-white font-medium' : 'text-gray-500'}>
+          {selected ? refereeName(selected) : 'Select referee…'}
+        </span>
+        <ChevronDown size={16} className="text-gray-400 shrink-0" />
+      </button>
+
+      {open && (
+        <div className="relative z-50">
+          <div className="absolute top-0 left-0 right-0 bg-gray-800 border border-white/15 rounded-xl shadow-2xl overflow-hidden">
+            {/* Search input */}
+            <div className="flex items-center gap-2 px-3 py-2.5 border-b border-white/10">
+              <Search size={14} className="text-gray-400 shrink-0" />
+              <input
+                autoFocus
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search by name…"
+                className="flex-1 bg-transparent text-sm text-white placeholder-gray-500 outline-none"
+              />
+              {query && (
+                <button onClick={() => setQuery('')} className="text-gray-500 hover:text-white">
+                  <X size={13} />
+                </button>
+              )}
+            </div>
+            {/* List */}
+            <ul className="max-h-52 overflow-y-auto">
+              {filtered.length === 0 ? (
+                <li className="px-4 py-3 text-sm text-gray-500 text-center">No referees found</li>
+              ) : (
+                filtered.map((r) => (
+                  <li key={r.id}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onChange(r.id)
+                        setOpen(false)
+                        setQuery('')
+                      }}
+                      className={cn(
+                        'w-full text-left px-4 py-3 text-sm transition-colors',
+                        r.id === value
+                          ? 'bg-[#E85D26]/15 text-[#E85D26] font-semibold'
+                          : 'text-gray-200 hover:bg-white/8'
+                      )}
+                    >
+                      <span className="font-medium">{r.last_name}</span>{' '}
+                      <span className="text-gray-400">{r.first_name}</span>
+                      {r.level && (
+                        <span className="ml-2 text-[10px] text-gray-500">Lv.{r.level}</span>
+                      )}
+                    </button>
+                  </li>
+                ))
+              )}
+            </ul>
+          </div>
+        </div>
+      )}
+
+      {error && <span className="text-xs text-red-400">{error}</span>}
+    </div>
+  )
+}
+
+// ─── Number stepper ───────────────────────────────────────────────────────────
+
+function NumberStepper({ label, value, onChange, min = 1, max = 99 }) {
+  return (
+    <div className="flex flex-col gap-1">
+      {label && (
+        <label className="text-xs font-medium text-gray-400 uppercase tracking-wide">
+          {label}
+        </label>
+      )}
+      <div className="flex items-center gap-0">
+        <button
+          type="button"
+          onClick={() => onChange(Math.max(min, (value || min) - 1))}
+          className="w-10 h-10 flex items-center justify-center bg-gray-800 border border-white/15 rounded-l-lg text-gray-300 hover:bg-white/10 hover:text-white transition-colors text-lg font-bold"
+        >
+          −
+        </button>
+        <div className="flex-1 h-10 flex items-center justify-center bg-gray-800 border-y border-white/15 text-white text-sm font-bold min-w-[2.5rem] text-center">
+          {value || min}
+        </div>
+        <button
+          type="button"
+          onClick={() => onChange(Math.min(max, (value || min) + 1))}
+          className="w-10 h-10 flex items-center justify-center bg-gray-800 border border-white/15 rounded-r-lg text-gray-300 hover:bg-white/10 hover:text-white transition-colors text-lg font-bold"
+        >
+          +
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ─── Criterion card ───────────────────────────────────────────────────────────
+
+function CriterionCard({ criterion, score, repeat, note, onScore, onRepeat, onNote, error }) {
+  const [descOpen, setDescOpen] = useState(false)
+  const [noteOpen, setNoteOpen] = useState(!!note)
+
+  return (
+    <Card className={cn('overflow-hidden', error && 'border-red-500/40')}>
+      <CardHeader className="py-3">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <h3 className="text-sm font-semibold text-white leading-tight">{criterion.label}</h3>
+          </div>
+          <div className="flex items-center gap-1.5 shrink-0">
+            <Badge variant="navy" size="xs">{criterion.weight}%</Badge>
+            <button
+              type="button"
+              onClick={() => setDescOpen((v) => !v)}
+              className="p-1 rounded text-gray-500 hover:text-white hover:bg-white/10 transition-colors"
+              aria-label="Toggle description"
+            >
+              {descOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+            </button>
+          </div>
+        </div>
+
+        {/* Description (collapsible) */}
+        {descOpen && (
+          <p className="mt-2 text-xs text-gray-400 leading-relaxed">{criterion.description}</p>
+        )}
+      </CardHeader>
+
+      <CardBody className="pt-3 space-y-3">
+        {/* Three-step protocol for signals */}
+        {criterion.threeStep && <ThreeStepProtocol />}
+
+        {/* Score buttons: 5 large tap targets */}
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-500 mb-2">
+            Score <span className="text-red-400">*</span>
+          </p>
+          <div className="grid grid-cols-5 gap-1.5">
+            {[1, 2, 3, 4, 5].map((val) => {
+              const isActive = score === val
+              return (
+                <button
+                  key={val}
+                  type="button"
+                  onClick={() => onScore(val)}
+                  className={cn(
+                    'flex flex-col items-center justify-center rounded-xl min-h-[3.25rem] py-2 px-1',
+                    'font-bold transition-all duration-150 select-none',
+                    isActive ? SCORE_COLORS[val].active : SCORE_COLORS[val].idle
+                  )}
+                >
+                  <span className="text-lg leading-none">{val}</span>
+                  <span className="text-[9px] font-medium leading-tight mt-0.5 text-center opacity-80">
+                    {SCORE_LABELS[val].split(' ')[0]}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+          {error && (
+            <p className="text-xs text-red-400 mt-1">Please select a score</p>
+          )}
+        </div>
+
+        {/* Repeat fault toggle */}
+        <button
+          type="button"
+          onClick={() => onRepeat(!repeat)}
+          className={cn(
+            'w-full flex items-center gap-2 px-3 py-2.5 rounded-xl border text-sm font-medium transition-all duration-150',
+            repeat
+              ? 'bg-amber-500/20 border-amber-500/40 text-amber-400'
+              : 'bg-white/5 border-white/10 text-gray-500 hover:border-white/20 hover:text-gray-300'
+          )}
+        >
+          <AlertTriangle size={14} className={repeat ? 'text-amber-400' : 'text-gray-600'} />
+          <span>Repeated Fault</span>
+          {repeat && (
+            <span className="ml-auto text-xs text-amber-500 font-normal">
+              −0.5 penalty applied
+            </span>
+          )}
+        </button>
+
+        {/* Notes (collapsible) */}
+        {!noteOpen ? (
+          <button
+            type="button"
+            onClick={() => setNoteOpen(true)}
+            className="text-xs text-gray-500 hover:text-gray-300 transition-colors flex items-center gap-1"
+          >
+            <span className="text-[#E85D26]">+</span> Add observation note
+          </button>
+        ) : (
+          <div className="space-y-1">
+            <label className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">
+              Observation
+            </label>
+            <textarea
+              value={note}
+              onChange={(e) => onNote(e.target.value)}
+              placeholder="What did you observe? Be specific…"
+              rows={2}
+              className={cn(
+                'w-full bg-gray-800 border border-white/15 rounded-lg px-3 py-2',
+                'text-white placeholder-gray-600 text-sm resize-none',
+                'focus:outline-none focus:border-[#E85D26]/60 focus:ring-1 focus:ring-[#E85D26]/30',
+                'transition-colors duration-150'
+              )}
+            />
+          </div>
+        )}
+      </CardBody>
+    </Card>
+  )
+}
+
+// ─── Live score bar (sticky bottom) ──────────────────────────────────────────
+
+function LiveScoreBar({ scores, repeats }) {
+  const result = useMemo(() => {
+    const allSet = Object.values(scores).every((v) => v != null && v > 0)
+    if (!allSet) {
+      // Compute partial score for whatever's filled
+      const partial = computeScore(scores, repeats)
+      return { ...partial, partial: true }
+    }
+    return { ...computeScore(scores, repeats), partial: false }
+  }, [scores, repeats])
+
+  const filledCount = Object.values(scores).filter((v) => v != null && v > 0).length
+  const grade = result.overall > 0 ? getGrade(result.overall) : null
+
+  return (
+    <div className="fixed bottom-0 left-0 right-0 z-40 bg-gray-950/95 backdrop-blur-md border-t border-white/10 px-4 py-3 safe-area-pb">
+      <div className="max-w-lg mx-auto flex items-center gap-3">
+        {/* Progress dots */}
+        <div className="flex gap-1 shrink-0">
+          {[1, 2, 3, 4, 5].map((i) => (
+            <div
+              key={i}
+              className={cn(
+                'w-1.5 h-1.5 rounded-full transition-colors',
+                i <= filledCount ? 'bg-[#E85D26]' : 'bg-white/15'
+              )}
+            />
+          ))}
+        </div>
+
+        {/* Labels */}
+        <div className="flex-1 min-w-0">
+          <p className="text-xs text-gray-500">
+            {filledCount === 5 ? 'All criteria scored' : `${filledCount}/5 scored`}
+          </p>
+          {result.penalty > 0 && (
+            <p className="text-[10px] text-amber-400 font-medium">
+              ⚠ −{result.penalty.toFixed(1)} repeat penalty
+            </p>
+          )}
+        </div>
+
+        {/* Score */}
+        {result.overall > 0 && grade ? (
+          <div className="flex items-center gap-2 shrink-0">
+            <div className="text-right">
+              <p className={cn('text-xl font-black', grade.color)}>
+                {result.overall.toFixed(1)}
+              </p>
+              <p className={cn('text-[10px] font-bold leading-none', grade.color)}>
+                {grade.grade}
+              </p>
+            </div>
+          </div>
+        ) : (
+          <div className="text-right shrink-0">
+            <p className="text-xl font-black text-gray-600">—</p>
+            <p className="text-[10px] text-gray-600">No score</p>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ─── Main page ────────────────────────────────────────────────────────────────
+
+export default function Evaluate() {
+  const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+
+  const { referees, loading: refLoading } = useReferees()
+  const { tournaments } = useTournaments()
+  const { create } = useEvaluations()
+  const {
+    lastTournamentId,
+    lastDayNumber,
+    setLastTournamentId,
+    setLastDayNumber,
+    saveDraft,
+  } = useAppStore()
+
+  // ── Form state ──────────────────────────────────────────────────────────────
+  const [refereeId, setRefereeId] = useState(searchParams.get('refereeId') || '')
+  const [role, setRole] = useState('R1')
+  const [tournamentId, setTournamentId] = useState(
+    searchParams.get('tournamentId') || lastTournamentId || ''
+  )
+  const [dayNumber, setDayNumber] = useState(lastDayNumber || 1)
+  const [courtNumber, setCourtNumber] = useState(null)
+
+  // Per-criterion: score, repeat, note
+  const [criteriaData, setCriteriaData] = useState(() =>
+    Object.fromEntries(
+      CRITERIA.map((c) => [c.key, { score: null, repeat: false, note: '' }])
+    )
+  )
+
+  const [generalNotes, setGeneralNotes] = useState('')
+
+  // ── Post-save state ─────────────────────────────────────────────────────────
+  const [saving, setSaving] = useState(false)
+  const [savedEval, setSavedEval] = useState(null)
+  const [pdfBlob, setPdfBlob] = useState(null)
+  const [generatingPdf, setGeneratingPdf] = useState(false)
+
+  // ── Validation errors ───────────────────────────────────────────────────────
+  const [errors, setErrors] = useState({})
+
+  // ── Score snapshot for live preview ────────────────────────────────────────
+  const scores = useMemo(
+    () =>
+      Object.fromEntries(CRITERIA.map((c) => [c.key, criteriaData[c.key].score || 0])),
+    [criteriaData]
+  )
+  const repeats = useMemo(
+    () =>
+      Object.fromEntries(CRITERIA.map((c) => [c.key, criteriaData[c.key].repeat])),
+    [criteriaData]
+  )
+
+  // ── Helpers to update criteria ───────────────────────────────────────────────
+  function setCriterion(key, field, value) {
+    setCriteriaData((prev) => ({
+      ...prev,
+      [key]: { ...prev[key], [field]: value },
+    }))
+    // Clear score error on change
+    if (field === 'score') {
+      setErrors((prev) => {
+        const next = { ...prev }
+        delete next[`score_${key}`]
+        return next
+      })
+    }
+  }
+
+  // ── Validation ───────────────────────────────────────────────────────────────
+  function validate() {
+    const errs = {}
+    if (!refereeId) errs.refereeId = 'Referee is required'
+    if (!role) errs.role = 'Role is required'
+    CRITERIA.forEach((c) => {
+      if (!criteriaData[c.key].score) {
+        errs[`score_${c.key}`] = 'Required'
+      }
+    })
+    setErrors(errs)
+    return Object.keys(errs).length === 0
+  }
+
+  // ── Save handler ─────────────────────────────────────────────────────────────
+  async function handleSave() {
+    if (!validate()) {
+      toast.error('Please fill in all required fields')
+      // Scroll to top to show first error
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+      return
+    }
+
+    const payload = {
+      referee_id: refereeId,
+      role,
+      tournament_id: tournamentId || null,
+      day_number: dayNumber || null,
+      match_description: courtNumber ? `Court ${courtNumber}` : null,
+      score_positioning:  criteriaData.positioning.score,
+      score_signals:      criteriaData.signals.score,
+      score_attitude:     criteriaData.attitude.score,
+      score_captain_comm: criteriaData.captain_comm.score,
+      score_presentation: criteriaData.presentation.score,
+      repeat_positioning:  criteriaData.positioning.repeat,
+      repeat_signals:      criteriaData.signals.repeat,
+      repeat_attitude:     criteriaData.attitude.repeat,
+      repeat_captain_comm: criteriaData.captain_comm.repeat,
+      repeat_presentation: criteriaData.presentation.repeat,
+      note_positioning:  criteriaData.positioning.note || null,
+      note_signals:      criteriaData.signals.note || null,
+      note_attitude:     criteriaData.attitude.note || null,
+      note_captain_comm: criteriaData.captain_comm.note || null,
+      note_presentation: criteriaData.presentation.note || null,
+      general_notes: generalNotes || null,
+      evaluated_at: new Date().toISOString(),
+    }
+
+    // Offline fallback
+    if (!navigator.onLine) {
+      const draftKey = `eval_${Date.now()}`
+      saveDraft(draftKey, payload)
+      toast('Saved offline — will sync when connected', 'info', 4500)
+      return
+    }
+
+    setSaving(true)
+    try {
+      const saved = await create(payload)
+      setSavedEval(saved)
+
+      // Persist last-used values
+      if (tournamentId) setLastTournamentId(tournamentId)
+      setLastDayNumber(dayNumber)
+
+      toast.success('Evaluation saved!')
+
+      // Generate PDF
+      setGeneratingPdf(true)
+      try {
+        const referee = referees.find((r) => r.id === refereeId)
+        const tournament = tournaments.find((t) => t.id === tournamentId)
+        const blob = await generateEvaluationPDF(
+          saved,
+          referee,
+          { match_description: courtNumber ? `Court ${courtNumber}` : null },
+          tournament
+        )
+        setPdfBlob(blob)
+      } catch (pdfErr) {
+        console.error('PDF generation failed:', pdfErr)
+        toast.error('PDF generation failed')
+      } finally {
+        setGeneratingPdf(false)
+      }
+    } catch (err) {
+      console.error('Save failed:', err)
+      toast.error(err.message || 'Failed to save evaluation')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  // ── PDF filename ──────────────────────────────────────────────────────────────
+  const pdfFilename = useMemo(() => {
+    const referee = referees.find((r) => r.id === refereeId)
+    const name = referee
+      ? `${referee.last_name}_${referee.first_name}`.replace(/\s+/g, '_')
+      : 'referee'
+    const date = new Date().toISOString().slice(0, 10)
+    return `BVB_Eval_${name}_${date}.pdf`
+  }, [referees, refereeId])
+
+  // ── Sorted tournaments ────────────────────────────────────────────────────────
+  const sortedTournaments = useMemo(
+    () => [...tournaments].sort((a, b) => new Date(b.start_date) - new Date(a.start_date)),
+    [tournaments]
+  )
+
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  return (
+    <div className="flex flex-col h-full bg-gray-950">
+      <Header
+        title="New Evaluation"
+        subtitle="Rate a referee's performance"
+      />
+
+      {/* Scrollable content — padded for sticky bottom bar */}
+      <div className="flex-1 overflow-y-auto pb-24">
+        <div className="max-w-lg mx-auto px-4 py-5 space-y-4">
+
+          {/* ── Section 1: Match Context ──────────────────────────────────── */}
+          <Card>
+            <CardHeader className="py-3">
+              <h2 className="text-xs font-bold uppercase tracking-widest text-gray-400">
+                Match Context
+              </h2>
+            </CardHeader>
+            <CardBody className="space-y-4">
+              {/* Referee selector */}
+              <RefereeSelector
+                referees={referees}
+                value={refereeId}
+                onChange={(id) => {
+                  setRefereeId(id)
+                  setErrors((p) => { const n = { ...p }; delete n.refereeId; return n })
+                }}
+                error={errors.refereeId}
+              />
+
+              {/* Role toggle */}
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-medium text-gray-400 uppercase tracking-wide">
+                  Role <span className="text-red-400">*</span>
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  {['R1', 'R2'].map((r) => (
+                    <button
+                      key={r}
+                      type="button"
+                      onClick={() => setRole(r)}
+                      className={cn(
+                        'py-3 rounded-xl text-base font-bold transition-all duration-150',
+                        role === r
+                          ? r === 'R1'
+                            ? 'bg-purple-500/25 text-purple-300 border border-purple-500/50 ring-2 ring-purple-500/30 scale-[1.02]'
+                            : 'bg-blue-500/25 text-blue-300 border border-blue-500/50 ring-2 ring-blue-500/30 scale-[1.02]'
+                          : 'bg-white/5 text-gray-500 border border-white/10 hover:border-white/20 hover:text-gray-300'
+                      )}
+                    >
+                      {r}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Tournament */}
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-medium text-gray-400 uppercase tracking-wide">
+                  Tournament
+                </label>
+                <select
+                  value={tournamentId}
+                  onChange={(e) => setTournamentId(e.target.value)}
+                  className={cn(
+                    'bg-gray-800 border border-white/15 rounded-lg px-3 py-2.5',
+                    'text-white text-sm appearance-none',
+                    'focus:outline-none focus:border-[#E85D26]/60 focus:ring-1 focus:ring-[#E85D26]/30',
+                    'transition-colors duration-150'
+                  )}
+                >
+                  <option value="">— No tournament —</option>
+                  {sortedTournaments.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Day + Match row */}
+              <div className="grid grid-cols-2 gap-3">
+                <NumberStepper
+                  label="Day"
+                  value={dayNumber}
+                  onChange={setDayNumber}
+                  min={1}
+                  max={5}
+                />
+              </div>
+
+              {/* Court selector */}
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-medium text-gray-400 uppercase tracking-wide">
+                  Court
+                </label>
+                <div className="grid grid-cols-4 gap-2">
+                  {[1, 2, 3, 4].map((n) => (
+                    <button
+                      key={n}
+                      type="button"
+                      onClick={() => setCourtNumber(courtNumber === n ? null : n)}
+                      className={cn(
+                        'py-3 rounded-xl text-base font-bold transition-all duration-150',
+                        courtNumber === n
+                          ? 'bg-[#E85D26]/25 text-[#E85D26] border border-[#E85D26]/50 ring-2 ring-[#E85D26]/30 scale-[1.04]'
+                          : 'bg-white/5 text-gray-400 border border-white/10 hover:border-white/20 hover:text-white'
+                      )}
+                    >
+                      {n}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </CardBody>
+          </Card>
+
+          {/* ── Section 2: The 5 Criteria ─────────────────────────────────── */}
+          <div>
+            <h2 className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-3 px-1">
+              Evaluation Criteria
+            </h2>
+            <div className="space-y-3">
+              {CRITERIA.map((criterion) => (
+                <CriterionCard
+                  key={criterion.key}
+                  criterion={criterion}
+                  score={criteriaData[criterion.key].score}
+                  repeat={criteriaData[criterion.key].repeat}
+                  note={criteriaData[criterion.key].note}
+                  onScore={(v) => setCriterion(criterion.key, 'score', v)}
+                  onRepeat={(v) => setCriterion(criterion.key, 'repeat', v)}
+                  onNote={(v) => setCriterion(criterion.key, 'note', v)}
+                  error={!!errors[`score_${criterion.key}`]}
+                />
+              ))}
+            </div>
+          </div>
+
+          {/* ── Section 4: General Notes ──────────────────────────────────── */}
+          <Card>
+            <CardHeader className="py-3">
+              <h2 className="text-xs font-bold uppercase tracking-widest text-gray-400">
+                General Feedback
+              </h2>
+            </CardHeader>
+            <CardBody>
+              <textarea
+                value={generalNotes}
+                onChange={(e) => setGeneralNotes(e.target.value)}
+                placeholder="Overall impressions, strengths, areas for improvement…"
+                rows={4}
+                className={cn(
+                  'w-full bg-gray-800 border border-white/15 rounded-lg px-3 py-2.5',
+                  'text-white placeholder-gray-500 text-sm resize-none',
+                  'focus:outline-none focus:border-[#E85D26]/60 focus:ring-1 focus:ring-[#E85D26]/30',
+                  'transition-colors duration-150'
+                )}
+              />
+            </CardBody>
+          </Card>
+
+          {/* ── Section 5: Save & Share ───────────────────────────────────── */}
+          <div className="space-y-3">
+            {/* Save button */}
+            {!savedEval ? (
+              <Button
+                onClick={handleSave}
+                loading={saving}
+                disabled={saving}
+                variant="primary"
+                size="lg"
+                className="w-full py-4 text-base font-bold rounded-xl"
+              >
+                {saving ? (
+                  'Saving…'
+                ) : (
+                  <>
+                    <Save size={18} />
+                    Save Evaluation
+                  </>
+                )}
+              </Button>
+            ) : (
+              /* Success state */
+              <div className="space-y-3">
+                {/* Success banner */}
+                <div className="flex items-center gap-3 p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/25">
+                  <CheckCircle size={22} className="text-emerald-400 shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-emerald-400">Saved successfully</p>
+                    {savedEval.overall_score != null && (
+                      <p className="text-xs text-emerald-600 mt-0.5">
+                        Score: {savedEval.overall_score.toFixed(1)} · {savedEval.grade}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                {/* PDF actions */}
+                {generatingPdf ? (
+                  <div className="flex items-center justify-center gap-2 py-3 text-sm text-gray-400">
+                    <span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                    Generating PDF…
+                  </div>
+                ) : pdfBlob ? (
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button
+                      variant="navy"
+                      size="md"
+                      className="w-full py-3"
+                      onClick={() => downloadPDF(pdfBlob, pdfFilename)}
+                    >
+                      <Download size={16} />
+                      Download PDF
+                    </Button>
+                    <Button
+                      variant="success"
+                      size="md"
+                      className="w-full py-3"
+                      onClick={() => sharePDFWhatsApp(pdfBlob, pdfFilename)}
+                    >
+                      <Share2 size={16} />
+                      Share via WhatsApp
+                    </Button>
+                  </div>
+                ) : null}
+
+                {/* New evaluation shortcut */}
+                <button
+                  type="button"
+                  onClick={() => window.location.reload()}
+                  className="w-full text-sm text-gray-500 hover:text-gray-300 transition-colors py-2"
+                >
+                  + Evaluate another referee
+                </button>
+              </div>
+            )}
+          </div>
+
+        </div>
+      </div>
+
+      {/* ── Section 3: Sticky live score bar ─────────────────────────────── */}
+      <LiveScoreBar scores={scores} repeats={repeats} />
+    </div>
+  )
+}

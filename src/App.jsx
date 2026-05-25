@@ -12,6 +12,7 @@ import Briefing from './pages/Briefing'
 import LiveCourts from './pages/LiveCourts'
 import Evaluate from './pages/Evaluate'
 import Reports from './pages/Reports'
+import RcReport from './pages/RcReport'
 import Assistant from './pages/Assistant'
 
 export default function App() {
@@ -34,6 +35,7 @@ export default function App() {
             <Route path="/live-courts"   element={<LiveCourts />} />
             <Route path="/evaluate"      element={<Evaluate />} />
             <Route path="/reports"       element={<Reports />} />
+            <Route path="/rc-report"     element={<RcReport />} />
             <Route path="/assistant"     element={<Assistant />} />
           </Routes>
         </div>

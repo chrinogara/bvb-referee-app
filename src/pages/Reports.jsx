@@ -1,8 +1,8 @@
 import { useState, useMemo, useEffect } from 'react'
+import { Link } from 'react-router-dom'
 import {
   Trophy,
   Download,
-  Send,
   TrendingUp,
   TrendingDown,
   AlertTriangle,
@@ -13,6 +13,8 @@ import {
   ChevronUp,
   ChevronDown,
   Award,
+  FileText,
+  ExternalLink,
 } from 'lucide-react'
 
 import { Header } from '../components/layout/Header'
@@ -24,9 +26,14 @@ import { toast } from '../components/ui/Toast'
 
 import { useTournaments } from '../hooks/useTournaments'
 import { useRanking } from '../hooks/useRanking'
-import { evaluationService } from '../lib/supabase'
+import { evaluationService, rcReportService } from '../lib/supabase'
 import { CRITERIA, getGrade } from '../lib/scoring'
 import { cn, formatDate, refereeName, levelColor, scoreColor } from '../lib/utils'
+import {
+  generateEvaluationsSummaryPDF,
+  generateRcReportPDF,
+  downloadPDF,
+} from '../lib/pdf'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -237,7 +244,6 @@ export default function Reports() {
   const [selectedTournamentId, setSelectedTournamentId] = useState('')
   const [tournamentEvals, setTournamentEvals] = useState([])
   const [loadingEvals, setLoadingEvals] = useState(false)
-  const [sendingReport, setSendingReport] = useState(false)
   const [activeSection, setActiveSection] = useState('season') // 'season' | 'tournament'
 
   // Load evaluations when tournament selected
@@ -292,74 +298,52 @@ export default function Reports() {
     toast.success('Season ranking exported')
   }
 
-  // Tournament report send
-  async function handleSendReport() {
+  // ── PDF 1: Referee Evaluations Summary ─────────────────────────────────────
+  const [downloadingEvalSummary, setDownloadingEvalSummary] = useState(false)
+  async function handleDownloadEvalSummary() {
     const tournament = tournaments.find((t) => t.id === selectedTournamentId)
     if (!tournament) return
-    setSendingReport(true)
+    if (tournamentEvals.length === 0) {
+      toast.error('No evaluations to summarize')
+      return
+    }
+    setDownloadingEvalSummary(true)
     try {
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
-      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
-      const res = await fetch(`${supabaseUrl}/functions/v1/send-report`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${anonKey}`,
-        },
-        body: JSON.stringify({
-          tournament,
-          evaluations: tournamentEvals,
-          ranking: tournamentRanking,
-          criteriaAvgs,
-          mostImproved,
-          stats: tournamentStats,
-        }),
+      const blob = await generateEvaluationsSummaryPDF({
+        tournament,
+        evaluations: tournamentEvals,
       })
-      if (!res.ok) throw new Error(`Server error: ${res.status}`)
-      toast.success('Report sent to Maarten Ghysel')
+      const filename = `BVB_Evaluations_${tournament.name.replace(/\s+/g, '_')}_${new Date().toISOString().slice(0, 10)}.pdf`
+      downloadPDF(blob, filename)
+      toast.success('Evaluations summary downloaded')
     } catch (err) {
-      toast.error(`Failed to send report: ${err.message}`)
+      toast.error(`PDF generation failed: ${err.message}`)
     } finally {
-      setSendingReport(false)
+      setDownloadingEvalSummary(false)
     }
   }
 
-  // Download tournament summary text
-  function downloadTournamentSummary() {
+  // ── PDF 2: RC Tournament Report (from rc_reports DB row) ───────────────────
+  const [downloadingRcReport, setDownloadingRcReport] = useState(false)
+  async function handleDownloadRcReport() {
     const tournament = tournaments.find((t) => t.id === selectedTournamentId)
     if (!tournament) return
-
-    const lines = [
-      `BVB REFEREE COACH — TOURNAMENT SUMMARY`,
-      `Tournament: ${tournament.name}`,
-      `Date: ${formatDate(tournament.start_date)}`,
-      `Generated: ${new Date().toLocaleString()}`,
-      ``,
-      `STATISTICS`,
-      `Total Evaluations: ${tournamentStats.total}`,
-      `Average Score: ${tournamentStats.avgScore?.toFixed(2) ?? '—'}`,
-      tournamentStats.topScorer ? `Top Scorer: ${refereeName(tournamentStats.topScorer)} (${tournamentStats.topScorer.avg_score?.toFixed(2)})` : '',
-      mostImproved ? `Most Improved: ${refereeName(mostImproved.ref)} (+${mostImproved.improvement.toFixed(2)})` : '',
-      ``,
-      `RANKING`,
-      ...tournamentRanking.map((r, i) =>
-        `${i + 1}. ${refereeName(r)} — ${r.avg_score?.toFixed(2) ?? '—'} (${r.total_evaluations} eval${r.total_evaluations !== 1 ? 's' : ''})`
-      ),
-      ``,
-      `CRITERIA AVERAGES`,
-      ...criteriaAvgs.map((c) =>
-        `${c.label}: ${c.avg?.toFixed(2) ?? '—'}`
-      ),
-    ].filter((l) => l !== null)
-
-    const blob = new Blob([lines.join('\n')], { type: 'text/plain' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `${tournament.name.replace(/\s+/g, '-').toLowerCase()}-report.txt`
-    a.click()
-    URL.revokeObjectURL(url)
-    toast.success('Report downloaded')
+    setDownloadingRcReport(true)
+    try {
+      const { data: report } = await rcReportService.getByTournament(tournament.id)
+      if (!report) {
+        toast.error('Compile the RC Tournament Report first')
+        return
+      }
+      const blob = await generateRcReportPDF(report, tournament)
+      const filename = `BVB_RC_Report_${tournament.name.replace(/\s+/g, '_')}_${new Date().toISOString().slice(0, 10)}.pdf`
+      downloadPDF(blob, filename)
+      toast.success('RC Tournament Report downloaded')
+    } catch (err) {
+      toast.error(`PDF generation failed: ${err.message}`)
+    } finally {
+      setDownloadingRcReport(false)
+    }
   }
 
   const podiumEntries = ranking.slice(0, 3)
@@ -571,28 +555,71 @@ export default function Reports() {
                       </Card>
                     </div>
 
-                    {/* Action buttons */}
-                    <div className="flex flex-wrap gap-2">
-                      <Button
-                        variant="primary"
-                        size="sm"
-                        onClick={handleSendReport}
-                        loading={sendingReport}
-                        disabled={tournamentStats.total === 0}
-                      >
-                        <Send size={13} />
-                        Send to Maarten Ghysel
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={downloadTournamentSummary}
-                        disabled={tournamentStats.total === 0}
-                      >
-                        <Download size={13} />
-                        Download Summary
-                      </Button>
-                    </div>
+                    {/* Two distinct PDF downloads */}
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>Tournament Reports — Download PDFs</CardTitle>
+                      </CardHeader>
+                      <CardBody className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {/* 1. Referee Evaluations Summary */}
+                        <div className="flex flex-col gap-2 p-3 rounded-xl border border-gray-200 bg-gray-50">
+                          <div className="flex items-center gap-2">
+                            <div className="w-8 h-8 rounded-lg bg-[#2D3270]/10 flex items-center justify-center">
+                              <BarChart3 size={14} className="text-[#2D3270]" />
+                            </div>
+                            <p className="text-sm font-semibold text-gray-900">
+                              Referee Evaluations Summary
+                            </p>
+                          </div>
+                          <p className="text-xs text-gray-500 leading-snug">
+                            All evaluations + per-referee averages and ranking for{' '}
+                            <strong>{tournaments.find((t) => t.id === selectedTournamentId)?.name}</strong>.
+                          </p>
+                          <Button
+                            variant="navy"
+                            size="sm"
+                            onClick={handleDownloadEvalSummary}
+                            loading={downloadingEvalSummary}
+                            disabled={tournamentStats.total === 0}
+                          >
+                            <Download size={13} /> Download evaluations PDF
+                          </Button>
+                        </div>
+
+                        {/* 2. RC Tournament Report */}
+                        <div className="flex flex-col gap-2 p-3 rounded-xl border border-[#E85D26]/30 bg-orange-50">
+                          <div className="flex items-center gap-2">
+                            <div className="w-8 h-8 rounded-lg bg-[#E85D26]/15 flex items-center justify-center">
+                              <FileText size={14} className="text-[#E85D26]" />
+                            </div>
+                            <p className="text-sm font-semibold text-gray-900">
+                              RC Tournament Report
+                            </p>
+                          </div>
+                          <p className="text-xs text-gray-500 leading-snug">
+                            Your post-tournament report (technical, organizational, recommendations).
+                            Compile it first → then download.
+                          </p>
+                          <div className="flex gap-2">
+                            <Link
+                              to={`/rc-report?tournamentId=${selectedTournamentId}`}
+                              className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-300 hover:bg-white text-xs font-semibold text-gray-700 transition-colors"
+                            >
+                              <ExternalLink size={12} /> Compile
+                            </Link>
+                            <Button
+                              variant="primary"
+                              size="sm"
+                              onClick={handleDownloadRcReport}
+                              loading={downloadingRcReport}
+                              className="flex-1"
+                            >
+                              <Download size={13} /> Download PDF
+                            </Button>
+                          </div>
+                        </div>
+                      </CardBody>
+                    </Card>
 
                     {tournamentStats.total === 0 ? (
                       <Card>

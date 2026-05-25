@@ -147,6 +147,28 @@ export const rankingService = {
       .eq('tournament_id', tournamentId),
 }
 
+// ─── RC Post-Tournament Reports (1 per tournament) ──────────────────────────
+export const rcReportService = {
+  getByTournament: (tournamentId) =>
+    supabase
+      .from('rc_reports')
+      .select('*')
+      .eq('tournament_id', tournamentId)
+      .maybeSingle(),
+
+  upsert: (data) =>
+    supabase
+      .from('rc_reports')
+      .upsert({ ...data, updated_at: new Date().toISOString() }, {
+        onConflict: 'tournament_id',
+      })
+      .select()
+      .single(),
+
+  delete: (tournamentId) =>
+    supabase.from('rc_reports').delete().eq('tournament_id', tournamentId),
+}
+
 // ─── Briefings (1 per tournament, structured sections) ──────────────────────
 export const briefingService = {
   getByTournament: (tournamentId) =>

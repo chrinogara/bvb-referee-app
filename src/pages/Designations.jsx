@@ -1087,7 +1087,7 @@ export default function Designations() {
           </div>
 
           <Select
-            label="Rotation pattern"
+            label="Rotation pattern (preset)"
             value={configPattern}
             onChange={(e) => setConfigPattern(e.target.value)}
           >
@@ -1096,7 +1096,52 @@ export default function Designations() {
                 {p.value} — {p.label}
               </option>
             ))}
+            <option value="__custom__">Custom — enter manually below</option>
           </Select>
+
+          {/* Custom pattern editor — series of N matches with optional pauses */}
+          <div className="space-y-2 p-3 rounded-xl border border-gray-200 bg-gray-50">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-medium text-gray-600 uppercase tracking-wide">
+                Custom pattern editor
+              </label>
+              <span className="text-[10px] text-gray-500">
+                Build series of matches manually
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <label className="text-xs text-gray-600">Number of matches per court:</label>
+              <input
+                type="number"
+                min="1"
+                max="20"
+                value={configPattern.split('-').filter((t) => t.toUpperCase() !== 'PAUSE').length}
+                onChange={(e) => {
+                  const n = Math.max(1, Math.min(20, Number(e.target.value) || 1))
+                  // Build pattern: M1, M2, PAUSE, M3, M4, PAUSE, M5...
+                  const tokens = []
+                  for (let i = 1; i <= n; i++) {
+                    tokens.push(`M${i}`)
+                    if (i % 2 === 0 && i < n) tokens.push('PAUSE')
+                  }
+                  setConfigPattern(tokens.join('-'))
+                }}
+                className="w-16 bg-white border border-gray-300 rounded-lg px-2 py-1 text-sm text-gray-900 text-center"
+              />
+              <span className="text-xs text-gray-500">+ pause every 2 matches</span>
+            </div>
+            <input
+              type="text"
+              value={configPattern}
+              onChange={(e) => setConfigPattern(e.target.value.toUpperCase())}
+              placeholder="e.g. M1-M2-PAUSE-M3-M4-M5-PAUSE-M6"
+              className="w-full bg-white border border-gray-300 rounded-lg px-3 py-1.5 text-xs font-mono text-gray-900"
+            />
+            <p className="text-[10px] text-gray-500 leading-snug">
+              Tokens: <code>M1</code>, <code>M2</code>… (matches) and <code>PAUSE</code>. The pattern
+              applies to every court. Each token is one session order.
+            </p>
+          </div>
 
           <Button variant="primary" size="md" onClick={saveConfig} className="w-full">
             Save configuration

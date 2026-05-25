@@ -537,6 +537,361 @@ function DesignationDocument({ tournament, dayNumber, assignmentsByCourt, rotati
   )
 }
 
+// ─── RC Post-Tournament Report PDF ────────────────────────────────────────────
+
+const rcStyles = StyleSheet.create({
+  page: {
+    fontFamily: 'Helvetica',
+    fontSize: 9.5,
+    color: DARK_GRAY,
+    paddingTop: 28,
+    paddingBottom: 30,
+    paddingHorizontal: 35,
+  },
+  header: {
+    backgroundColor: NAVY,
+    marginHorizontal: -35,
+    marginTop: -28,
+    paddingHorizontal: 35,
+    paddingVertical: 16,
+    marginBottom: 14,
+  },
+  headerTitle: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontFamily: 'Helvetica-Bold',
+    letterSpacing: 0.8,
+  },
+  headerSubtitle: { color: '#CBD5E1', fontSize: 9, marginTop: 3 },
+  headerAccent: { width: 40, height: 3, backgroundColor: ORANGE, marginTop: 8 },
+  meta: { flexDirection: 'row', flexWrap: 'wrap', marginBottom: 10 },
+  metaItem: { width: '50%', flexDirection: 'row', marginBottom: 3 },
+  metaLabel: { color: MED_GRAY, fontSize: 8, textTransform: 'uppercase', letterSpacing: 0.4, width: 90 },
+  metaValue: { fontFamily: 'Helvetica-Bold', fontSize: 9 },
+  sectionTitle: {
+    fontSize: 9,
+    fontFamily: 'Helvetica-Bold',
+    color: NAVY,
+    textTransform: 'uppercase',
+    letterSpacing: 0.7,
+    borderBottomWidth: 1,
+    borderBottomColor: NAVY,
+    paddingBottom: 3,
+    marginTop: 12,
+    marginBottom: 6,
+  },
+  fieldLabel: {
+    fontSize: 8,
+    fontFamily: 'Helvetica-Bold',
+    color: MED_GRAY,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+    marginTop: 6,
+    marginBottom: 2,
+  },
+  fieldText: { fontSize: 9, lineHeight: 1.45, color: DARK_GRAY },
+  inlineRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 6 },
+  inlineCell: { width: '23%', marginBottom: 4 },
+  inlineLabel: { fontSize: 7, color: MED_GRAY, textTransform: 'uppercase', letterSpacing: 0.4 },
+  inlineValue: { fontSize: 11, fontFamily: 'Helvetica-Bold', color: NAVY, marginTop: 1 },
+  gradeBox: {
+    backgroundColor: NAVY,
+    borderRadius: 4,
+    padding: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  gradeLabel: { color: '#94A3B8', fontSize: 8, textTransform: 'uppercase', letterSpacing: 0.5, marginRight: 12 },
+  gradeValue: { color: ORANGE, fontSize: 14, fontFamily: 'Helvetica-Bold' },
+})
+
+function RcReportDocument({ report, tournament }) {
+  const grade = report.overall_performance || '—'
+
+  const Section = ({ title, children }) => (
+    <View>
+      <Text style={rcStyles.sectionTitle}>{title}</Text>
+      {children}
+    </View>
+  )
+
+  const Field = ({ label, value }) => {
+    if (!value || !String(value).trim()) return null
+    return (
+      <View>
+        <Text style={rcStyles.fieldLabel}>{label}</Text>
+        <Text style={rcStyles.fieldText}>{value}</Text>
+      </View>
+    )
+  }
+
+  return (
+    <Document>
+      <Page size="A4" style={rcStyles.page}>
+        <View style={rcStyles.header}>
+          <Text style={rcStyles.headerTitle}>RC POST-TOURNAMENT REPORT</Text>
+          <Text style={rcStyles.headerSubtitle}>
+            {tournament?.name || 'Tournament'} ·{' '}
+            {tournament?.start_date ? formatDate(tournament.start_date) : ''} →{' '}
+            {tournament?.end_date ? formatDate(tournament.end_date) : ''}
+          </Text>
+          <View style={rcStyles.headerAccent} />
+        </View>
+
+        {/* Tournament Context */}
+        <Section title="Tournament Context">
+          <View style={rcStyles.meta}>
+            <View style={rcStyles.metaItem}>
+              <Text style={rcStyles.metaLabel}>Tournament</Text>
+              <Text style={rcStyles.metaValue}>{tournament?.name || '—'}</Text>
+            </View>
+            <View style={rcStyles.metaItem}>
+              <Text style={rcStyles.metaLabel}>Location</Text>
+              <Text style={rcStyles.metaValue}>{tournament?.location || '—'}</Text>
+            </View>
+            <View style={rcStyles.metaItem}>
+              <Text style={rcStyles.metaLabel}>Dates</Text>
+              <Text style={rcStyles.metaValue}>
+                {tournament?.start_date ? formatDate(tournament.start_date) : '—'} →{' '}
+                {tournament?.end_date ? formatDate(tournament.end_date) : '—'}
+              </Text>
+            </View>
+            <View style={rcStyles.metaItem}>
+              <Text style={rcStyles.metaLabel}>Level</Text>
+              <Text style={rcStyles.metaValue}>{report.tournament_level || '—'}</Text>
+            </View>
+          </View>
+          <Field label="Weather Conditions" value={report.weather_conditions} />
+        </Section>
+
+        {/* Refereeing Team */}
+        <Section title="Refereeing Team">
+          <View style={rcStyles.inlineRow}>
+            <View style={rcStyles.inlineCell}>
+              <Text style={rcStyles.inlineLabel}>Total Refs</Text>
+              <Text style={rcStyles.inlineValue}>{report.total_referees ?? '—'}</Text>
+            </View>
+            <View style={rcStyles.inlineCell}>
+              <Text style={rcStyles.inlineLabel}>Level A</Text>
+              <Text style={rcStyles.inlineValue}>{report.referees_a_level ?? '—'}</Text>
+            </View>
+            <View style={rcStyles.inlineCell}>
+              <Text style={rcStyles.inlineLabel}>Level B</Text>
+              <Text style={rcStyles.inlineValue}>{report.referees_b_level ?? '—'}</Text>
+            </View>
+            <View style={rcStyles.inlineCell}>
+              <Text style={rcStyles.inlineLabel}>Level C</Text>
+              <Text style={rcStyles.inlineValue}>{report.referees_c_level ?? '—'}</Text>
+            </View>
+            <View style={rcStyles.inlineCell}>
+              <Text style={rcStyles.inlineLabel}>Personally Observed</Text>
+              <Text style={rcStyles.inlineValue}>{report.observed_count ?? '—'}</Text>
+            </View>
+          </View>
+        </Section>
+
+        {/* Overall Performance */}
+        <Section title="Overall Performance">
+          <View style={rcStyles.gradeBox}>
+            <Text style={rcStyles.gradeLabel}>Global Rating</Text>
+            <Text style={rcStyles.gradeValue}>{grade}</Text>
+          </View>
+          <Field label="Strengths Observed" value={report.strengths} />
+          <Field label="Areas for Improvement" value={report.areas_for_improvement} />
+        </Section>
+
+        {/* Highlights */}
+        <Section title="Individual Highlights">
+          <Field label="Top Performers" value={report.top_performers} />
+          <Field label="Referees Needing Follow-up" value={report.refs_needing_followup} />
+        </Section>
+
+        {/* Technical Issues */}
+        <Section title="Technical Aspects">
+          <Field label="Rules Application" value={report.rules_application} />
+          <Field label="Three-Step Protocol" value={report.three_step_protocol} />
+          <Field label="Signals Consistency" value={report.signals_consistency} />
+          <Field label="Captain Communication" value={report.captain_communication} />
+        </Section>
+
+        {/* Organizational */}
+        <Section title="Organizational Aspects">
+          <Field label="Court Conditions" value={report.court_conditions} />
+          <Field label="Equipment Quality" value={report.equipment_quality} />
+          <Field label="Scheduling" value={report.scheduling} />
+          <Field label="Hospitality" value={report.hospitality} />
+        </Section>
+
+        {/* Incidents */}
+        {(report.incidents || report.protests) && (
+          <Section title="Incidents & Protests">
+            <Field label="Notable Incidents" value={report.incidents} />
+            <Field label="Protests Lodged" value={report.protests} />
+          </Section>
+        )}
+
+        {/* Recommendations */}
+        <Section title="Recommendations">
+          <Field label="For the Referees" value={report.recs_referees} />
+          <Field label="For the Organizers" value={report.recs_organizers} />
+          <Field label="For the RC Commission" value={report.recs_rc_commission} />
+        </Section>
+
+        {/* Final Remarks */}
+        <Section title="Final Remarks">
+          <Field label="" value={report.final_remarks} />
+        </Section>
+
+        <View style={styles.footer}>
+          <View>
+            <Text style={[styles.footerText, styles.footerBold]}>
+              {report.rc_name || 'RC Nogara Christian'}
+            </Text>
+            <Text style={styles.footerText}>CEV Referee Coach</Text>
+          </View>
+          <Text style={styles.footerText}>
+            Report date: {report.report_date ? formatDate(report.report_date) : formatDate(new Date())}
+          </Text>
+        </View>
+      </Page>
+    </Document>
+  )
+}
+
+export async function generateRcReportPDF(report, tournament) {
+  const blob = await pdf(<RcReportDocument report={report} tournament={tournament} />).toBlob()
+  return blob
+}
+
+// ─── Tournament Evaluations Summary PDF ──────────────────────────────────────
+function EvaluationsSummaryDocument({ tournament, evaluations, refereeStats }) {
+  return (
+    <Document>
+      <Page size="A4" style={rcStyles.page}>
+        <View style={rcStyles.header}>
+          <Text style={rcStyles.headerTitle}>REFEREE EVALUATIONS SUMMARY</Text>
+          <Text style={rcStyles.headerSubtitle}>
+            {tournament?.name} · {tournament?.start_date && formatDate(tournament.start_date)}
+          </Text>
+          <View style={rcStyles.headerAccent} />
+        </View>
+
+        <Text style={rcStyles.sectionTitle}>Per-Referee Statistics</Text>
+        {refereeStats.map((r) => (
+          <View
+            key={r.refereeId}
+            style={{
+              flexDirection: 'row',
+              paddingVertical: 5,
+              borderBottomWidth: 0.5,
+              borderBottomColor: '#E5E7EB',
+              alignItems: 'center',
+            }}
+          >
+            <Text style={{ flex: 1, fontSize: 10, fontFamily: 'Helvetica-Bold' }}>
+              {r.name}
+            </Text>
+            <Text style={{ width: 50, fontSize: 9, color: MED_GRAY, textAlign: 'right' }}>
+              Lv.{r.level}
+            </Text>
+            <Text style={{ width: 40, fontSize: 9, color: MED_GRAY, textAlign: 'right' }}>
+              {r.count} eval{r.count !== 1 ? 's' : ''}
+            </Text>
+            <Text
+              style={{
+                width: 50,
+                fontSize: 11,
+                fontFamily: 'Helvetica-Bold',
+                color:
+                  r.avg >= 4 ? '#059669' : r.avg >= 3 ? '#CA8A04' : r.avg >= 2 ? '#EA580C' : '#DC2626',
+                textAlign: 'right',
+              }}
+            >
+              {r.avg?.toFixed(1)}/5
+            </Text>
+          </View>
+        ))}
+
+        <Text style={rcStyles.sectionTitle}>All Evaluations (chronological)</Text>
+        {evaluations.map((ev) => (
+          <View
+            key={ev.id}
+            style={{
+              flexDirection: 'row',
+              paddingVertical: 4,
+              borderBottomWidth: 0.5,
+              borderBottomColor: '#E5E7EB',
+              alignItems: 'center',
+            }}
+          >
+            <Text style={{ width: 60, fontSize: 8, color: MED_GRAY }}>
+              {ev.evaluated_at ? formatDate(ev.evaluated_at) : '—'}
+            </Text>
+            <Text style={{ flex: 1, fontSize: 9 }}>
+              {ev.referees ? refereeName(ev.referees) : '—'}
+            </Text>
+            <Text style={{ width: 30, fontSize: 8, color: MED_GRAY }}>{ev.role || ''}</Text>
+            <Text
+              style={{
+                width: 55,
+                fontSize: 9,
+                fontFamily: 'Helvetica-Bold',
+                textAlign: 'right',
+                color: ev.overall_score >= 3.5 ? '#059669' : ev.overall_score >= 2.5 ? '#CA8A04' : '#DC2626',
+              }}
+            >
+              {ev.overall_score?.toFixed(1)} {ev.grade}
+            </Text>
+          </View>
+        ))}
+
+        <View style={styles.footer}>
+          <View>
+            <Text style={[styles.footerText, styles.footerBold]}>RC Nogara Christian</Text>
+            <Text style={styles.footerText}>CEV Referee Coach</Text>
+          </View>
+          <Text style={styles.footerText}>Generated {formatDate(new Date())}</Text>
+        </View>
+      </Page>
+    </Document>
+  )
+}
+
+export async function generateEvaluationsSummaryPDF({ tournament, evaluations }) {
+  // Per-referee aggregation
+  const statsMap = {}
+  for (const ev of evaluations) {
+    const r = ev.referees
+    if (!r) continue
+    if (!statsMap[r.id]) {
+      statsMap[r.id] = {
+        refereeId: r.id,
+        name: refereeName(r),
+        level: r.ranking_level,
+        scores: [],
+      }
+    }
+    if (ev.overall_score != null) statsMap[r.id].scores.push(ev.overall_score)
+  }
+  const refereeStats = Object.values(statsMap)
+    .map((s) => ({
+      ...s,
+      count: s.scores.length,
+      avg: s.scores.length > 0 ? s.scores.reduce((a, b) => a + b, 0) / s.scores.length : 0,
+    }))
+    .sort((a, b) => b.avg - a.avg)
+
+  const blob = await pdf(
+    <EvaluationsSummaryDocument
+      tournament={tournament}
+      evaluations={evaluations}
+      refereeStats={refereeStats}
+    />
+  ).toBlob()
+  return blob
+}
+
 export async function generateDesignationPDF({
   tournament,
   dayNumber,

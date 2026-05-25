@@ -1,13 +1,9 @@
-import Anthropic from '@anthropic-ai/sdk'
 import { documentService } from './supabase'
 
-const client = new Anthropic({
-  apiKey: import.meta.env.VITE_ANTHROPIC_API_KEY,
-  dangerouslyAllowBrowser: true,
-})
-
+const API_KEY = import.meta.env.VITE_ANTHROPIC_API_KEY
+const API_URL = 'https://api.anthropic.com/v1/messages'
 const MODEL = 'claude-haiku-4-5'
-const MAX_DOC_CHUNK = 8000  // chars per document snippet in context
+const MAX_DOC_CHUNK = 8000
 
 const SYSTEM_PROMPT = `You are the official FIVB **Beach Volleyball** Referee Rules Assistant for the Belgian Beach Tour 2026, supporting Referee Coach Christian Nogara (Volley Vlaanderen / FWBV).
 
@@ -38,7 +34,6 @@ const SYSTEM_PROMPT = `You are the official FIVB **Beach Volleyball** Referee Ru
 - For borderline situations, explain the referee's judgment framework ("Call the obvious. When in doubt — do not call.").
 - Maintain impartiality and professionalism.`
 
-// ─── Web search tool (FIVB + CEV only) ──────────────────────────────────────
 const WEB_SEARCH_TOOL = {
   type: 'web_search_20250305',
   name: 'web_search',
@@ -49,11 +44,9 @@ const WEB_SEARCH_TOOL = {
 // ─── RAG: pull relevant document snippets ────────────────────────────────────
 async function buildRagContext(question) {
   try {
-    // Fetch all documents — small corpus, simple in-memory keyword scoring
     const { data: docs } = await documentService.getAll()
     if (!docs?.length) return ''
 
-    // Extract meaningful search terms
     const terms = question
       .toLowerCase()
       .replace(/[^a-z0-9\s]/g, ' ')
@@ -61,13 +54,11 @@ async function buildRagContext(question) {
       .filter((w) => w.length > 3)
 
     if (!terms.length) {
-      // No useful terms — return first chunks of every doc
       return docs
         .map((d) => `[${d.name}]\n${(d.content_text || '').substring(0, MAX_DOC_CHUNK)}`)
         .join('\n\n---\n\n')
     }
 
-    // Score each document by keyword frequency
     const scored = docs.map((d) => {
       const text = (d.content_text || '').toLowerCase()
       const score = terms.reduce(
@@ -77,7 +68,6 @@ async function buildRagContext(question) {
       return { ...d, score }
     })
 
-    // Take top-scoring docs (or all if low scores)
     const top = scored
       .sort((a, b) => b.score - a.score)
       .slice(0, 3)
@@ -85,12 +75,10 @@ async function buildRagContext(question) {
 
     if (!top.length) return ''
 
-    // For each top doc, extract the most relevant chunk around the first match
     return top
       .map((d) => {
         const text = d.content_text || ''
         const lower = text.toLowerCase()
-        // Find first occurrence of any term
         let bestIdx = -1
         for (const t of terms) {
           const idx = lower.indexOf(t)
@@ -107,7 +95,34 @@ async function buildRagContext(question) {
   }
 }
 
-// ─── Non-streaming version ────────────────────────────────────────────────────
+// ─── Anthropic API call via fetch (browser-safe) ─────────────────────────────
+async function callAnthropic(messages) {
+  const response = await fetch(API_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': API_KEY,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true',
+    },
+    body: JSON.stringify({
+      model: MODEL,
+      max_tokens: 1024,
+      system: SYSTEM_PROMPT,
+      tools: [WEB_SEARCH_TOOL],
+      messages,
+    }),
+  })
+
+  if (!response.ok) {
+    const errText = await response.text()
+    throw new Error(`Anthropic API ${response.status}: ${errText}`)
+  }
+
+  return response.json()
+}
+
+// ─── Public API ──────────────────────────────────────────────────────────────
 export async function askRulesAssistant(question, conversationHistory = []) {
   const context = await buildRagContext(question)
 
@@ -120,16 +135,10 @@ export async function askRulesAssistant(question, conversationHistory = []) {
     { role: 'user', content: userContent },
   ]
 
-  const response = await client.messages.create({
-    model: MODEL,
-    max_tokens: 1024,
-    system: SYSTEM_PROMPT,
-    tools: [WEB_SEARCH_TOOL],
-    messages,
-  })
+  const response = await callAnthropic(messages)
 
-  // Extract text blocks (web_search tool_use blocks are skipped automatically)
-  const textBlocks = response.content
+  // Extract text blocks (skip tool_use blocks from web_search)
+  const textBlocks = (response.content || [])
     .filter((b) => b.type === 'text')
     .map((b) => b.text)
     .join('\n')
@@ -137,33 +146,8 @@ export async function askRulesAssistant(question, conversationHistory = []) {
   return textBlocks
 }
 
-// ─── Streaming version (kept for compatibility) ──────────────────────────────
+// Streaming kept simple — non-streaming for now (Anthropic streaming via fetch needs SSE handling)
 export async function* askRulesAssistantStream(question, conversationHistory = []) {
-  const context = await buildRagContext(question)
-
-  const userContent = context
-    ? `RELEVANT RULES CONTEXT (from uploaded official documents — use FIRST):\n\n${context}\n\n---\n\nQUESTION: ${question}`
-    : `(No relevant document snippets found — you may use the web_search tool on fivb.com / cev.eu only.)\n\nQUESTION: ${question}`
-
-  const messages = [
-    ...conversationHistory,
-    { role: 'user', content: userContent },
-  ]
-
-  const stream = client.messages.stream({
-    model: MODEL,
-    max_tokens: 1024,
-    system: SYSTEM_PROMPT,
-    tools: [WEB_SEARCH_TOOL],
-    messages,
-  })
-
-  for await (const chunk of stream) {
-    if (
-      chunk.type === 'content_block_delta' &&
-      chunk.delta.type === 'text_delta'
-    ) {
-      yield chunk.delta.text
-    }
-  }
+  const text = await askRulesAssistant(question, conversationHistory)
+  yield text
 }

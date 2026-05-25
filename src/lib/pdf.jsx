@@ -607,10 +607,21 @@ const rcStyles = StyleSheet.create({
 })
 
 function RcReportDocument({ report, tournament }) {
-  const grade = report.overall_performance || '—'
+  // Map enum → display label
+  const RATING_LABEL = {
+    VERY_GOOD: 'Very Good',
+    GOOD: 'Good',
+    BAD: 'Bad',
+  }
+  const RATING_COLOR = {
+    VERY_GOOD: '#059669',
+    GOOD: '#2563EB',
+    BAD: '#DC2626',
+  }
+  const globalRating = RATING_LABEL[report.overall_performance] || '—'
 
   const Section = ({ title, children }) => (
-    <View>
+    <View wrap={false}>
       <Text style={rcStyles.sectionTitle}>{title}</Text>
       {children}
     </View>
@@ -620,11 +631,84 @@ function RcReportDocument({ report, tournament }) {
     if (!value || !String(value).trim()) return null
     return (
       <View>
-        <Text style={rcStyles.fieldLabel}>{label}</Text>
+        {label ? <Text style={rcStyles.fieldLabel}>{label}</Text> : null}
         <Text style={rcStyles.fieldText}>{value}</Text>
       </View>
     )
   }
+
+  const OrgRating = ({ label, value, note }) => {
+    if (!value) return null
+    const color = RATING_COLOR[value] || MED_GRAY
+    return (
+      <View style={{ marginTop: 6 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          <Text style={rcStyles.fieldLabel}>{label}</Text>
+          <View
+            style={{
+              backgroundColor: `${color}15`,
+              borderColor: color,
+              borderWidth: 0.8,
+              paddingHorizontal: 6,
+              paddingVertical: 1,
+              borderRadius: 3,
+              marginLeft: 4,
+              marginTop: -3,
+            }}
+          >
+            <Text style={{ color, fontSize: 8, fontFamily: 'Helvetica-Bold' }}>
+              {RATING_LABEL[value]}
+            </Text>
+          </View>
+        </View>
+        {value === 'BAD' && note ? (
+          <Text style={[rcStyles.fieldText, { fontStyle: 'italic', color: '#991B1B', marginTop: 2 }]}>
+            Note: {note}
+          </Text>
+        ) : null}
+      </View>
+    )
+  }
+
+  const RefereeRow = ({ entry }) => {
+    const r = entry.referee
+    const s = entry.summary
+    return (
+      <View
+        wrap={false}
+        style={{
+          flexDirection: 'row',
+          paddingVertical: 5,
+          paddingHorizontal: 8,
+          borderBottomWidth: 0.5,
+          borderBottomColor: '#E5E7EB',
+        }}
+      >
+        <View style={{ flex: 1 }}>
+          <Text style={{ fontSize: 10, fontFamily: 'Helvetica-Bold' }}>
+            {refereeName(r)}{' '}
+            <Text style={{ fontSize: 8, color: MED_GRAY, fontFamily: 'Helvetica' }}>
+              · Lv.{r.ranking_level}
+            </Text>
+          </Text>
+          {s ? (
+            <Text style={{ fontSize: 8.5, color: MED_GRAY, marginTop: 1 }}>
+              {s.count} evals · avg {s.avg?.toFixed(2) ?? '—'} · best {s.best?.toFixed(1) ?? '—'} · {s.repeatCount} repeat fault{s.repeatCount !== 1 ? 's' : ''}
+              {s.bestCriterion ? ` · ✓ ${s.bestCriterion.label}` : ''}
+              {s.worstCriterion ? ` · ⚠ ${s.worstCriterion.label}` : ''}
+            </Text>
+          ) : (
+            <Text style={{ fontSize: 8.5, fontStyle: 'italic', color: MED_GRAY, marginTop: 1 }}>
+              No evaluations recorded yet.
+            </Text>
+          )}
+        </View>
+      </View>
+    )
+  }
+
+  const topPerformers = report.top_performers_details || []
+  const followups = report.followup_referees_details || []
 
   return (
     <Document>
@@ -639,7 +723,7 @@ function RcReportDocument({ report, tournament }) {
           <View style={rcStyles.headerAccent} />
         </View>
 
-        {/* Tournament Context */}
+        {/* 1. Tournament Context */}
         <Section title="Tournament Context">
           <View style={rcStyles.meta}>
             <View style={rcStyles.metaItem}>
@@ -665,7 +749,7 @@ function RcReportDocument({ report, tournament }) {
           <Field label="Weather Conditions" value={report.weather_conditions} />
         </Section>
 
-        {/* Refereeing Team */}
+        {/* 2. Refereeing Team */}
         <Section title="Refereeing Team">
           <View style={rcStyles.inlineRow}>
             <View style={rcStyles.inlineCell}>
@@ -691,39 +775,54 @@ function RcReportDocument({ report, tournament }) {
           </View>
         </Section>
 
-        {/* Overall Performance */}
+        {/* 3. Overall Performance */}
         <Section title="Overall Performance">
           <View style={rcStyles.gradeBox}>
             <Text style={rcStyles.gradeLabel}>Global Rating</Text>
-            <Text style={rcStyles.gradeValue}>{grade}</Text>
+            <Text style={rcStyles.gradeValue}>{globalRating}</Text>
           </View>
           <Field label="Strengths Observed" value={report.strengths} />
           <Field label="Areas for Improvement" value={report.areas_for_improvement} />
         </Section>
 
-        {/* Highlights */}
+        {/* 4. Individual Highlights */}
         <Section title="Individual Highlights">
-          <Field label="Top Performers" value={report.top_performers} />
-          <Field label="Referees Needing Follow-up" value={report.refs_needing_followup} />
+          {topPerformers.length > 0 ? (
+            <>
+              <Text style={rcStyles.fieldLabel}>Top Performers</Text>
+              <View style={{ borderWidth: 0.5, borderColor: '#E5E7EB', borderRadius: 3, marginBottom: 6 }}>
+                {topPerformers.map((entry, i) => (
+                  <RefereeRow key={i} entry={entry} />
+                ))}
+              </View>
+            </>
+          ) : null}
+          {followups.length > 0 ? (
+            <>
+              <Text style={rcStyles.fieldLabel}>Referees Needing Follow-up</Text>
+              <View style={{ borderWidth: 0.5, borderColor: '#E5E7EB', borderRadius: 3, marginBottom: 6 }}>
+                {followups.map((entry, i) => (
+                  <RefereeRow key={i} entry={entry} />
+                ))}
+              </View>
+            </>
+          ) : null}
+          {topPerformers.length === 0 && followups.length === 0 && (
+            <Text style={[rcStyles.fieldText, { fontStyle: 'italic', color: MED_GRAY }]}>
+              No referees selected.
+            </Text>
+          )}
         </Section>
 
-        {/* Technical Issues */}
-        <Section title="Technical Aspects">
-          <Field label="Rules Application" value={report.rules_application} />
-          <Field label="Three-Step Protocol" value={report.three_step_protocol} />
-          <Field label="Signals Consistency" value={report.signals_consistency} />
-          <Field label="Captain Communication" value={report.captain_communication} />
-        </Section>
-
-        {/* Organizational */}
+        {/* 5. Organizational Aspects (with mandatory note when BAD) */}
         <Section title="Organizational Aspects">
-          <Field label="Court Conditions" value={report.court_conditions} />
-          <Field label="Equipment Quality" value={report.equipment_quality} />
-          <Field label="Scheduling" value={report.scheduling} />
-          <Field label="Hospitality" value={report.hospitality} />
+          <OrgRating label="Court Conditions"  value={report.court_conditions}  note={report.court_conditions_note} />
+          <OrgRating label="Equipment Quality" value={report.equipment_quality} note={report.equipment_quality_note} />
+          <OrgRating label="Scheduling"        value={report.scheduling}        note={report.scheduling_note} />
+          <OrgRating label="Hospitality"       value={report.hospitality}       note={report.hospitality_note} />
         </Section>
 
-        {/* Incidents */}
+        {/* 6. Incidents */}
         {(report.incidents || report.protests) && (
           <Section title="Incidents & Protests">
             <Field label="Notable Incidents" value={report.incidents} />
@@ -731,17 +830,19 @@ function RcReportDocument({ report, tournament }) {
           </Section>
         )}
 
-        {/* Recommendations */}
+        {/* 7. Recommendations */}
         <Section title="Recommendations">
           <Field label="For the Referees" value={report.recs_referees} />
           <Field label="For the Organizers" value={report.recs_organizers} />
           <Field label="For the RC Commission" value={report.recs_rc_commission} />
         </Section>
 
-        {/* Final Remarks */}
-        <Section title="Final Remarks">
-          <Field label="" value={report.final_remarks} />
-        </Section>
+        {/* 8. Final Remarks */}
+        {report.final_remarks?.trim() && (
+          <Section title="Final Remarks">
+            <Field label="" value={report.final_remarks} />
+          </Section>
+        )}
 
         <View style={styles.footer}>
           <View>

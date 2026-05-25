@@ -59,7 +59,7 @@ export function buildDesignationMessage({
 
   // Footer
   lines.push(`_Pattern: ${rotationPattern}_`)
-  lines.push(`_RC Christian Nogara — Volley Vlaanderen / FWBV_`)
+  lines.push(`_RC Nogara Christian — CEV Referee Coach_`)
 
   return lines.join('\n')
 }
@@ -96,7 +96,7 @@ export function buildPersonalMessage({ referee, tournament, dayNumber, assignmen
     .sort((a, b) => a.session_order - b.session_order)
 
   if (mine.length === 0) {
-    return `Hi ${name},\n\nYou are not assigned to any court today (${tournament.name} Day ${dayNumber}).\n\nRC Christian Nogara`
+    return `Hi ${name},\n\nYou are not assigned to any court today (${tournament.name} Day ${dayNumber}).\n\nRC Nogara Christian — CEV Referee Coach`
   }
 
   const lines = [
@@ -109,7 +109,7 @@ export function buildPersonalMessage({ referee, tournament, dayNumber, assignmen
   }
   lines.push('')
   lines.push('See you on court! 🏐')
-  lines.push('RC Christian Nogara')
+  lines.push('RC Nogara Christian — CEV Referee Coach')
 
   return lines.join('\n')
 }

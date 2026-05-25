@@ -332,10 +332,10 @@ function EvaluationDocument({ evaluation, referee, match, tournament }) {
         <View style={styles.footer}>
           <View>
             <Text style={[styles.footerText, styles.footerBold]}>
-              RC Christian Nogara
+              RC Nogara Christian
             </Text>
             <Text style={styles.footerText}>
-              Belgian Beach Volleyball Federation
+              CEV Referee Coach
             </Text>
           </View>
           <Text style={styles.footerText}>
@@ -524,10 +524,10 @@ function DesignationDocument({ tournament, dayNumber, assignmentsByCourt, rotati
         <View style={styles.footer}>
           <View>
             <Text style={[styles.footerText, styles.footerBold]}>
-              RC Christian Nogara
+              RC Nogara Christian
             </Text>
             <Text style={styles.footerText}>
-              Belgian Beach Volleyball Federation
+              CEV Referee Coach
             </Text>
           </View>
           <Text style={styles.footerText}>Generated {formatDate(new Date())}</Text>

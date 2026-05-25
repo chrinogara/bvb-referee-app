@@ -185,7 +185,7 @@ export default function Briefing() {
       lines.push('')
     }
     lines.push('')
-    lines.push(`— RC Christian Nogara · Generated ${formatDate(new Date())}`)
+    lines.push(`— RC Nogara Christian, CEV Referee Coach · Generated ${formatDate(new Date())}`)
 
     const blob = new Blob([lines.join('\n')], { type: 'text/plain' })
     const url = URL.createObjectURL(blob)

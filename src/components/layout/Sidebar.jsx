@@ -97,8 +97,8 @@ export function Sidebar() {
           <div className="text-[10px] text-gray-500 uppercase tracking-wide mb-0.5">
             Referee Coach
           </div>
-          <div className="text-sm font-semibold text-gray-900">Christian Nogara</div>
-          <div className="text-xs text-gray-500">Volley Vlaanderen / FWBV</div>
+          <div className="text-sm font-semibold text-gray-900">RC Nogara Christian</div>
+          <div className="text-xs text-gray-500">CEV Referee Coach</div>
         </div>
       </aside>
     </>

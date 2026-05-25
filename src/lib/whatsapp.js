@@ -21,11 +21,11 @@ export function buildDesignationMessage({
   const lines = []
 
   // Header
-  if (isUpdate) lines.push('🔄 *UPDATED DESIGNATIONS*')
-  lines.push(`🏐 *BVB Referee Designations*`)
+  if (isUpdate) lines.push('*[UPDATED] BVB REFEREE ASSIGNMENTS*')
+  else lines.push('*BVB Referee Assignments*')
   lines.push(`*${tournament?.name || 'Tournament'}* — Day ${dayNumber}`)
   if (tournament?.start_date) {
-    lines.push(`📅 ${formatDate(tournament.start_date)}`)
+    lines.push(`Date: ${formatDate(tournament.start_date)}`)
   }
   lines.push('')
 
@@ -51,7 +51,7 @@ export function buildDesignationMessage({
     )
     for (const s of sessions) {
       const name = s.referees ? refereeName(s.referees) : '—'
-      const roleLabel = s.role === 'PAUSE' ? '⏸ Pause' : s.role
+      const roleLabel = s.role === 'PAUSE' ? 'PAUSE' : s.role
       lines.push(`  M${s.session_order}: ${name} (${roleLabel})`)
     }
     lines.push('')
@@ -104,11 +104,11 @@ export function buildPersonalMessage({ referee, tournament, dayNumber, assignmen
     '',
   ]
   for (const a of mine) {
-    const roleLabel = a.role === 'PAUSE' ? '⏸ Pause' : a.role
+    const roleLabel = a.role === 'PAUSE' ? 'PAUSE' : a.role
     lines.push(`• M${a.session_order} → ${a.court} (${roleLabel})`)
   }
   lines.push('')
-  lines.push('See you on court! 🏐')
+  lines.push('See you on court!')
   lines.push('RC Nogara Christian — CEV Referee Coach')
 
   return lines.join('\n')

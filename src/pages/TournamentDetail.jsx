@@ -21,7 +21,7 @@ import { Modal } from '../components/ui/Modal'
 import { useTournaments, useTournamentReferees } from '../hooks/useTournaments'
 import { useReferees } from '../hooks/useReferees'
 import { useEvaluations } from '../hooks/useEvaluations'
-import { matchService } from '../lib/supabase'
+import { matchService, courtAssignmentService } from '../lib/supabase'
 import {
   cn,
   formatDate,
@@ -68,7 +68,7 @@ function formatDateRange(start, end) {
 
 // ─── Tab bar ──────────────────────────────────────────────────────────────────
 
-const TABS = ['Overview', 'Referees', 'Matches', 'Evaluations']
+const TABS = ['Overview', 'Referees', 'Courts', 'Evaluations']
 
 function TabBar({ active, onChange }) {
   return (
@@ -147,8 +147,8 @@ function OverviewTab({ tournament, refereesCount, matchesCount, evaluationsCount
 
       {/* Mini stats */}
       <div className="grid grid-cols-3 gap-3">
-        <StatCard label="Referees" value={refereesCount} color="text-blue-400" />
-        <StatCard label="Matches" value={matchesCount} color="text-emerald-400" />
+        <StatCard label="Referees" value={refereesCount} color="text-blue-600" />
+        <StatCard label="Assignments" value={matchesCount} color="text-emerald-600" />
         <StatCard label="Evaluations" value={evaluationsCount} color="text-[#E85D26]" />
       </div>
 
@@ -524,104 +524,189 @@ function MatchCard({ match }) {
   )
 }
 
-function MatchesTab({ tournamentId }) {
-  const [matches, setMatches] = useState([])
+// ─── COURTS TAB (read-only summary of assignments per day + link) ────────────
+function CourtsTab({ tournament }) {
+  const tournamentId = tournament.id
+  const [assignments, setAssignments] = useState([])
   const [loading, setLoading] = useState(true)
-  const [showAdd, setShowAdd] = useState(false)
-  const [filter, setFilter] = useState('All')
+  const [dayNumber, setDayNumber] = useState(1)
+
+  // Tournament config
+  const courts = useMemo(() => {
+    if (Array.isArray(tournament.courts) && tournament.courts.length > 0) return tournament.courts
+    return ['Court 1', 'Court 2', 'Court 3', 'Court 4']
+  }, [tournament])
+
+  const rotationPattern = tournament.rotation_pattern || 'M1-M2-PAUSE-M3'
+  const sessions = useMemo(
+    () => rotationPattern.split('-').map((t) => t.trim().toUpperCase()),
+    [rotationPattern]
+  )
+
+  const dayOptions = useMemo(() => {
+    const days =
+      Math.ceil(
+        (new Date(tournament.end_date) - new Date(tournament.start_date)) / 86400000
+      ) + 1
+    return Array.from({ length: Math.max(1, days) }, (_, i) => i + 1)
+  }, [tournament])
 
   useEffect(() => {
     if (!tournamentId) return
     setLoading(true)
-    matchService.getByTournament(tournamentId).then(({ data }) => {
-      setMatches(data || [])
-      setLoading(false)
-    })
-  }, [tournamentId])
-
-  // Build filter options: All + days + series + genders
-  const days = useMemo(() => {
-    const d = [...new Set(matches.map((m) => m.day_number).filter(Boolean))].sort()
-    return d.map((n) => `Day ${n}`)
-  }, [matches])
-
-  const filterOptions = ['All', ...days, 'PRO', 'CHALLENGE', 'M', 'F']
-
-  const filtered = useMemo(() => {
-    if (filter === 'All') return matches
-    if (filter.startsWith('Day ')) {
-      const day = parseInt(filter.replace('Day ', ''), 10)
-      return matches.filter((m) => m.day_number === day)
-    }
-    if (filter === 'M' || filter === 'F') return matches.filter((m) => m.gender === filter)
-    return matches.filter((m) => m.series === filter)
-  }, [matches, filter])
+    courtAssignmentService
+      .getByDay(tournamentId, dayNumber)
+      .then(({ data }) => {
+        setAssignments(data || [])
+        setLoading(false)
+      })
+  }, [tournamentId, dayNumber])
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Header row */}
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-gray-500">{filtered.length} match{filtered.length !== 1 ? 'es' : ''}</p>
-        <Button size="sm" onClick={() => setShowAdd(true)}>
-          <Plus size={14} />
-          Add Match
-        </Button>
+      {/* Info banner */}
+      <Card>
+        <CardBody className="flex items-start gap-3 text-sm">
+          <div className="w-9 h-9 rounded-xl bg-[#E85D26]/10 flex items-center justify-center shrink-0">
+            <Users size={16} className="text-[#E85D26]" />
+          </div>
+          <div className="flex-1">
+            <p className="font-semibold text-gray-900">Courts &amp; Rotation</p>
+            <p className="text-xs text-gray-500 mt-0.5">
+              Referees are assigned to <strong>courts</strong> (not individual matches),
+              following the <strong className="text-[#2D3270]">{rotationPattern}</strong> rotation.
+            </p>
+          </div>
+          <Link
+            to={`/assignments?tournamentId=${tournamentId}`}
+            className="shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-lg bg-[#E85D26] text-white text-xs font-semibold hover:bg-[#C44D1E] transition-colors"
+          >
+            Manage
+            <ChevronRight size={12} />
+          </Link>
+        </CardBody>
+      </Card>
+
+      {/* Courts config preview */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        {courts.map((c) => (
+          <div
+            key={c}
+            className="flex items-center gap-2 px-3 py-2 rounded-xl border border-gray-200 bg-white text-xs"
+          >
+            <MapPin size={12} className="text-[#E85D26]" />
+            <span className="font-semibold text-gray-900">{c}</span>
+          </div>
+        ))}
       </div>
 
-      {/* Filter chips */}
+      {/* Day selector */}
       <div className="flex gap-2 flex-wrap">
-        {filterOptions.map((opt) => (
+        {dayOptions.map((d) => (
           <button
-            key={opt}
-            onClick={() => setFilter(opt)}
+            key={d}
+            onClick={() => setDayNumber(d)}
             className={cn(
-              'px-3 py-1 rounded-full text-xs font-medium transition-colors border',
-              filter === opt
-                ? 'bg-[#E85D26] border-[#E85D26] text-white'
-                : 'bg-white border-gray-200 text-gray-500 hover:border-gray-300 hover:text-gray-700'
+              'px-3 py-1.5 rounded-full text-xs font-medium transition-colors border',
+              dayNumber === d
+                ? 'bg-[#2D3270] border-[#2D3270] text-white'
+                : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300 hover:text-gray-900'
             )}
           >
-            {opt}
+            Day {d}
           </button>
         ))}
       </div>
 
-      {loading && (
-        <div className="flex flex-col gap-2">
-          {[1, 2, 3].map((i) => (
-            <div key={i} className="h-20 rounded-xl bg-white animate-pulse" />
-          ))}
-        </div>
-      )}
-
-      {!loading && filtered.length === 0 && (
-        <div className="flex flex-col items-center justify-center py-16 text-center gap-3">
-          <p className="text-sm text-gray-500">
-            {matches.length === 0 ? 'No matches scheduled yet.' : 'No matches for this filter.'}
-          </p>
-          {matches.length === 0 && (
-            <Button size="sm" onClick={() => setShowAdd(true)}>
-              <Plus size={14} />
-              Add Match
-            </Button>
+      {/* Assignments grid (read-only preview) */}
+      <Card>
+        <CardHeader className="flex items-center justify-between">
+          <CardTitle>Day {dayNumber} — assignments</CardTitle>
+          <span className="text-xs text-gray-500">
+            {assignments.length} slot{assignments.length !== 1 ? 's' : ''} filled
+          </span>
+        </CardHeader>
+        <CardBody className="overflow-x-auto">
+          {loading ? (
+            <div className="text-sm text-gray-500 text-center py-6">Loading…</div>
+          ) : (
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-gray-200">
+                  <th className="text-left text-[10px] font-bold uppercase tracking-wider text-gray-500 py-2 pl-2">
+                    Court
+                  </th>
+                  {sessions.map((t, i) => (
+                    <th
+                      key={i}
+                      className={cn(
+                        'text-left text-[10px] font-bold uppercase tracking-wider py-2 px-2',
+                        t === 'PAUSE' ? 'text-amber-600' : 'text-gray-500'
+                      )}
+                    >
+                      {t === 'PAUSE' ? '⏸ Pause' : `M${i + 1}`}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {courts.map((court) => (
+                  <tr key={court} className="border-b border-gray-100">
+                    <td className="py-2 pl-2 font-semibold text-gray-900 text-xs">{court}</td>
+                    {sessions.map((t, i) => {
+                      if (t === 'PAUSE') {
+                        return (
+                          <td key={i} className="py-2 px-2 text-amber-600/60 italic text-xs">
+                            —
+                          </td>
+                        )
+                      }
+                      const a = assignments.find(
+                        (x) => x.court === court && x.session_order === i + 1
+                      )
+                      const ref = a?.referees
+                      return (
+                        <td key={i} className="py-2 px-2">
+                          {ref ? (
+                            <span className="inline-flex items-center gap-1 text-xs">
+                              <span className="font-medium text-gray-900">{ref.last_name}</span>
+                              <span className="text-[9px] text-gray-500">Lv.{ref.ranking_level}</span>
+                            </span>
+                          ) : (
+                            <span className="text-xs text-gray-400">—</span>
+                          )}
+                        </td>
+                      )
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           )}
-        </div>
-      )}
 
-      {!loading && filtered.length > 0 && (
-        <div className="flex flex-col gap-2">
-          {filtered.map((m) => (
-            <MatchCard key={m.id} match={m} />
-          ))}
-        </div>
-      )}
+          {!loading && assignments.length === 0 && (
+            <div className="text-center py-6">
+              <p className="text-sm text-gray-500 mb-2">No assignments yet for Day {dayNumber}.</p>
+              <Link
+                to={`/assignments?tournamentId=${tournamentId}`}
+                className="inline-flex items-center gap-1 text-xs text-[#E85D26] hover:underline font-semibold"
+              >
+                Open Assignments to check-in referees and auto-assign
+                <ChevronRight size={12} />
+              </Link>
+            </div>
+          )}
+        </CardBody>
+      </Card>
 
-      <AddMatchModal
-        open={showAdd}
-        onClose={() => setShowAdd(false)}
-        tournamentId={tournamentId}
-        onCreated={(m) => setMatches((prev) => [...prev, m])}
-      />
+      {/* CTA full workflow */}
+      <Link
+        to={`/assignments?tournamentId=${tournamentId}`}
+        className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-[#E85D26]/30 bg-orange-50 text-[#E85D26] text-sm font-semibold hover:bg-orange-100 transition-colors"
+      >
+        Manage assignments interactively
+        <ChevronRight size={14} />
+      </Link>
     </div>
   )
 }
@@ -746,11 +831,18 @@ export default function TournamentDetail() {
 
   const tournament = tournaments.find((t) => String(t.id) === String(id))
 
-  // Match count state
-  const [matchCount, setMatchCount] = useState(0)
+  // Court-assignment count (across all days)
+  const [assignmentCount, setAssignmentCount] = useState(0)
   useEffect(() => {
     if (!id) return
-    matchService.getByTournament(id).then(({ data }) => setMatchCount((data || []).length))
+    // Aggregate across days — query without day filter via base service
+    import('../lib/supabase').then(({ supabase }) => {
+      supabase
+        .from('court_assignments')
+        .select('id', { count: 'exact', head: true })
+        .eq('tournament_id', id)
+        .then(({ count }) => setAssignmentCount(count || 0))
+    })
   }, [id])
 
   if (tLoading) {
@@ -793,7 +885,7 @@ export default function TournamentDetail() {
           <OverviewTab
             tournament={tournament}
             refereesCount={assigned.length}
-            matchesCount={matchCount}
+            matchesCount={assignmentCount}
             evaluationsCount={evaluations.length}
             onUpdate={update}
           />
@@ -809,8 +901,8 @@ export default function TournamentDetail() {
           />
         )}
 
-        {activeTab === 'Matches' && (
-          <MatchesTab tournamentId={id} />
+        {activeTab === 'Courts' && (
+          <CourtsTab tournament={tournament} />
         )}
 
         {activeTab === 'Evaluations' && (

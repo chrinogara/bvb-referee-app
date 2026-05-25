@@ -46,18 +46,28 @@ function CourtCanvas({ court, assignments, liveMatch, onToggleMatch, onEditStart
 
   return (
     <Card className="overflow-hidden">
-      {/* Header: court name + status */}
+      {/* Header: court name + status LED */}
       <div className={cn(
         'flex items-center justify-between px-4 py-2.5 border-b border-gray-200',
         isActive ? 'bg-emerald-50' : 'bg-gray-50'
       )}>
         <div className="flex items-center gap-2">
           <span className="text-sm font-bold text-gray-900">{court}</span>
-          {isActive && (
+          {isActive ? (
             <span className="relative flex items-center gap-1">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              <span className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider">
-                Live
+              <span className="relative flex w-2.5 h-2.5">
+                <span className="absolute inline-flex w-full h-full rounded-full bg-emerald-400 opacity-75 animate-ping" />
+                <span className="relative inline-flex w-2.5 h-2.5 rounded-full bg-emerald-500" />
+              </span>
+              <span className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider ml-0.5">
+                LIVE
+              </span>
+            </span>
+          ) : (
+            <span className="flex items-center gap-1">
+              <span className="w-2.5 h-2.5 rounded-full bg-red-500" />
+              <span className="text-[10px] font-bold text-red-600 uppercase tracking-wider">
+                IDLE
               </span>
             </span>
           )}
@@ -70,19 +80,16 @@ function CourtCanvas({ court, assignments, liveMatch, onToggleMatch, onEditStart
         )}
       </div>
 
-      {/* The court itself */}
-      <div className="relative bg-gradient-to-br from-[#F4DEB3] to-[#E8C988] p-3 sm:p-4 aspect-[1/1.4]">
-        {/* SVG court — 8m wide × 16m long (1:2 ratio, scaled) */}
+      {/* Court area — with internal padding so pins stay INSIDE the card boundary */}
+      <div className="relative bg-gradient-to-br from-[#F4DEB3] to-[#E8C988] aspect-[1/1.35] overflow-hidden">
+        {/* SVG court — sits in the centre with ~15% margin on every side for pin space */}
         <svg
           viewBox="0 0 100 200"
-          className="absolute inset-3 sm:inset-4 w-[calc(100%-1.5rem)] sm:w-[calc(100%-2rem)] h-[calc(100%-1.5rem)] sm:h-[calc(100%-2rem)]"
+          className="absolute top-[8%] left-[15%] w-[70%] h-[84%]"
           preserveAspectRatio="none"
         >
-          {/* Court boundary */}
           <rect x="2" y="2" width="96" height="196" fill="none" stroke="#1E3A8A" strokeWidth="1.2" />
-          {/* Net (the horizontal line in the middle) */}
           <line x1="0" y1="100" x2="100" y2="100" stroke="#1E3A8A" strokeWidth="2.2" />
-          {/* Net pattern (vertical stripes) */}
           {[...Array(16)].map((_, i) => (
             <line
               key={i}
@@ -95,56 +102,52 @@ function CourtCanvas({ court, assignments, liveMatch, onToggleMatch, onEditStart
               opacity="0.6"
             />
           ))}
-          {/* Net posts */}
           <circle cx="2" cy="100" r="2" fill="#1E3A8A" />
           <circle cx="98" cy="100" r="2" fill="#1E3A8A" />
-          {/* Side labels (subtle) */}
-          <text x="50" y="30" textAnchor="middle" fontSize="6" fill="#1E3A8A" opacity="0.25" fontFamily="monospace">
+          <text x="50" y="28" textAnchor="middle" fontSize="6" fill="#1E3A8A" opacity="0.22" fontFamily="monospace">
             SIDE A
           </text>
-          <text x="50" y="178" textAnchor="middle" fontSize="6" fill="#1E3A8A" opacity="0.25" fontFamily="monospace">
+          <text x="50" y="178" textAnchor="middle" fontSize="6" fill="#1E3A8A" opacity="0.22" fontFamily="monospace">
             SIDE B
           </text>
         </svg>
 
-        {/* Referee position pins (absolute %) */}
-        {/* LJ1 — top-left corner outside */}
+        {/* Referee pins — positioned inside the sand area but outside the SVG court */}
+        {/* LJ1 — top-left corner (just outside top-left of SVG court) */}
         <RefereePin
-          ref={lj1}
+          referee={lj1}
           ranking={lj1 && rankingById[lj1.referee_id]}
           role="LJ1"
-          style={{ top: '2%', left: '2%' }}
-          flag="↖"
-          colorClass="bg-cyan-100 border-cyan-400 text-cyan-800"
+          style={{ top: '5%', left: '5%' }}
+          colorClass="bg-cyan-100 border-cyan-500 text-cyan-800"
         />
-        {/* R1 — on chair at net, top side (above net) */}
+        {/* R1 — net level, RIGHT side (chair) */}
         <RefereePin
-          ref={r1}
+          referee={r1}
           ranking={r1 && rankingById[r1.referee_id]}
           role="R1"
-          style={{ top: '45%', right: '-12px' }}
-          flag="▲"
+          style={{ top: '50%', right: '4%' }}
           colorClass="bg-purple-100 border-purple-500 text-purple-800"
+          anchor="right"
           big
         />
-        {/* R2 — on ground at net, bottom side (below net) */}
+        {/* R2 — net level, LEFT side (ground) */}
         <RefereePin
-          ref={r2}
+          referee={r2}
           ranking={r2 && rankingById[r2.referee_id]}
           role="R2"
-          style={{ top: '49%', left: '-12px' }}
-          flag="▼"
+          style={{ top: '50%', left: '4%' }}
           colorClass="bg-blue-100 border-blue-500 text-blue-800"
+          anchor="left"
           big
         />
-        {/* LJ2 — bottom-right corner outside */}
+        {/* LJ2 — bottom-right corner (diagonal of LJ1) */}
         <RefereePin
-          ref={lj2}
+          referee={lj2}
           ranking={lj2 && rankingById[lj2.referee_id]}
           role="LJ2"
-          style={{ bottom: '2%', right: '2%' }}
-          flag="↘"
-          colorClass="bg-cyan-100 border-cyan-400 text-cyan-800"
+          style={{ bottom: '5%', right: '5%' }}
+          colorClass="bg-cyan-100 border-cyan-500 text-cyan-800"
         />
       </div>
 
@@ -179,44 +182,60 @@ function CourtCanvas({ court, assignments, liveMatch, onToggleMatch, onEditStart
 }
 
 // ─── Referee pin (positioned absolutely on the court) ────────────────────────
-function RefereePin({ ref, ranking, role, style, flag, colorClass, big = false }) {
+function RefereePin({ referee, ranking, role, style, colorClass, big = false, anchor }) {
   const isLow = ranking?.avg_score != null && ranking.avg_score < 3.0
-  if (!ref) {
+  // anchor: which side the style coordinate is anchored to (so we know
+  // how to NOT use transform that would push the pin out)
+  const sizeClass = big ? 'w-9 h-9 text-[10px]' : 'w-7 h-7 text-[9px]'
+
+  if (!referee) {
     return (
       <div
-        className={cn(
-          'absolute flex items-center justify-center rounded-full',
-          'bg-white/60 border-2 border-dashed border-gray-400 text-gray-400',
-          'text-[8px] font-semibold',
-          big ? 'w-7 h-7' : 'w-6 h-6'
-        )}
+        className="absolute flex flex-col items-center gap-0.5"
         style={style}
       >
-        {role}
+        <div
+          className={cn(
+            'flex items-center justify-center rounded-full',
+            'bg-white/70 border-2 border-dashed border-gray-400 text-gray-500',
+            'font-semibold',
+            sizeClass
+          )}
+        >
+          {role}
+        </div>
       </div>
     )
   }
+
+  const name = referee.referees
+    ? `${referee.referees.first_name?.[0] || ''}${referee.referees.last_name?.[0] || ''}`
+    : '??'
+  const lastName = referee.referees?.last_name || ''
+
   return (
-    <div
-      className="absolute"
-      style={{ ...style, transform: 'translate(-50%, -50%)' }}
-    >
+    <div className="absolute" style={style}>
       <div className="flex flex-col items-center gap-0.5">
         <div
           className={cn(
             'flex items-center justify-center rounded-full border-2 font-bold shadow-md',
-            big ? 'w-9 h-9 text-[10px]' : 'w-7 h-7 text-[9px]',
+            sizeClass,
             isLow ? 'bg-red-100 border-red-500 text-red-800 ring-2 ring-red-300' : colorClass
           )}
-          title={`${role}: ${ref.referees ? refereeName(ref.referees) : '—'}${
+          title={`${role}: ${referee.referees ? refereeName(referee.referees) : '—'}${
             ranking?.avg_score != null ? ` · avg ${ranking.avg_score.toFixed(1)}` : ''
           }`}
         >
-          {refereeInitials(ref.referees) || role}
+          {name}
         </div>
-        <div className="bg-white/95 px-1 py-px rounded text-[9px] font-medium text-gray-700 shadow-sm whitespace-nowrap leading-none">
+        <div className="bg-white/95 px-1 py-px rounded text-[9px] font-bold text-gray-700 shadow-sm whitespace-nowrap leading-none">
           {role}
         </div>
+        {lastName && (
+          <div className="bg-white/90 px-1 rounded text-[8px] text-gray-600 shadow-sm whitespace-nowrap leading-tight max-w-[60px] truncate">
+            {lastName}
+          </div>
+        )}
       </div>
     </div>
   )
@@ -337,7 +356,7 @@ export default function LiveCourts() {
         (l) => l.court === court && l.session_order === sessionOrder
       )
       if (start) {
-        await liveMatchService.startMatch({
+        const { data, error } = await liveMatchService.startMatch({
           tournamentId,
           dayNumber,
           court,
@@ -345,15 +364,28 @@ export default function LiveCourts() {
           startTime: new Date().toISOString(),
           isTest: sandboxMode,
         })
+        if (error) {
+          console.error('[startMatch error]', error)
+          toast.error(`Start failed: ${error.message}`)
+          return
+        }
         toast.success(`${court} match started`)
       } else if (existing) {
-        await liveMatchService.stopMatch(existing.id)
+        const { error } = await liveMatchService.stopMatch(existing.id)
+        if (error) {
+          console.error('[stopMatch error]', error)
+          toast.error(`Stop failed: ${error.message}`)
+          return
+        }
         toast(`${court} match stopped`, 'info')
+      } else {
+        toast.error('No active match to stop')
+        return
       }
       await loadData()
     } catch (err) {
-      console.error(err)
-      toast.error('Action failed')
+      console.error('[handleToggleMatch exception]', err)
+      toast.error(`Action failed: ${err.message || 'Unknown error'}`)
     }
   }
 

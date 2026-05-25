@@ -43,7 +43,7 @@ export function ScoreBars({ score, maxScore = 5, className }) {
 
   return (
     <div className={cn('flex items-center gap-2', className)}>
-      <div className="flex-1 h-1.5 bg-white/10 rounded-full overflow-hidden">
+      <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
         <div className={cn('h-full rounded-full transition-all', color)} style={{ width: `${pct}%` }} />
       </div>
       <span className={cn('text-xs font-mono font-bold w-7 text-right', scoreColor(score))}>

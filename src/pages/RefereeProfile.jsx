@@ -91,7 +91,7 @@ function CriterionBar({ label, score, weight }) {
   return (
     <div className="space-y-1">
       <div className="flex items-center justify-between text-xs">
-        <span className="text-gray-400 truncate pr-2">{label}</span>
+        <span className="text-gray-500 truncate pr-2">{label}</span>
         <div className="flex items-center gap-2 shrink-0">
           <span className="text-gray-600">{weight}%</span>
           <span className={cn('font-bold w-8 text-right', scoreColor(score))}>
@@ -99,7 +99,7 @@ function CriterionBar({ label, score, weight }) {
           </span>
         </div>
       </div>
-      <div className="h-2 bg-white/8 rounded-full overflow-hidden">
+      <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
         <div
           className={cn('h-full rounded-full transition-all', barColor)}
           style={{ width: `${pct}%` }}
@@ -337,7 +337,7 @@ export default function RefereeProfile() {
         />
         <div className="p-4 space-y-4">
           {Array.from({ length: 3 }).map((_, i) => (
-            <div key={i} className="bg-gray-900 border border-white/10 rounded-xl h-24 animate-pulse" />
+            <div key={i} className="bg-white border border-gray-200 rounded-xl h-24 animate-pulse" />
           ))}
         </div>
       </div>
@@ -350,7 +350,7 @@ export default function RefereeProfile() {
         <Header title="Not Found" />
         <div className="flex flex-col items-center justify-center flex-1 gap-3 text-center p-8">
           <User size={40} className="text-gray-700" />
-          <p className="text-sm text-gray-400">Referee not found.</p>
+          <p className="text-sm text-gray-500">Referee not found.</p>
           <Button variant="outline" size="sm" onClick={() => navigate('/referees')}>
             <ArrowLeft size={14} /> Back to Referees
           </Button>
@@ -396,7 +396,7 @@ export default function RefereeProfile() {
 
             <div className="flex-1 min-w-0 space-y-2">
               <div>
-                <h2 className="text-base font-bold text-white">{refereeName(referee)}</h2>
+                <h2 className="text-base font-bold text-gray-900">{refereeName(referee)}</h2>
                 <p className="text-xs text-gray-500 mt-0.5">
                   {referee.gender === 'M' ? 'Male' : 'Female'} · Joined{' '}
                   {referee.created_at
@@ -420,7 +420,7 @@ export default function RefereeProfile() {
               </div>
 
               {referee.notes && (
-                <p className="text-xs text-gray-400 bg-white/5 rounded-lg px-3 py-2 border border-white/8">
+                <p className="text-xs text-gray-500 bg-gray-50 rounded-lg px-3 py-2 border border-white/8">
                   {referee.notes}
                 </p>
               )}
@@ -465,7 +465,7 @@ export default function RefereeProfile() {
               >
                 <s.icon
                   size={16}
-                  className={s.warn ? 'text-orange-400' : 'text-[#7B85C9]'}
+                  className={s.warn ? 'text-orange-400' : 'text-[#2D3270]'}
                 />
               </div>
               <div className="min-w-0">
@@ -474,7 +474,7 @@ export default function RefereeProfile() {
                 </p>
                 <p
                   className={cn(
-                    'font-bold text-white mt-0.5',
+                    'font-bold text-gray-900 mt-0.5',
                     s.small ? 'text-xs' : 'text-lg',
                     s.warn && totalRepeatFaults > 0 && 'text-orange-400'
                   )}
@@ -491,7 +491,7 @@ export default function RefereeProfile() {
           <Card>
             <CardHeader>
               <div className="flex items-center gap-2">
-                <Activity size={15} className="text-[#7B85C9]" />
+                <Activity size={15} className="text-[#2D3270]" />
                 <CardTitle>Performance by Criterion</CardTitle>
               </div>
             </CardHeader>
@@ -515,7 +515,7 @@ export default function RefereeProfile() {
         <Card>
           <CardHeader className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <ClipboardList size={15} className="text-[#7B85C9]" />
+              <ClipboardList size={15} className="text-[#2D3270]" />
               <CardTitle>Evaluation History</CardTitle>
             </div>
             <div className="flex items-center gap-2">
@@ -535,7 +535,7 @@ export default function RefereeProfile() {
           {evalLoading ? (
             <CardBody className="space-y-2">
               {Array.from({ length: 3 }).map((_, i) => (
-                <div key={i} className="h-16 bg-white/5 rounded-xl animate-pulse" />
+                <div key={i} className="h-16 bg-gray-50 rounded-xl animate-pulse" />
               ))}
             </CardBody>
           ) : sortedEvals.length === 0 ? (
@@ -545,7 +545,7 @@ export default function RefereeProfile() {
               </div>
             </CardBody>
           ) : (
-            <div className="divide-y divide-white/5">
+            <div className="divide-y divide-gray-100">
               {sortedEvals.map((ev) => {
                 const grade = getGrade(ev.overall_score)
                 const repeatWarning = hasRepeat(ev)
@@ -561,7 +561,7 @@ export default function RefereeProfile() {
                             {formatDate(ev.match_date)}
                           </span>
                           {ev.tournaments?.name && (
-                            <span className="text-xs text-gray-400 bg-white/8 px-2 py-0.5 rounded-full truncate max-w-[130px]">
+                            <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full truncate max-w-[130px]">
                               {ev.tournaments.name}
                             </span>
                           )}
@@ -639,7 +639,7 @@ export default function RefereeProfile() {
                               'flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs',
                               isRepeat
                                 ? 'bg-orange-500/10 border border-orange-500/20'
-                                : 'bg-white/5'
+                                : 'bg-gray-50'
                             )}
                           >
                             <span className="text-gray-500 text-[10px] uppercase tracking-wide">

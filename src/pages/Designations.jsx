@@ -54,13 +54,13 @@ function RefereeChip({ referee, present, onToggle, riskScore }) {
         'relative flex items-center gap-2 px-3 py-2 rounded-xl border text-sm transition-all duration-150',
         present
           ? 'bg-emerald-500/15 border-emerald-500/40 text-white'
-          : 'bg-white/5 border-white/10 text-gray-400 hover:border-white/25'
+          : 'bg-gray-50 border-gray-200 text-gray-500 hover:border-gray-400'
       )}
     >
       <div
         className={cn(
           'w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0',
-          present ? 'bg-emerald-500/30 text-emerald-300' : 'bg-white/10 text-gray-500'
+          present ? 'bg-emerald-500/30 text-emerald-300' : 'bg-gray-100 text-gray-500'
         )}
       >
         {refereeInitials(referee)}
@@ -83,7 +83,7 @@ function RefereeChip({ referee, present, onToggle, riskScore }) {
           title={`Low avg score: ${riskScore.toFixed(1)}`}
           className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-red-500 flex items-center justify-center"
         >
-          <AlertTriangle size={9} className="text-white" />
+          <AlertTriangle size={9} className="text-gray-900" />
         </span>
       )}
       {present && (
@@ -136,8 +136,8 @@ function CourtSessionGrid({
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
-          <tr className="border-b border-white/10">
-            <th className="text-left text-xs font-bold uppercase tracking-wider text-gray-400 py-2 pl-2">
+          <tr className="border-b border-gray-200">
+            <th className="text-left text-xs font-bold uppercase tracking-wider text-gray-500 py-2 pl-2">
               Court
             </th>
             {tokens.map((t, i) => (
@@ -145,7 +145,7 @@ function CourtSessionGrid({
                 key={i}
                 className={cn(
                   'text-left text-xs font-bold uppercase tracking-wider py-2 px-2',
-                  t === 'PAUSE' ? 'text-amber-400' : 'text-gray-400'
+                  t === 'PAUSE' ? 'text-amber-400' : 'text-gray-500'
                 )}
               >
                 {t === 'PAUSE' ? '⏸ Pause' : `M${i + 1}`}
@@ -159,7 +159,7 @@ function CourtSessionGrid({
               <td className="py-3 pl-2">
                 <div className="flex items-center gap-2">
                   <MapPin size={14} className="text-[#E85D26]" />
-                  <span className="font-semibold text-white">{court}</span>
+                  <span className="font-semibold text-gray-900">{court}</span>
                 </div>
               </td>
               {tokens.map((t, i) => {
@@ -197,12 +197,12 @@ function CourtSessionGrid({
                             ? 'bg-amber-500/15 border-amber-500/50 ring-1 ring-amber-500/40'
                             : isLow
                             ? 'bg-red-500/10 border-red-500/30 hover:border-red-500/60'
-                            : 'bg-white/5 border-white/10 hover:border-white/25'
+                            : 'bg-gray-50 border-gray-200 hover:border-gray-400'
                         )}
                         title={hasConflict ? 'CONFLICT: same referee on multiple courts this session' : 'Click to edit or drag to move'}
                       >
                         <div className="flex items-center gap-1.5">
-                          <span className="font-semibold text-white truncate">
+                          <span className="font-semibold text-gray-900 truncate">
                             {ref.last_name}
                           </span>
                           {hasConflict && (
@@ -220,7 +220,7 @@ function CourtSessionGrid({
                       <button
                         type="button"
                         onClick={() => onReassign?.(court, sessionOrder)}
-                        className="w-full px-2 py-1.5 rounded-lg border border-dashed border-white/15 text-xs text-gray-500 hover:text-gray-300 hover:border-white/30 transition-colors"
+                        className="w-full px-2 py-1.5 rounded-lg border border-dashed border-gray-300 text-xs text-gray-500 hover:text-gray-700 hover:border-gray-400 transition-colors"
                       >
                         + Assign
                       </button>
@@ -261,14 +261,14 @@ function ManualAssignModal({ open, onClose, court, sessionOrder, presentRefs, ra
                   'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg border transition-colors',
                   isCurrent
                     ? 'bg-[#E85D26]/15 border-[#E85D26]/40'
-                    : 'bg-white/5 border-white/10 hover:border-white/25'
+                    : 'bg-gray-50 border-gray-200 hover:border-gray-400'
                 )}
               >
-                <div className="w-8 h-8 rounded-full bg-[#2D3270]/40 flex items-center justify-center text-xs font-bold text-[#7B85C9]">
+                <div className="w-8 h-8 rounded-full bg-[#2D3270]/10 flex items-center justify-center text-xs font-bold text-[#2D3270]">
                   {refereeInitials(r)}
                 </div>
                 <div className="flex-1 text-left min-w-0">
-                  <div className="text-sm font-semibold text-white truncate">
+                  <div className="text-sm font-semibold text-gray-900 truncate">
                     {refereeName(r)}
                   </div>
                   <div className="text-xs text-gray-500">
@@ -920,13 +920,13 @@ export default function Designations() {
                           key={refId}
                           type="button"
                           onClick={() => handlePersonalDM(ref)}
-                          className="flex items-center gap-3 px-3 py-2.5 rounded-lg border border-white/10 bg-white/5 hover:border-emerald-500/40 hover:bg-emerald-500/5 transition-all text-left"
+                          className="flex items-center gap-3 px-3 py-2.5 rounded-lg border border-gray-200 bg-gray-50 hover:border-emerald-500/40 hover:bg-emerald-500/5 transition-all text-left"
                         >
-                          <div className="w-8 h-8 rounded-full bg-[#2D3270]/40 flex items-center justify-center text-xs font-bold text-[#7B85C9] shrink-0">
+                          <div className="w-8 h-8 rounded-full bg-[#2D3270]/10 flex items-center justify-center text-xs font-bold text-[#2D3270] shrink-0">
                             {refereeInitials(ref)}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <div className="text-sm font-semibold text-white truncate">
+                            <div className="text-sm font-semibold text-gray-900 truncate">
                               {refereeName(ref)}
                             </div>
                             <div className="text-[10px] text-gray-500">
@@ -992,11 +992,11 @@ export default function Designations() {
                       return (
                         <div
                           key={court}
-                          className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-xs"
+                          className="flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-50 border border-gray-200 text-xs"
                         >
                           <MapPin size={11} className="text-[#E85D26]" />
-                          <span className="font-semibold text-white w-20">{court}</span>
-                          <span className="flex-1 text-gray-300">
+                          <span className="font-semibold text-gray-900 w-20">{court}</span>
+                          <span className="flex-1 text-gray-700">
                             {sessions
                               .map(
                                 (s) =>
@@ -1045,7 +1045,7 @@ export default function Designations() {
       >
         <div className="space-y-4">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-2">
+            <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-2">
               Courts
             </p>
             <div className="space-y-2">
@@ -1058,7 +1058,7 @@ export default function Designations() {
                       copy[i] = e.target.value
                       setConfigCourts(copy)
                     }}
-                    className="flex-1 bg-gray-800 border border-white/15 rounded-lg px-3 py-2 text-sm text-white"
+                    className="flex-1 bg-gray-50 border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900"
                   />
                   <button
                     type="button"
@@ -1079,7 +1079,7 @@ export default function Designations() {
                     `Court ${configCourts.length + 1}`,
                   ])
                 }
-                className="w-full py-2 rounded-lg border border-dashed border-white/15 text-xs text-gray-400 hover:border-white/30 hover:text-gray-200"
+                className="w-full py-2 rounded-lg border border-dashed border-gray-300 text-xs text-gray-500 hover:border-gray-400 hover:text-gray-700"
               >
                 <Plus size={12} className="inline mr-1" /> Add court
               </button>

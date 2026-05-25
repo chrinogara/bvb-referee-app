@@ -6,12 +6,14 @@ export const useAppStore = create(
     (set, get) => ({
       // ─── UI state ────────────────────────────────────────────────────────
       sidebarOpen: false,
-      darkMode: true,
+      darkMode: false, // light theme is default now
+      sandboxMode: false, // when ON, writes go with is_test=true
       activeTournamentId: null,
 
       setSidebarOpen: (open) => set({ sidebarOpen: open }),
       toggleSidebar: () => set((s) => ({ sidebarOpen: !s.sidebarOpen })),
       setDarkMode: (v) => set({ darkMode: v }),
+      setSandboxMode: (v) => set({ sandboxMode: v }),
       setActiveTournamentId: (id) => set({ activeTournamentId: id }),
 
       // ─── Offline queue ───────────────────────────────────────────────────
@@ -52,6 +54,7 @@ export const useAppStore = create(
       name: 'bvb-rc-store',
       partialize: (s) => ({
         darkMode: s.darkMode,
+        sandboxMode: s.sandboxMode,
         activeTournamentId: s.activeTournamentId,
         offlineQueue: s.offlineQueue,
         evaluationDrafts: s.evaluationDrafts,

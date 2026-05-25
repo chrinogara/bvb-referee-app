@@ -181,16 +181,16 @@ function AddTournamentModal({ open, onClose, onCreate }) {
               'w-5 h-5 rounded border-2 flex items-center justify-center transition-colors',
               form.is_finals
                 ? 'bg-[#E85D26] border-[#E85D26]'
-                : 'border-white/20 bg-gray-800'
+                : 'border-gray-300 bg-gray-50'
             )}>
               {form.is_finals && (
-                <svg className="w-3 h-3 text-white" viewBox="0 0 12 12" fill="none">
+                <svg className="w-3 h-3 text-gray-900" viewBox="0 0 12 12" fill="none">
                   <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
               )}
             </div>
           </div>
-          <span className="text-sm text-gray-300">This is a Finals event</span>
+          <span className="text-sm text-gray-700">This is a Finals event</span>
         </label>
 
         {error && (
@@ -235,7 +235,7 @@ function TournamentCard({ tournament, onClick }) {
             ongoing ? 'bg-emerald-500/15' : past ? 'bg-gray-700/40' : 'bg-[#2D3270]/30'
           )}>
             <Trophy size={18} className={cn(
-              ongoing ? 'text-emerald-400' : past ? 'text-gray-500' : 'text-[#7B85C9]'
+              ongoing ? 'text-emerald-400' : past ? 'text-gray-500' : 'text-[#2D3270]'
             )} />
           </div>
 
@@ -250,13 +250,13 @@ function TournamentCard({ tournament, onClick }) {
             </div>
 
             {/* Name */}
-            <h3 className="text-sm font-semibold text-white leading-snug truncate">
+            <h3 className="text-sm font-semibold text-gray-900 leading-snug truncate">
               {tournament.name}
             </h3>
 
             {/* Date + duration */}
             <div className="flex items-center gap-3 mt-1.5 flex-wrap">
-              <span className="flex items-center gap-1 text-xs text-gray-400">
+              <span className="flex items-center gap-1 text-xs text-gray-500">
                 <Calendar size={11} className="text-gray-500" />
                 {formatDateRange(tournament.start_date, tournament.end_date)}
               </span>
@@ -268,7 +268,7 @@ function TournamentCard({ tournament, onClick }) {
             {tournament.location && (
               <div className="flex items-center gap-1 mt-1">
                 <MapPin size={11} className="text-gray-500 flex-shrink-0" />
-                <span className="text-xs text-gray-400 truncate">{tournament.location}</span>
+                <span className="text-xs text-gray-500 truncate">{tournament.location}</span>
               </div>
             )}
 
@@ -305,7 +305,7 @@ export default function Tournaments() {
   ].filter((s) => s.items.length > 0)
 
   return (
-    <div className="min-h-screen bg-gray-950 flex flex-col">
+    <div className="min-h-screen bg-gray-50 flex flex-col">
       <Header
         title="Tournaments"
         subtitle="2026 Season"
@@ -321,7 +321,7 @@ export default function Tournaments() {
         {loading && (
           <div className="flex flex-col gap-3">
             {[1, 2, 3].map((i) => (
-              <div key={i} className="h-28 rounded-xl bg-gray-900 animate-pulse" />
+              <div key={i} className="h-28 rounded-xl bg-white animate-pulse" />
             ))}
           </div>
         )}
@@ -334,11 +334,11 @@ export default function Tournaments() {
 
         {!loading && !error && tournaments.length === 0 && (
           <div className="flex flex-col items-center justify-center gap-4 py-20 text-center">
-            <div className="w-14 h-14 rounded-2xl bg-gray-900 flex items-center justify-center">
+            <div className="w-14 h-14 rounded-2xl bg-white flex items-center justify-center">
               <Trophy size={24} className="text-gray-600" />
             </div>
             <div>
-              <p className="text-white font-medium">No tournaments yet</p>
+              <p className="text-gray-900 font-medium">No tournaments yet</p>
               <p className="text-sm text-gray-500 mt-1">Add your first tournament to get started.</p>
             </div>
             <Button onClick={() => setShowAdd(true)}>

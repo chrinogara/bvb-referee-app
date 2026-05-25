@@ -30,23 +30,23 @@ import {
 
 const SCORE_COLORS = {
   1: {
-    active: 'bg-red-500 text-white ring-2 ring-red-400 ring-offset-1 ring-offset-gray-900 scale-[1.04]',
+    active: 'bg-red-500 text-white ring-2 ring-red-400 ring-offset-1 ring-offset-white scale-[1.04]',
     idle:   'bg-red-500/10 text-red-400 border border-red-500/25 hover:bg-red-500/20',
   },
   2: {
-    active: 'bg-orange-500 text-white ring-2 ring-orange-400 ring-offset-1 ring-offset-gray-900 scale-[1.04]',
+    active: 'bg-orange-500 text-white ring-2 ring-orange-400 ring-offset-1 ring-offset-white scale-[1.04]',
     idle:   'bg-orange-500/10 text-orange-400 border border-orange-500/25 hover:bg-orange-500/20',
   },
   3: {
-    active: 'bg-yellow-500 text-white ring-2 ring-yellow-400 ring-offset-1 ring-offset-gray-900 scale-[1.04]',
+    active: 'bg-yellow-500 text-white ring-2 ring-yellow-400 ring-offset-1 ring-offset-white scale-[1.04]',
     idle:   'bg-yellow-500/10 text-yellow-400 border border-yellow-500/25 hover:bg-yellow-500/20',
   },
   4: {
-    active: 'bg-green-500 text-white ring-2 ring-green-400 ring-offset-1 ring-offset-gray-900 scale-[1.04]',
+    active: 'bg-green-500 text-gray-900 ring-2 ring-green-400 ring-offset-1 ring-offset-white scale-[1.04]',
     idle:   'bg-green-500/10 text-green-400 border border-green-500/25 hover:bg-green-500/20',
   },
   5: {
-    active: 'bg-emerald-500 text-white ring-2 ring-emerald-400 ring-offset-1 ring-offset-gray-900 scale-[1.04]',
+    active: 'bg-emerald-500 text-white ring-2 ring-emerald-400 ring-offset-1 ring-offset-white scale-[1.04]',
     idle:   'bg-emerald-500/10 text-emerald-400 border border-emerald-500/25 hover:bg-emerald-500/20',
   },
 }
@@ -55,8 +55,8 @@ const SCORE_COLORS = {
 
 function ThreeStepProtocol() {
   return (
-    <div className="rounded-lg bg-[#2D3270]/40 border border-[#2D3270] p-3 mb-3">
-      <p className="text-[10px] font-bold uppercase tracking-widest text-[#7B85C9] mb-2.5">
+    <div className="rounded-lg bg-[#2D3270]/5 border border-[#2D3270]/30 p-3 mb-3">
+      <p className="text-[10px] font-bold uppercase tracking-widest text-gray-600 mb-2.5">
         Three-Step Protocol
       </p>
       <div className="flex flex-col gap-2">
@@ -70,8 +70,8 @@ function ThreeStepProtocol() {
               {step.num}
             </span>
             <div className="leading-tight">
-              <span className="text-xs font-bold text-white">{step.title}</span>
-              <span className="text-xs text-[#7B85C9]"> — {step.desc}</span>
+              <span className="text-xs font-bold text-gray-900">{step.title}</span>
+              <span className="text-xs text-gray-600"> — {step.desc}</span>
             </div>
           </div>
         ))}
@@ -116,43 +116,43 @@ function RefereeSelector({ referees, value, onChange, error }) {
 
   return (
     <div className="flex flex-col gap-1" ref={ref}>
-      <label className="text-xs font-medium text-gray-400 uppercase tracking-wide">
+      <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">
         Referee <span className="text-red-400">*</span>
       </label>
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
         className={cn(
-          'flex items-center justify-between bg-gray-800 border rounded-lg px-3 py-3',
+          'flex items-center justify-between bg-gray-50 border rounded-lg px-3 py-3',
           'text-sm transition-colors duration-150 text-left w-full',
           error
             ? 'border-red-500/50'
             : open
             ? 'border-[#E85D26]/60 ring-1 ring-[#E85D26]/30'
-            : 'border-white/15 hover:border-white/25'
+            : 'border-gray-300 hover:border-gray-400'
         )}
       >
-        <span className={selected ? 'text-white font-medium' : 'text-gray-500'}>
+        <span className={selected ? 'text-gray-900 font-medium' : 'text-gray-500'}>
           {selected ? refereeName(selected) : 'Select referee…'}
         </span>
-        <ChevronDown size={16} className="text-gray-400 shrink-0" />
+        <ChevronDown size={16} className="text-gray-500 shrink-0" />
       </button>
 
       {open && (
         <div className="relative z-50">
-          <div className="absolute top-0 left-0 right-0 bg-gray-800 border border-white/15 rounded-xl shadow-2xl overflow-hidden">
+          <div className="absolute top-0 left-0 right-0 bg-gray-50 border border-gray-300 rounded-xl shadow-2xl overflow-hidden">
             {/* Search input */}
-            <div className="flex items-center gap-2 px-3 py-2.5 border-b border-white/10">
-              <Search size={14} className="text-gray-400 shrink-0" />
+            <div className="flex items-center gap-2 px-3 py-2.5 border-b border-gray-200">
+              <Search size={14} className="text-gray-500 shrink-0" />
               <input
                 autoFocus
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Search by name…"
-                className="flex-1 bg-transparent text-sm text-white placeholder-gray-500 outline-none"
+                className="flex-1 bg-transparent text-sm text-gray-900 placeholder-gray-400 outline-none"
               />
               {query && (
-                <button onClick={() => setQuery('')} className="text-gray-500 hover:text-white">
+                <button onClick={() => setQuery('')} className="text-gray-500 hover:text-gray-900">
                   <X size={13} />
                 </button>
               )}
@@ -175,11 +175,11 @@ function RefereeSelector({ referees, value, onChange, error }) {
                         'w-full text-left px-4 py-3 text-sm transition-colors',
                         r.id === value
                           ? 'bg-[#E85D26]/15 text-[#E85D26] font-semibold'
-                          : 'text-gray-200 hover:bg-white/8'
+                          : 'text-gray-700 hover:bg-gray-100'
                       )}
                     >
                       <span className="font-medium">{r.last_name}</span>{' '}
-                      <span className="text-gray-400">{r.first_name}</span>
+                      <span className="text-gray-500">{r.first_name}</span>
                       {r.level && (
                         <span className="ml-2 text-[10px] text-gray-500">Lv.{r.level}</span>
                       )}
@@ -203,7 +203,7 @@ function NumberStepper({ label, value, onChange, min = 1, max = 99 }) {
   return (
     <div className="flex flex-col gap-1">
       {label && (
-        <label className="text-xs font-medium text-gray-400 uppercase tracking-wide">
+        <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">
           {label}
         </label>
       )}
@@ -211,17 +211,17 @@ function NumberStepper({ label, value, onChange, min = 1, max = 99 }) {
         <button
           type="button"
           onClick={() => onChange(Math.max(min, (value || min) - 1))}
-          className="w-10 h-10 flex items-center justify-center bg-gray-800 border border-white/15 rounded-l-lg text-gray-300 hover:bg-white/10 hover:text-white transition-colors text-lg font-bold"
+          className="w-10 h-10 flex items-center justify-center bg-gray-50 border border-gray-300 rounded-l-lg text-gray-700 hover:bg-gray-100 hover:text-gray-900 transition-colors text-lg font-bold"
         >
           −
         </button>
-        <div className="flex-1 h-10 flex items-center justify-center bg-gray-800 border-y border-white/15 text-white text-sm font-bold min-w-[2.5rem] text-center">
+        <div className="flex-1 h-10 flex items-center justify-center bg-gray-50 border-y border-gray-300 text-gray-900 text-sm font-bold min-w-[2.5rem] text-center">
           {value || min}
         </div>
         <button
           type="button"
           onClick={() => onChange(Math.min(max, (value || min) + 1))}
-          className="w-10 h-10 flex items-center justify-center bg-gray-800 border border-white/15 rounded-r-lg text-gray-300 hover:bg-white/10 hover:text-white transition-colors text-lg font-bold"
+          className="w-10 h-10 flex items-center justify-center bg-gray-50 border border-gray-300 rounded-r-lg text-gray-700 hover:bg-gray-100 hover:text-gray-900 transition-colors text-lg font-bold"
         >
           +
         </button>
@@ -241,14 +241,14 @@ function CriterionCard({ criterion, score, repeat, note, onScore, onRepeat, onNo
       <CardHeader className="py-3">
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 min-w-0">
-            <h3 className="text-sm font-semibold text-white leading-tight">{criterion.label}</h3>
+            <h3 className="text-sm font-semibold text-gray-900 leading-tight">{criterion.label}</h3>
           </div>
           <div className="flex items-center gap-1.5 shrink-0">
             <Badge variant="navy" size="xs">{criterion.weight}%</Badge>
             <button
               type="button"
               onClick={() => setDescOpen((v) => !v)}
-              className="p-1 rounded text-gray-500 hover:text-white hover:bg-white/10 transition-colors"
+              className="p-1 rounded text-gray-500 hover:text-gray-900 hover:bg-gray-100 transition-colors"
               aria-label="Toggle description"
             >
               {descOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
@@ -258,7 +258,7 @@ function CriterionCard({ criterion, score, repeat, note, onScore, onRepeat, onNo
 
         {/* Description (collapsible) */}
         {descOpen && (
-          <p className="mt-2 text-xs text-gray-400 leading-relaxed">{criterion.description}</p>
+          <p className="mt-2 text-xs text-gray-500 leading-relaxed">{criterion.description}</p>
         )}
       </CardHeader>
 
@@ -306,7 +306,7 @@ function CriterionCard({ criterion, score, repeat, note, onScore, onRepeat, onNo
             'w-full flex items-center gap-2 px-3 py-2.5 rounded-xl border text-sm font-medium transition-all duration-150',
             repeat
               ? 'bg-amber-500/20 border-amber-500/40 text-amber-400'
-              : 'bg-white/5 border-white/10 text-gray-500 hover:border-white/20 hover:text-gray-300'
+              : 'bg-gray-50 border-gray-200 text-gray-500 hover:border-gray-300 hover:text-gray-700'
           )}
         >
           <AlertTriangle size={14} className={repeat ? 'text-amber-400' : 'text-gray-600'} />
@@ -323,7 +323,7 @@ function CriterionCard({ criterion, score, repeat, note, onScore, onRepeat, onNo
           <button
             type="button"
             onClick={() => setNoteOpen(true)}
-            className="text-xs text-gray-500 hover:text-gray-300 transition-colors flex items-center gap-1"
+            className="text-xs text-gray-500 hover:text-gray-700 transition-colors flex items-center gap-1"
           >
             <span className="text-[#E85D26]">+</span> Add observation note
           </button>
@@ -338,8 +338,8 @@ function CriterionCard({ criterion, score, repeat, note, onScore, onRepeat, onNo
               placeholder="What did you observe? Be specific…"
               rows={2}
               className={cn(
-                'w-full bg-gray-800 border border-white/15 rounded-lg px-3 py-2',
-                'text-white placeholder-gray-600 text-sm resize-none',
+                'w-full bg-gray-50 border border-gray-300 rounded-lg px-3 py-2',
+                'text-gray-900 placeholder-gray-400 text-sm resize-none',
                 'focus:outline-none focus:border-[#E85D26]/60 focus:ring-1 focus:ring-[#E85D26]/30',
                 'transition-colors duration-150'
               )}
@@ -368,7 +368,7 @@ function LiveScoreBar({ scores, repeats }) {
   const grade = result.overall > 0 ? getGrade(result.overall) : null
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-40 bg-gray-950/95 backdrop-blur-md border-t border-white/10 px-4 py-3 safe-area-pb">
+    <div className="fixed bottom-0 left-0 right-0 z-40 bg-gray-50/95 backdrop-blur-md border-t border-gray-200 px-4 py-3 safe-area-pb">
       <div className="max-w-lg mx-auto flex items-center gap-3">
         {/* Progress dots */}
         <div className="flex gap-1 shrink-0">
@@ -602,7 +602,7 @@ export default function Evaluate() {
   // ─────────────────────────────────────────────────────────────────────────────
 
   return (
-    <div className="flex flex-col h-full bg-gray-950">
+    <div className="flex flex-col h-full bg-gray-50">
       <Header
         title="New Evaluation"
         subtitle="Rate a referee's performance"
@@ -615,7 +615,7 @@ export default function Evaluate() {
           {/* ── Section 1: Match Context ──────────────────────────────────── */}
           <Card>
             <CardHeader className="py-3">
-              <h2 className="text-xs font-bold uppercase tracking-widest text-gray-400">
+              <h2 className="text-xs font-bold uppercase tracking-widest text-gray-500">
                 Match Context
               </h2>
             </CardHeader>
@@ -633,7 +633,7 @@ export default function Evaluate() {
 
               {/* Role toggle */}
               <div className="flex flex-col gap-1">
-                <label className="text-xs font-medium text-gray-400 uppercase tracking-wide">
+                <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">
                   Role <span className="text-red-400">*</span>
                 </label>
                 <div className="grid grid-cols-2 gap-2">
@@ -648,7 +648,7 @@ export default function Evaluate() {
                           ? r === 'R1'
                             ? 'bg-purple-500/25 text-purple-300 border border-purple-500/50 ring-2 ring-purple-500/30 scale-[1.02]'
                             : 'bg-blue-500/25 text-blue-300 border border-blue-500/50 ring-2 ring-blue-500/30 scale-[1.02]'
-                          : 'bg-white/5 text-gray-500 border border-white/10 hover:border-white/20 hover:text-gray-300'
+                          : 'bg-gray-50 text-gray-500 border border-gray-200 hover:border-gray-300 hover:text-gray-700'
                       )}
                     >
                       {r}
@@ -659,15 +659,15 @@ export default function Evaluate() {
 
               {/* Tournament */}
               <div className="flex flex-col gap-1">
-                <label className="text-xs font-medium text-gray-400 uppercase tracking-wide">
+                <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">
                   Tournament
                 </label>
                 <select
                   value={tournamentId}
                   onChange={(e) => setTournamentId(e.target.value)}
                   className={cn(
-                    'bg-gray-800 border border-white/15 rounded-lg px-3 py-2.5',
-                    'text-white text-sm appearance-none',
+                    'bg-gray-50 border border-gray-300 rounded-lg px-3 py-2.5',
+                    'text-gray-900 text-sm appearance-none',
                     'focus:outline-none focus:border-[#E85D26]/60 focus:ring-1 focus:ring-[#E85D26]/30',
                     'transition-colors duration-150'
                   )}
@@ -694,7 +694,7 @@ export default function Evaluate() {
 
               {/* Court selector */}
               <div className="flex flex-col gap-1">
-                <label className="text-xs font-medium text-gray-400 uppercase tracking-wide">
+                <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">
                   Court
                 </label>
                 <div className="grid grid-cols-4 gap-2">
@@ -707,7 +707,7 @@ export default function Evaluate() {
                         'py-3 rounded-xl text-base font-bold transition-all duration-150',
                         courtNumber === n
                           ? 'bg-[#E85D26]/25 text-[#E85D26] border border-[#E85D26]/50 ring-2 ring-[#E85D26]/30 scale-[1.04]'
-                          : 'bg-white/5 text-gray-400 border border-white/10 hover:border-white/20 hover:text-white'
+                          : 'bg-gray-50 text-gray-500 border border-gray-200 hover:border-gray-300 hover:text-gray-900'
                       )}
                     >
                       {n}
@@ -720,7 +720,7 @@ export default function Evaluate() {
 
           {/* ── Section 2: The 5 Criteria ─────────────────────────────────── */}
           <div>
-            <h2 className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-3 px-1">
+            <h2 className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-3 px-1">
               Evaluation Criteria
             </h2>
             <div className="space-y-3">
@@ -743,7 +743,7 @@ export default function Evaluate() {
           {/* ── Section 4: General Notes ──────────────────────────────────── */}
           <Card>
             <CardHeader className="py-3">
-              <h2 className="text-xs font-bold uppercase tracking-widest text-gray-400">
+              <h2 className="text-xs font-bold uppercase tracking-widest text-gray-500">
                 General Feedback
               </h2>
             </CardHeader>
@@ -754,8 +754,8 @@ export default function Evaluate() {
                 placeholder="Overall impressions, strengths, areas for improvement…"
                 rows={4}
                 className={cn(
-                  'w-full bg-gray-800 border border-white/15 rounded-lg px-3 py-2.5',
-                  'text-white placeholder-gray-500 text-sm resize-none',
+                  'w-full bg-gray-50 border border-gray-300 rounded-lg px-3 py-2.5',
+                  'text-gray-900 placeholder-gray-400 text-sm resize-none',
                   'focus:outline-none focus:border-[#E85D26]/60 focus:ring-1 focus:ring-[#E85D26]/30',
                   'transition-colors duration-150'
                 )}
@@ -802,7 +802,7 @@ export default function Evaluate() {
 
                 {/* PDF actions */}
                 {generatingPdf ? (
-                  <div className="flex items-center justify-center gap-2 py-3 text-sm text-gray-400">
+                  <div className="flex items-center justify-center gap-2 py-3 text-sm text-gray-500">
                     <span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
                     Generating PDF…
                   </div>
@@ -833,7 +833,7 @@ export default function Evaluate() {
                 <button
                   type="button"
                   onClick={() => window.location.reload()}
-                  className="w-full text-sm text-gray-500 hover:text-gray-300 transition-colors py-2"
+                  className="w-full text-sm text-gray-500 hover:text-gray-700 transition-colors py-2"
                 >
                   + Evaluate another referee
                 </button>

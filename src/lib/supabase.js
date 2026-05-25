@@ -147,6 +147,86 @@ export const rankingService = {
       .eq('tournament_id', tournamentId),
 }
 
+// ─── Briefings (1 per tournament, structured sections) ──────────────────────
+export const briefingService = {
+  getByTournament: (tournamentId) =>
+    supabase
+      .from('briefings')
+      .select('*')
+      .eq('tournament_id', tournamentId)
+      .maybeSingle(),
+
+  upsert: (data) =>
+    supabase
+      .from('briefings')
+      .upsert({ ...data, updated_at: new Date().toISOString() }, {
+        onConflict: 'tournament_id',
+      })
+      .select()
+      .single(),
+
+  delete: (tournamentId) =>
+    supabase.from('briefings').delete().eq('tournament_id', tournamentId),
+}
+
+// ─── Live Matches (real-time court state) ───────────────────────────────────
+export const liveMatchService = {
+  getActive: (tournamentId, dayNumber) =>
+    supabase
+      .from('live_matches')
+      .select('*')
+      .eq('tournament_id', tournamentId)
+      .eq('day_number', dayNumber)
+      .eq('is_active', true),
+
+  getAllForDay: (tournamentId, dayNumber) =>
+    supabase
+      .from('live_matches')
+      .select('*')
+      .eq('tournament_id', tournamentId)
+      .eq('day_number', dayNumber),
+
+  startMatch: ({ tournamentId, dayNumber, court, sessionOrder, startTime, isTest }) =>
+    supabase
+      .from('live_matches')
+      .upsert(
+        {
+          tournament_id: tournamentId,
+          day_number: dayNumber,
+          court,
+          session_order: sessionOrder,
+          start_time: startTime || new Date().toISOString(),
+          is_active: true,
+          is_test: !!isTest,
+        },
+        { onConflict: 'tournament_id,day_number,court,session_order' }
+      )
+      .select()
+      .single(),
+
+  stopMatch: (id) =>
+    supabase.from('live_matches').update({ is_active: false }).eq('id', id),
+
+  updateStartTime: (id, startTime) =>
+    supabase.from('live_matches').update({ start_time: startTime }).eq('id', id),
+}
+
+// ─── Sandbox cleanup (purge all is_test rows) ────────────────────────────────
+export const sandboxService = {
+  purgeAll: async () => {
+    const tables = ['court_assignments', 'evaluations', 'feedback_alerts', 'live_matches']
+    const results = []
+    for (const tbl of tables) {
+      const { error, count } = await supabase
+        .from(tbl)
+        .delete({ count: 'exact' })
+        .eq('is_test', true)
+      results.push({ table: tbl, count: count ?? 0, error })
+    }
+    return results
+  },
+}
+
 // ─── Documents (RAG) ─────────────────────────────────────────────────────────
 export const documentService = {
   getAll: () => supabase.from('documents').select('*').order('created_at'),

@@ -37,7 +37,7 @@ function renderMarkdown(text) {
     const parts = line.split(/(\*\*[^*]+\*\*)/g)
     const rendered = parts.map((part, i) => {
       if (part.startsWith('**') && part.endsWith('**')) {
-        return <strong key={i} className="text-white font-semibold">{part.slice(2, -2)}</strong>
+        return <strong key={i} className="text-gray-900 font-semibold">{part.slice(2, -2)}</strong>
       }
       // Highlight rule references like "Rule 13.1.2"
       const rulePattern = /(Rule\s[\d.]+(?:\.\d+)*)/g
@@ -61,10 +61,10 @@ function renderMarkdown(text) {
     }
     // Headings (## or ###)
     if (trimmed.startsWith('### ')) {
-      return <p key={lineIdx} className="text-xs font-bold text-gray-400 uppercase tracking-wider mt-3 mb-1">{trimmed.slice(4)}</p>
+      return <p key={lineIdx} className="text-xs font-bold text-gray-500 uppercase tracking-wider mt-3 mb-1">{trimmed.slice(4)}</p>
     }
     if (trimmed.startsWith('## ')) {
-      return <p key={lineIdx} className="text-sm font-bold text-white mt-3 mb-1">{trimmed.slice(3)}</p>
+      return <p key={lineIdx} className="text-sm font-bold text-gray-900 mt-3 mb-1">{trimmed.slice(3)}</p>
     }
 
     return trimmed === '' ? (
@@ -101,7 +101,7 @@ function MessageBubble({ message }) {
       {/* Avatar */}
       {!isUser && (
         <div className="w-8 h-8 rounded-full bg-[#2D3270] flex items-center justify-center shrink-0 mt-0.5 border border-[#2D3270]/50">
-          <BookOpen size={13} className="text-[#7B85C9]" />
+          <BookOpen size={13} className="text-[#2D3270]" />
         </div>
       )}
 
@@ -110,7 +110,7 @@ function MessageBubble({ message }) {
           'max-w-[85%] sm:max-w-[75%] rounded-2xl px-4 py-3 text-sm',
           isUser
             ? 'bg-[#2D3270]/60 text-gray-100 rounded-tr-sm ml-auto'
-            : 'bg-gray-900 border border-white/10 text-gray-200 rounded-tl-sm'
+            : 'bg-white border border-gray-200 text-gray-700 rounded-tl-sm'
         )}
       >
         {message.loading ? (
@@ -123,7 +123,7 @@ function MessageBubble({ message }) {
         {!message.loading && (
           <p className={cn(
             'text-[10px] mt-2 select-none',
-            isUser ? 'text-gray-400 text-right' : 'text-gray-600'
+            isUser ? 'text-gray-500 text-right' : 'text-gray-600'
           )}>
             {isUser ? 'You' : 'BVB RC Assistant'}
             {message.timestamp && (
@@ -144,12 +144,12 @@ function QuickChip({ question, onClick }) {
       onClick={() => onClick(question.label)}
       className={cn(
         'flex items-center gap-2 px-3 py-2 rounded-xl text-sm text-left',
-        'bg-gray-900 border border-white/10 hover:border-[#E85D26]/40 hover:bg-[#2D3270]/15',
+        'bg-white border border-gray-200 hover:border-[#E85D26]/40 hover:bg-[#2D3270]/15',
         'transition-all duration-150 group'
       )}
     >
       <span className="text-base leading-none shrink-0">{question.icon}</span>
-      <span className="text-gray-300 group-hover:text-white transition-colors text-xs font-medium flex-1">
+      <span className="text-gray-700 group-hover:text-gray-900 transition-colors text-xs font-medium flex-1">
         {question.label}
       </span>
       <ChevronRight size={12} className="text-gray-600 group-hover:text-[#E85D26] transition-colors shrink-0" />
@@ -165,10 +165,10 @@ function EmptyState({ onAsk }) {
       {/* Icon area */}
       <div className="flex flex-col items-center gap-3">
         <div className="w-20 h-20 rounded-3xl bg-[#2D3270]/30 border border-[#2D3270]/40 flex items-center justify-center">
-          <MessageSquare size={36} className="text-[#7B85C9]" />
+          <MessageSquare size={36} className="text-[#2D3270]" />
         </div>
         <div className="text-center">
-          <h2 className="text-lg font-bold text-white">Rules Assistant</h2>
+          <h2 className="text-lg font-bold text-gray-900">Rules Assistant</h2>
           <p className="text-sm text-gray-500 mt-1 max-w-xs">
             Ask anything about FIVB Beach Volleyball rules and officiating procedures
           </p>
@@ -324,8 +324,8 @@ export default function Assistant() {
                 disabled={isLoading}
                 className={cn(
                   'px-2.5 py-1 rounded-full text-xs whitespace-nowrap shrink-0',
-                  'bg-gray-900 border border-white/10 text-gray-400',
-                  'hover:border-[#2D3270]/60 hover:text-white hover:bg-[#2D3270]/20',
+                  'bg-white border border-gray-200 text-gray-500',
+                  'hover:border-[#2D3270]/60 hover:text-gray-900 hover:bg-[#2D3270]/20',
                   'transition-colors disabled:opacity-40 disabled:cursor-not-allowed'
                 )}
               >
@@ -337,7 +337,7 @@ export default function Assistant() {
       )}
 
       {/* Input area */}
-      <div className="border-t border-white/10 bg-gray-950/50 backdrop-blur-sm px-4 py-3">
+      <div className="border-t border-gray-200 bg-gray-50/50 backdrop-blur-sm px-4 py-3">
         <div className="max-w-3xl mx-auto">
           <div className="flex items-end gap-2">
             <div className="flex-1 relative">
@@ -350,8 +350,8 @@ export default function Assistant() {
                 rows={1}
                 disabled={isLoading}
                 className={cn(
-                  'w-full bg-gray-900 border border-white/15 rounded-xl px-4 py-2.5',
-                  'text-white placeholder-gray-600 text-sm resize-none',
+                  'w-full bg-white border border-gray-300 rounded-xl px-4 py-2.5',
+                  'text-gray-900 placeholder-gray-400 text-sm resize-none',
                   'focus:outline-none focus:border-[#E85D26]/50 focus:ring-1 focus:ring-[#E85D26]/20',
                   'transition-colors duration-150 disabled:opacity-60',
                   'max-h-32 min-h-[42px]',
@@ -382,13 +382,13 @@ export default function Assistant() {
 
           <div className="flex items-center justify-between mt-2">
             <p className="text-xs text-gray-700">
-              Press <kbd className="text-gray-600 bg-gray-800 px-1 py-0.5 rounded text-[10px] font-mono">Enter</kbd> to send
-              · <kbd className="text-gray-600 bg-gray-800 px-1 py-0.5 rounded text-[10px] font-mono">Shift+Enter</kbd> for new line
+              Press <kbd className="text-gray-600 bg-gray-50 px-1 py-0.5 rounded text-[10px] font-mono">Enter</kbd> to send
+              · <kbd className="text-gray-600 bg-gray-50 px-1 py-0.5 rounded text-[10px] font-mono">Shift+Enter</kbd> for new line
             </p>
             {hasMessages && (
               <button
                 onClick={clearConversation}
-                className="text-xs text-gray-700 hover:text-gray-400 transition-colors flex items-center gap-1"
+                className="text-xs text-gray-700 hover:text-gray-500 transition-colors flex items-center gap-1"
               >
                 <Trash2 size={11} />
                 Clear

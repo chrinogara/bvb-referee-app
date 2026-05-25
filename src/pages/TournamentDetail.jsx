@@ -72,7 +72,7 @@ const TABS = ['Overview', 'Referees', 'Matches', 'Evaluations']
 
 function TabBar({ active, onChange }) {
   return (
-    <div className="flex border-b border-white/10 bg-gray-950 px-4 overflow-x-auto scrollbar-none">
+    <div className="flex border-b border-gray-200 bg-gray-50 px-4 overflow-x-auto scrollbar-none">
       {TABS.map((tab) => (
         <button
           key={tab}
@@ -81,7 +81,7 @@ function TabBar({ active, onChange }) {
             'flex-shrink-0 px-4 py-3 text-sm font-medium transition-colors duration-150 border-b-2 -mb-px',
             active === tab
               ? 'border-[#E85D26] text-[#E85D26]'
-              : 'border-transparent text-gray-500 hover:text-gray-300'
+              : 'border-transparent text-gray-500 hover:text-gray-700'
           )}
         >
           {tab}
@@ -118,11 +118,11 @@ function OverviewTab({ tournament, refereesCount, matchesCount, evaluationsCount
         <CardBody className="flex flex-col gap-3">
           <div className="flex items-start gap-3">
             <div className="w-10 h-10 rounded-xl bg-[#2D3270]/30 flex items-center justify-center flex-shrink-0">
-              <Trophy size={18} className="text-[#7B85C9]" />
+              <Trophy size={18} className="text-[#2D3270]" />
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
-                <h2 className="text-base font-semibold text-white">{tournament.name}</h2>
+                <h2 className="text-base font-semibold text-gray-900">{tournament.name}</h2>
                 {tournament.is_finals && (
                   <Badge variant="orange" size="xs">FINALS</Badge>
                 )}
@@ -185,7 +185,7 @@ function OverviewTab({ tournament, refereesCount, matchesCount, evaluationsCount
               </div>
             </div>
           ) : (
-            <p className={cn('text-sm leading-relaxed', regulations ? 'text-gray-300' : 'text-gray-600 italic')}>
+            <p className={cn('text-sm leading-relaxed', regulations ? 'text-gray-700' : 'text-gray-600 italic')}>
               {regulations || 'No regulations added yet.'}
             </p>
           )}
@@ -199,7 +199,7 @@ function InfoRow({ icon, label, children }) {
   return (
     <div className="flex items-start gap-2.5">
       <span className="mt-0.5 flex-shrink-0">{icon}</span>
-      <span className="text-sm text-gray-300">{children}</span>
+      <span className="text-sm text-gray-700">{children}</span>
     </div>
   )
 }
@@ -262,13 +262,13 @@ function AssignRefereeModal({ open, onClose, allReferees, assigned, onAssign }) 
               key={r.id}
               onClick={() => handleAssign(r)}
               disabled={assigning === r.id}
-              className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-gray-800 hover:bg-gray-750 border border-white/5 hover:border-white/15 text-left transition-colors disabled:opacity-60"
+              className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-gray-50 hover:bg-gray-750 border border-white/5 hover:border-gray-300 text-left transition-colors disabled:opacity-60"
             >
-              <div className="w-8 h-8 rounded-full bg-[#2D3270]/40 flex items-center justify-center text-xs font-semibold text-[#7B85C9] flex-shrink-0">
+              <div className="w-8 h-8 rounded-full bg-[#2D3270]/10 flex items-center justify-center text-xs font-semibold text-[#2D3270] flex-shrink-0">
                 {r.first_name?.[0]}{r.last_name?.[0]}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-white truncate">{refereeName(r)}</p>
+                <p className="text-sm font-medium text-gray-900 truncate">{refereeName(r)}</p>
                 {r.nationality && <p className="text-xs text-gray-500">{r.nationality}</p>}
               </div>
               {r.ranking_level && (
@@ -302,7 +302,7 @@ function RefereesTab({ tournamentId, assigned, allReferees, onAssign, onRemove }
 
       {assigned.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-center gap-3">
-          <div className="w-12 h-12 rounded-2xl bg-gray-900 flex items-center justify-center">
+          <div className="w-12 h-12 rounded-2xl bg-white flex items-center justify-center">
             <Users size={20} className="text-gray-600" />
           </div>
           <p className="text-sm text-gray-500">No referees assigned yet.</p>
@@ -317,11 +317,11 @@ function RefereesTab({ tournamentId, assigned, allReferees, onAssign, onRemove }
             <Card key={r.id}>
               <CardBody className="p-3">
                 <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-full bg-[#2D3270]/40 flex items-center justify-center text-xs font-semibold text-[#7B85C9] flex-shrink-0">
+                  <div className="w-9 h-9 rounded-full bg-[#2D3270]/10 flex items-center justify-center text-xs font-semibold text-[#2D3270] flex-shrink-0">
                     {r.first_name?.[0]}{r.last_name?.[0]}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-white truncate">{refereeName(r)}</p>
+                    <p className="text-sm font-medium text-gray-900 truncate">{refereeName(r)}</p>
                     {r.nationality && <p className="text-xs text-gray-500">{r.nationality}</p>}
                   </div>
                   {r.ranking_level && (
@@ -444,16 +444,16 @@ function AddMatchModal({ open, onClose, tournamentId, onCreated }) {
             <input type="checkbox" name="is_final" checked={form.is_final} onChange={handleChange} className="sr-only" />
             <div className={cn(
               'w-5 h-5 rounded border-2 flex items-center justify-center transition-colors',
-              form.is_final ? 'bg-[#E85D26] border-[#E85D26]' : 'border-white/20 bg-gray-800'
+              form.is_final ? 'bg-[#E85D26] border-[#E85D26]' : 'border-gray-300 bg-gray-50'
             )}>
               {form.is_final && (
-                <svg className="w-3 h-3 text-white" viewBox="0 0 12 12" fill="none">
+                <svg className="w-3 h-3 text-gray-900" viewBox="0 0 12 12" fill="none">
                   <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
               )}
             </div>
           </div>
-          <span className="text-sm text-gray-300">Final match</span>
+          <span className="text-sm text-gray-700">Final match</span>
         </label>
 
         {error && (
@@ -475,8 +475,8 @@ function MatchCard({ match }) {
       <CardBody className="p-3">
         <div className="flex items-start gap-3">
           {/* Match number */}
-          <div className="w-9 h-9 rounded-xl bg-gray-800 flex items-center justify-center flex-shrink-0 border border-white/8">
-            <span className="text-xs font-bold text-gray-300">
+          <div className="w-9 h-9 rounded-xl bg-gray-50 flex items-center justify-center flex-shrink-0 border border-white/8">
+            <span className="text-xs font-bold text-gray-700">
               {match.match_number ?? '—'}
             </span>
           </div>
@@ -485,11 +485,11 @@ function MatchCard({ match }) {
           <div className="flex-1 min-w-0">
             {/* Teams */}
             {(match.team1 || match.team2) ? (
-              <p className="text-sm font-semibold text-white truncate">
+              <p className="text-sm font-semibold text-gray-900 truncate">
                 {match.team1 || '?'} <span className="text-gray-500 font-normal">vs</span> {match.team2 || '?'}
               </p>
             ) : (
-              <p className="text-sm font-semibold text-gray-400">Match {match.match_number ?? '—'}</p>
+              <p className="text-sm font-semibold text-gray-500">Match {match.match_number ?? '—'}</p>
             )}
 
             {/* Badges row */}
@@ -505,7 +505,7 @@ function MatchCard({ match }) {
             {/* Time + court */}
             <div className="flex items-center gap-3 mt-1.5 flex-wrap">
               {match.scheduled_time && (
-                <span className="flex items-center gap-1 text-xs text-gray-400">
+                <span className="flex items-center gap-1 text-xs text-gray-500">
                   <Clock size={11} className="text-gray-500" />
                   {formatDateTime(match.scheduled_time)}
                 </span>
@@ -578,7 +578,7 @@ function MatchesTab({ tournamentId }) {
               'px-3 py-1 rounded-full text-xs font-medium transition-colors border',
               filter === opt
                 ? 'bg-[#E85D26] border-[#E85D26] text-white'
-                : 'bg-gray-900 border-white/10 text-gray-400 hover:border-white/20 hover:text-gray-300'
+                : 'bg-white border-gray-200 text-gray-500 hover:border-gray-300 hover:text-gray-700'
             )}
           >
             {opt}
@@ -589,7 +589,7 @@ function MatchesTab({ tournamentId }) {
       {loading && (
         <div className="flex flex-col gap-2">
           {[1, 2, 3].map((i) => (
-            <div key={i} className="h-20 rounded-xl bg-gray-900 animate-pulse" />
+            <div key={i} className="h-20 rounded-xl bg-white animate-pulse" />
           ))}
         </div>
       )}
@@ -646,7 +646,7 @@ function EvaluationsTab({ tournamentId }) {
       {loading && (
         <div className="flex flex-col gap-2">
           {[1, 2, 3].map((i) => (
-            <div key={i} className="h-20 rounded-xl bg-gray-900 animate-pulse" />
+            <div key={i} className="h-20 rounded-xl bg-white animate-pulse" />
           ))}
         </div>
       )}
@@ -676,7 +676,7 @@ function EvaluationsTab({ tournamentId }) {
 
 function EvaluationCard({ evaluation }) {
   const referee = evaluation.referees
-  const gradeColor = evaluation.grade ? getGradeColor(evaluation.grade) : 'text-gray-400'
+  const gradeColor = evaluation.grade ? getGradeColor(evaluation.grade) : 'text-gray-500'
   const gradeBg   = evaluation.grade ? getGradeBg(evaluation.grade)   : 'bg-gray-400/10'
   const score = evaluation.overall_score
 
@@ -685,7 +685,7 @@ function EvaluationCard({ evaluation }) {
       <CardBody className="p-3">
         <div className="flex items-start gap-3">
           {/* Avatar */}
-          <div className="w-9 h-9 rounded-full bg-[#2D3270]/40 flex items-center justify-center text-xs font-semibold text-[#7B85C9] flex-shrink-0">
+          <div className="w-9 h-9 rounded-full bg-[#2D3270]/10 flex items-center justify-center text-xs font-semibold text-[#2D3270] flex-shrink-0">
             {referee?.first_name?.[0]}{referee?.last_name?.[0]}
           </div>
 
@@ -693,7 +693,7 @@ function EvaluationCard({ evaluation }) {
           <div className="flex-1 min-w-0">
             <div className="flex items-start justify-between gap-2">
               <div>
-                <p className="text-sm font-medium text-white truncate">
+                <p className="text-sm font-medium text-gray-900 truncate">
                   {referee ? refereeName(referee) : 'Unknown Referee'}
                 </p>
                 <div className="flex items-center gap-2 flex-wrap mt-0.5">
@@ -755,7 +755,7 @@ export default function TournamentDetail() {
 
   if (tLoading) {
     return (
-      <div className="min-h-screen bg-gray-950 flex flex-col">
+      <div className="min-h-screen bg-gray-50 flex flex-col">
         <Header title="Tournament" />
         <div className="flex-1 flex items-center justify-center">
           <span className="w-8 h-8 border-2 border-[#E85D26] border-t-transparent rounded-full animate-spin" />
@@ -766,11 +766,11 @@ export default function TournamentDetail() {
 
   if (!tournament) {
     return (
-      <div className="min-h-screen bg-gray-950 flex flex-col">
+      <div className="min-h-screen bg-gray-50 flex flex-col">
         <Header title="Tournament" />
         <div className="flex-1 flex flex-col items-center justify-center gap-4 text-center p-6">
           <Trophy size={32} className="text-gray-600" />
-          <p className="text-white font-medium">Tournament not found</p>
+          <p className="text-gray-900 font-medium">Tournament not found</p>
           <Button variant="outline" onClick={() => navigate('/tournaments')}>
             Back to Tournaments
           </Button>
@@ -780,7 +780,7 @@ export default function TournamentDetail() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-950 flex flex-col">
+    <div className="min-h-screen bg-gray-50 flex flex-col">
       <Header
         title={tournament.name}
         subtitle={tournament.location || 'Tournament Detail'}

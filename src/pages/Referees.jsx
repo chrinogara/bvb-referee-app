@@ -27,7 +27,7 @@ function LevelTab({ active, onClick, children }) {
         'px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors',
         active
           ? 'bg-[#2D3270] text-white'
-          : 'text-gray-400 hover:text-white hover:bg-white/8'
+          : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100'
       )}
     >
       {children}
@@ -58,7 +58,7 @@ function RefereeCard({ referee, rankData, onClick }) {
   return (
     <div
       onClick={onClick}
-      className="bg-gray-900 border border-white/10 rounded-xl p-4 flex flex-col gap-3 cursor-pointer hover:border-white/20 hover:bg-gray-800/60 transition-all group"
+      className="bg-white border border-gray-200 rounded-xl p-4 flex flex-col gap-3 cursor-pointer hover:border-gray-300 hover:bg-gray-50/60 transition-all group"
     >
       {/* Top row: avatar + score */}
       <div className="flex items-start justify-between gap-2">
@@ -74,7 +74,7 @@ function RefereeCard({ referee, rankData, onClick }) {
           </div>
 
           <div className="min-w-0">
-            <p className="text-sm font-semibold text-white truncate group-hover:text-[#E85D26] transition-colors">
+            <p className="text-sm font-semibold text-gray-900 truncate group-hover:text-[#E85D26] transition-colors">
               {refereeName(referee)}
             </p>
             <div className="flex items-center gap-1.5 mt-1 flex-wrap">
@@ -301,7 +301,7 @@ export default function Referees() {
             placeholder="Search referees by name…"
             className={cn(
               'w-full pl-9 pr-4 py-2 rounded-xl text-sm',
-              'bg-gray-900 border border-white/10 text-white placeholder-gray-500',
+              'bg-white border border-gray-200 text-gray-900 placeholder-gray-400',
               'focus:outline-none focus:border-[#E85D26]/50 focus:ring-1 focus:ring-[#E85D26]/20',
               'transition-colors'
             )}
@@ -309,7 +309,7 @@ export default function Referees() {
         </div>
 
         {/* Level filter tabs */}
-        <div className="flex items-center gap-1 bg-gray-900 border border-white/10 rounded-xl p-1 w-fit">
+        <div className="flex items-center gap-1 bg-white border border-gray-200 rounded-xl p-1 w-fit">
           {LEVEL_TABS.map((tab) => (
             <LevelTab
               key={tab}
@@ -325,18 +325,18 @@ export default function Referees() {
         {loading ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} className="bg-gray-900 border border-white/10 rounded-xl p-4 h-28 animate-pulse" />
+              <div key={i} className="bg-white border border-gray-200 rounded-xl p-4 h-28 animate-pulse" />
             ))}
           </div>
         ) : filtered.length === 0 ? (
           <Card>
             <CardBody>
               <div className="flex flex-col items-center gap-3 py-12 text-center">
-                <div className="w-14 h-14 rounded-full bg-white/5 flex items-center justify-center">
+                <div className="w-14 h-14 rounded-full bg-gray-50 flex items-center justify-center">
                   <Users size={26} className="text-gray-600" />
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-gray-400">No referees found</p>
+                  <p className="text-sm font-medium text-gray-500">No referees found</p>
                   <p className="text-xs text-gray-600 mt-1">
                     {search
                       ? 'Try adjusting your search or filter'

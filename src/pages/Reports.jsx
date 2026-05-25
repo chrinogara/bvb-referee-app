@@ -106,17 +106,17 @@ function PodiumSpot({ entry, rank }) {
 
   const heights = { 1: 'h-24', 2: 'h-16', 3: 'h-12' }
   const colors  = { 1: 'from-amber-500/20 to-amber-500/5 border-amber-500/30', 2: 'from-gray-400/15 to-gray-400/5 border-gray-400/25', 3: 'from-orange-600/15 to-orange-600/5 border-orange-600/25' }
-  const textCol = { 1: 'text-amber-400', 2: 'text-gray-300', 3: 'text-orange-500' }
+  const textCol = { 1: 'text-amber-400', 2: 'text-gray-700', 3: 'text-orange-500' }
   const lvlColor = levelColor(entry.ranking_level)
 
   return (
     <div className={cn('flex-1 flex flex-col items-center gap-2', rank === 1 ? 'order-2' : rank === 2 ? 'order-1' : 'order-3')}>
       {/* Avatar */}
-      <div className={cn('w-12 h-12 rounded-full flex items-center justify-center font-bold text-sm border-2', lvlColor, rank === 1 ? 'w-16 h-16 text-base border-amber-400/60' : 'border-white/20')}>
+      <div className={cn('w-12 h-12 rounded-full flex items-center justify-center font-bold text-sm border-2', lvlColor, rank === 1 ? 'w-16 h-16 text-base border-amber-400/60' : 'border-gray-300')}>
         {entry.first_name?.[0]}{entry.last_name?.[0]}
       </div>
       <div className="text-center min-w-0 w-full px-1">
-        <p className={cn('text-xs font-semibold truncate', rank === 1 ? 'text-sm text-white' : 'text-gray-300')}>
+        <p className={cn('text-xs font-semibold truncate', rank === 1 ? 'text-sm text-gray-900' : 'text-gray-700')}>
           {entry.first_name} {entry.last_name}
         </p>
         <p className={cn('font-bold text-base', textCol[rank])}>
@@ -153,7 +153,7 @@ function RankingRow({ entry, rank }) {
             {entry.first_name?.[0]}{entry.last_name?.[0]}
           </div>
           <div className="min-w-0">
-            <p className="text-sm font-medium text-white truncate">{refereeName(entry)}</p>
+            <p className="text-sm font-medium text-gray-900 truncate">{refereeName(entry)}</p>
             {entry.last_evaluated_at && (
               <p className="text-xs text-gray-600 truncate">Last: {formatDate(entry.last_evaluated_at)}</p>
             )}
@@ -172,7 +172,7 @@ function RankingRow({ entry, rank }) {
           <span className="text-gray-600 text-xs">—</span>
         )}
       </td>
-      <td className="py-3 pr-3 text-center text-xs font-medium text-gray-300 hidden sm:table-cell">
+      <td className="py-3 pr-3 text-center text-xs font-medium text-gray-700 hidden sm:table-cell">
         {entry.total_evaluations ?? 0}
       </td>
       <td className="py-3 pr-4 text-center">
@@ -208,7 +208,7 @@ function CriteriaBreakdown({ criteriaAvgs }) {
               {i === 0 && <TrendingUp size={12} className="text-emerald-400 shrink-0" />}
               {i === criteriaAvgs.length - 1 && <TrendingDown size={12} className="text-red-400 shrink-0" />}
               {i > 0 && i < criteriaAvgs.length - 1 && <div className="w-3" />}
-              <span className="text-xs text-gray-300 font-medium truncate">{c.label}</span>
+              <span className="text-xs text-gray-700 font-medium truncate">{c.label}</span>
               <Badge variant="default" size="xs">{c.weight}%</Badge>
             </div>
             {c.avg != null && (
@@ -220,7 +220,7 @@ function CriteriaBreakdown({ criteriaAvgs }) {
           {c.avg != null ? (
             <ScoreBars score={c.avg} />
           ) : (
-            <div className="h-1.5 bg-white/5 rounded-full" />
+            <div className="h-1.5 bg-gray-50 rounded-full" />
           )}
         </div>
       ))}
@@ -371,7 +371,7 @@ export default function Reports() {
       <div className="flex-1 overflow-y-auto p-4 space-y-6">
 
         {/* Section tabs */}
-        <div className="flex items-center gap-1 bg-gray-900 border border-white/10 rounded-xl p-1 w-fit">
+        <div className="flex items-center gap-1 bg-white border border-gray-200 rounded-xl p-1 w-fit">
           {[
             { id: 'season',     label: 'Season Ranking', icon: Trophy },
             { id: 'tournament', label: 'Tournament Report', icon: BarChart3 },
@@ -383,7 +383,7 @@ export default function Reports() {
                 'flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-colors',
                 activeSection === id
                   ? 'bg-[#2D3270] text-white'
-                  : 'text-gray-400 hover:text-white hover:bg-white/8'
+                  : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100'
               )}
             >
               <Icon size={13} />
@@ -431,7 +431,7 @@ export default function Reports() {
               {rankLoading ? (
                 <CardBody className="space-y-3">
                   {[1, 2, 3, 4].map((i) => (
-                    <div key={i} className="h-12 bg-gray-800 rounded-xl animate-pulse" />
+                    <div key={i} className="h-12 bg-gray-50 rounded-xl animate-pulse" />
                   ))}
                 </CardBody>
               ) : ranking.length === 0 ? (
@@ -475,8 +475,8 @@ export default function Reports() {
               value={selectedTournamentId}
               onChange={(e) => setSelectedTournamentId(e.target.value)}
               className={cn(
-                'w-full bg-gray-900 border border-white/15 rounded-xl px-3 py-2.5',
-                'text-white text-sm appearance-none',
+                'w-full bg-white border border-gray-300 rounded-xl px-3 py-2.5',
+                'text-gray-900 text-sm appearance-none',
                 'focus:outline-none focus:border-[#E85D26]/60 focus:ring-1 focus:ring-[#E85D26]/30',
                 'transition-colors'
               )}
@@ -490,7 +490,7 @@ export default function Reports() {
             {!selectedTournamentId && (
               <div className="flex flex-col items-center gap-3 py-16 text-center">
                 <div className="w-16 h-16 rounded-2xl bg-[#2D3270]/15 flex items-center justify-center">
-                  <BarChart3 size={28} className="text-[#7B85C9]" />
+                  <BarChart3 size={28} className="text-[#2D3270]" />
                 </div>
                 <p className="text-sm text-gray-500">Select a tournament to view its report</p>
               </div>
@@ -500,7 +500,7 @@ export default function Reports() {
               <>
                 {loadingEvals ? (
                   <div className="space-y-3">
-                    {[1, 2, 3].map((i) => <div key={i} className="h-24 bg-gray-900 border border-white/10 rounded-xl animate-pulse" />)}
+                    {[1, 2, 3].map((i) => <div key={i} className="h-24 bg-white border border-gray-200 rounded-xl animate-pulse" />)}
                   </div>
                 ) : (
                   <>
@@ -509,11 +509,11 @@ export default function Reports() {
                       {/* Total evals */}
                       <Card className="p-4 flex items-start gap-3">
                         <div className="w-9 h-9 rounded-xl bg-[#2D3270]/30 flex items-center justify-center shrink-0">
-                          <ClipboardList size={16} className="text-[#7B85C9]" />
+                          <ClipboardList size={16} className="text-[#2D3270]" />
                         </div>
                         <div>
                           <p className="text-xs text-gray-500 uppercase tracking-wide font-medium">Evaluations</p>
-                          <p className="text-2xl font-bold text-white">{tournamentStats.total}</p>
+                          <p className="text-2xl font-bold text-gray-900">{tournamentStats.total}</p>
                         </div>
                       </Card>
 
@@ -524,7 +524,7 @@ export default function Reports() {
                         </div>
                         <div>
                           <p className="text-xs text-gray-500 uppercase tracking-wide font-medium">Avg Score</p>
-                          <p className={cn('text-2xl font-bold', tournamentStats.avgScore != null ? scoreColor(tournamentStats.avgScore) : 'text-white')}>
+                          <p className={cn('text-2xl font-bold', tournamentStats.avgScore != null ? scoreColor(tournamentStats.avgScore) : 'text-gray-900')}>
                             {tournamentStats.avgScore?.toFixed(2) ?? '—'}
                           </p>
                         </div>
@@ -539,7 +539,7 @@ export default function Reports() {
                           <p className="text-xs text-gray-500 uppercase tracking-wide font-medium">Top Scorer</p>
                           {tournamentStats.topScorer ? (
                             <>
-                              <p className="text-sm font-bold text-white truncate">{tournamentStats.topScorer.last_name}</p>
+                              <p className="text-sm font-bold text-gray-900 truncate">{tournamentStats.topScorer.last_name}</p>
                               <p className={cn('text-xs font-bold', scoreColor(tournamentStats.topScorer.avg_score))}>
                                 {tournamentStats.topScorer.avg_score?.toFixed(2)}
                               </p>
@@ -559,7 +559,7 @@ export default function Reports() {
                           <p className="text-xs text-gray-500 uppercase tracking-wide font-medium">Most Improved</p>
                           {mostImproved ? (
                             <>
-                              <p className="text-sm font-bold text-white truncate">{mostImproved.ref.last_name}</p>
+                              <p className="text-sm font-bold text-gray-900 truncate">{mostImproved.ref.last_name}</p>
                               <p className="text-xs font-bold text-[#E85D26]">
                                 +{mostImproved.improvement.toFixed(2)}
                               </p>
@@ -623,7 +623,7 @@ export default function Reports() {
                                     <TrendingUp size={11} className="text-emerald-400" />
                                     <span className="text-xs font-semibold text-emerald-400">Strongest</span>
                                   </div>
-                                  <p className="text-xs text-gray-300 font-medium leading-snug">{criteriaAvgs[0]?.label}</p>
+                                  <p className="text-xs text-gray-700 font-medium leading-snug">{criteriaAvgs[0]?.label}</p>
                                   <p className="text-sm font-bold text-emerald-400 mt-0.5">{criteriaAvgs[0]?.avg?.toFixed(2)}</p>
                                 </div>
                                 <div className="bg-red-500/5 border border-red-500/20 rounded-xl p-3">
@@ -631,7 +631,7 @@ export default function Reports() {
                                     <TrendingDown size={11} className="text-red-400" />
                                     <span className="text-xs font-semibold text-red-400">Weakest</span>
                                   </div>
-                                  <p className="text-xs text-gray-300 font-medium leading-snug">{criteriaAvgs[criteriaAvgs.length - 1]?.label}</p>
+                                  <p className="text-xs text-gray-700 font-medium leading-snug">{criteriaAvgs[criteriaAvgs.length - 1]?.label}</p>
                                   <p className="text-sm font-bold text-red-400 mt-0.5">{criteriaAvgs[criteriaAvgs.length - 1]?.avg?.toFixed(2)}</p>
                                 </div>
                               </div>
@@ -651,7 +651,7 @@ export default function Reports() {
                             {tournamentRanking.length === 0 ? (
                               <div className="py-8 text-center text-gray-500 text-sm">No data</div>
                             ) : (
-                              <ul className="divide-y divide-white/5">
+                              <ul className="divide-y divide-gray-100">
                                 {tournamentRanking.map((entry, i) => {
                                   const lvlColor = levelColor(entry.ranking_level)
                                   return (
@@ -663,7 +663,7 @@ export default function Reports() {
                                         {entry.first_name?.[0]}{entry.last_name?.[0]}
                                       </div>
                                       <div className="flex-1 min-w-0">
-                                        <p className="text-xs font-medium text-white truncate">{refereeName(entry)}</p>
+                                        <p className="text-xs font-medium text-gray-900 truncate">{refereeName(entry)}</p>
                                         <p className="text-xs text-gray-600">{entry.total_evaluations} eval{entry.total_evaluations !== 1 ? 's' : ''}</p>
                                       </div>
                                       {entry.avg_score != null && (

@@ -1,4 +1,4 @@
-import { NavLink, useLocation } from 'react-router-dom'
+import { NavLink } from 'react-router-dom'
 import {
   LayoutDashboard,
   Users,
@@ -8,19 +8,23 @@ import {
   FileText,
   MessageSquare,
   X,
-  Waves,
+  Volleyball,
+  Monitor,
+  BookOpen,
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { useAppStore } from '../../store/appStore'
 
 const NAV = [
-  { to: '/',            icon: LayoutDashboard, label: 'Dashboard' },
-  { to: '/referees',    icon: Users,           label: 'Referees' },
-  { to: '/tournaments', icon: Trophy,          label: 'Tournaments' },
-  { to: '/designations',icon: Calendar,        label: 'Designations' },
-  { to: '/evaluate',    icon: ClipboardCheck,  label: 'Evaluate',    accent: true },
-  { to: '/reports',     icon: FileText,        label: 'Reports' },
-  { to: '/assistant',   icon: MessageSquare,   label: 'Rules AI' },
+  { to: '/',             icon: LayoutDashboard, label: 'Dashboard' },
+  { to: '/briefing',     icon: BookOpen,        label: 'Briefing' },
+  { to: '/referees',     icon: Users,           label: 'Referees' },
+  { to: '/tournaments',  icon: Trophy,          label: 'Tournaments' },
+  { to: '/assignments',  icon: Calendar,        label: 'Assignments' },
+  { to: '/live-courts',  icon: Monitor,         label: 'Live Courts' },
+  { to: '/evaluate',     icon: ClipboardCheck,  label: 'Evaluate', accent: true },
+  { to: '/reports',      icon: FileText,        label: 'Reports' },
+  { to: '/assistant',    icon: MessageSquare,   label: 'Rules AI' },
 ]
 
 export function Sidebar() {
@@ -28,38 +32,36 @@ export function Sidebar() {
 
   return (
     <>
-      {/* Mobile overlay */}
       {sidebarOpen && (
         <div
-          className="fixed inset-0 z-40 bg-black/60 lg:hidden"
+          className="fixed inset-0 z-40 bg-black/30 lg:hidden"
           onClick={() => setSidebarOpen(false)}
         />
       )}
 
-      {/* Sidebar */}
       <aside
         className={cn(
           'fixed top-0 left-0 bottom-0 z-50 w-64 flex flex-col',
-          'bg-[#1A1B2E] border-r border-white/10',
+          'bg-white border-r border-gray-200',
           'transition-transform duration-300 ease-in-out',
           'lg:relative lg:translate-x-0 lg:z-auto',
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         )}
       >
         {/* Logo */}
-        <div className="flex items-center justify-between p-4 border-b border-white/10">
+        <div className="flex items-center justify-between p-4 border-b border-gray-200">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 bg-[#E85D26] rounded-lg flex items-center justify-center">
-              <Waves size={18} className="text-white" />
+            <div className="w-9 h-9 bg-gradient-to-br from-[#E85D26] to-[#C44D1E] rounded-lg flex items-center justify-center shadow-sm">
+              <Volleyball size={20} className="text-white" strokeWidth={2.2} />
             </div>
             <div>
-              <div className="text-sm font-bold text-white leading-tight">BVB RC</div>
-              <div className="text-[10px] text-gray-500 leading-tight">Belgian Beach Tour</div>
+              <div className="text-sm font-bold text-gray-900 leading-tight">BVB RC</div>
+              <div className="text-[10px] text-gray-500 leading-tight">Beach Volley Tour</div>
             </div>
           </div>
           <button
             onClick={() => setSidebarOpen(false)}
-            className="lg:hidden p-1.5 rounded-lg hover:bg-white/10 text-gray-400"
+            className="lg:hidden p-1.5 rounded-lg hover:bg-gray-100 text-gray-500"
           >
             <X size={16} />
           </button>
@@ -78,9 +80,9 @@ export function Sidebar() {
                   'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors',
                   isActive
                     ? accent
-                      ? 'bg-[#E85D26] text-white font-semibold'
-                      : 'bg-[#2D3270]/60 text-white font-semibold'
-                    : 'text-gray-400 hover:text-white hover:bg-white/8'
+                      ? 'bg-[#E85D26] text-white font-semibold shadow-sm'
+                      : 'bg-[#2D3270]/10 text-[#2D3270] font-semibold'
+                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
                 )
               }
             >
@@ -91,9 +93,11 @@ export function Sidebar() {
         </nav>
 
         {/* RC Info */}
-        <div className="p-4 border-t border-white/10">
-          <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">Referee Coach</div>
-          <div className="text-sm font-semibold text-white">Christian Nogara</div>
+        <div className="p-4 border-t border-gray-200 bg-gray-50">
+          <div className="text-[10px] text-gray-500 uppercase tracking-wide mb-0.5">
+            Referee Coach
+          </div>
+          <div className="text-sm font-semibold text-gray-900">Christian Nogara</div>
           <div className="text-xs text-gray-500">Volley Vlaanderen / FWBV</div>
         </div>
       </aside>

@@ -74,14 +74,14 @@ function StatCard({ icon: Icon, label, value, sub, accent }) {
       <div
         className={cn(
           'w-10 h-10 rounded-xl flex items-center justify-center shrink-0',
-          accent || 'bg-[#2D3270]/30'
+          accent || 'bg-[#2D3270]/10'
         )}
       >
-        <Icon size={20} className="text-[#7B85C9]" />
+        <Icon size={20} className="text-[#2D3270]" />
       </div>
       <div className="min-w-0">
         <p className="text-xs text-gray-500 font-medium uppercase tracking-wide">{label}</p>
-        <p className="text-xl font-bold text-white mt-0.5 truncate">{value}</p>
+        <p className="text-xl font-bold text-gray-900 mt-0.5 truncate">{value}</p>
         {sub && <p className="text-xs text-gray-500 mt-0.5 truncate">{sub}</p>}
       </div>
     </Card>
@@ -163,7 +163,7 @@ export default function Dashboard() {
                   className="flex items-center justify-between px-3 py-2 rounded-lg bg-red-500/5 border border-red-500/20"
                 >
                   <div className="flex-1 min-w-0">
-                    <div className="text-sm font-semibold text-white truncate">
+                    <div className="text-sm font-semibold text-gray-900 truncate">
                       {a.referees ? refereeName(a.referees) : 'Unknown'}
                       <span className="text-red-300/80 font-normal ml-2 text-xs">
                         avg {a.triggered_avg?.toFixed(1)} · {a.tournaments?.name}
@@ -222,6 +222,51 @@ export default function Dashboard() {
           />
         </div>
 
+        {/* ── Quick Actions ── */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Quick Actions</CardTitle>
+          </CardHeader>
+          <CardBody className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <Link
+              to="/briefing"
+              className="flex flex-col items-center justify-center gap-1.5 p-3 rounded-xl border border-gray-200 hover:border-[#E85D26]/40 hover:bg-orange-50 transition-colors group"
+            >
+              <div className="w-10 h-10 rounded-xl bg-[#E85D26]/10 flex items-center justify-center group-hover:bg-[#E85D26]/15 transition-colors">
+                <BarChart3 size={18} className="text-[#E85D26]" />
+              </div>
+              <span className="text-xs font-semibold text-gray-700">Briefing</span>
+            </Link>
+            <Link
+              to="/assignments"
+              className="flex flex-col items-center justify-center gap-1.5 p-3 rounded-xl border border-gray-200 hover:border-[#2D3270]/40 hover:bg-blue-50 transition-colors group"
+            >
+              <div className="w-10 h-10 rounded-xl bg-[#2D3270]/10 flex items-center justify-center">
+                <CalendarDays size={18} className="text-[#2D3270]" />
+              </div>
+              <span className="text-xs font-semibold text-gray-700">Assignments</span>
+            </Link>
+            <Link
+              to="/live-courts"
+              className="flex flex-col items-center justify-center gap-1.5 p-3 rounded-xl border border-gray-200 hover:border-emerald-400 hover:bg-emerald-50 transition-colors group"
+            >
+              <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center">
+                <AlertCircle size={18} className="text-emerald-600" />
+              </div>
+              <span className="text-xs font-semibold text-gray-700">Live Courts</span>
+            </Link>
+            <Link
+              to="/evaluate"
+              className="flex flex-col items-center justify-center gap-1.5 p-3 rounded-xl border border-gray-200 hover:border-purple-400 hover:bg-purple-50 transition-colors group"
+            >
+              <div className="w-10 h-10 rounded-xl bg-purple-50 flex items-center justify-center">
+                <Plus size={18} className="text-purple-600" />
+              </div>
+              <span className="text-xs font-semibold text-gray-700">New Evaluation</span>
+            </Link>
+          </CardBody>
+        </Card>
+
         {/* ── Recent Evaluations ── */}
         <Card>
           <CardHeader className="flex items-center justify-between">
@@ -239,7 +284,7 @@ export default function Dashboard() {
                 No evaluations yet.
               </div>
             ) : (
-              <ul className="divide-y divide-white/5">
+              <ul className="divide-y divide-gray-100">
                 {recentEvals.map((ev) => {
                   const ref = ev.referees
                   const grade = getGrade(ev.overall_score)
@@ -250,12 +295,12 @@ export default function Dashboard() {
                   return (
                     <li
                       key={ev.id}
-                      className="flex items-center gap-3 px-4 py-3 hover:bg-white/5 transition-colors cursor-pointer"
+                      className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors cursor-pointer"
                       onClick={() => navigate(`/referees/${ref?.id}`)}
                     >
                       {/* Avatar */}
-                      <div className="w-8 h-8 rounded-full bg-[#2D3270]/40 flex items-center justify-center shrink-0">
-                        <span className="text-xs font-bold text-[#7B85C9]">
+                      <div className="w-8 h-8 rounded-full bg-[#2D3270]/10 flex items-center justify-center shrink-0">
+                        <span className="text-xs font-bold text-[#2D3270]">
                           {ref
                             ? `${ref.first_name?.[0] || ''}${ref.last_name?.[0] || ''}`
                             : '??'}
@@ -264,7 +309,7 @@ export default function Dashboard() {
 
                       {/* Info */}
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-white truncate">
+                        <p className="text-sm font-medium text-gray-900 truncate">
                           {ref ? refereeName(ref) : 'Unknown Referee'}
                         </p>
                         <p className="text-xs text-gray-500 truncate">
@@ -326,7 +371,7 @@ export default function Dashboard() {
                       'flex items-start gap-3 p-3 rounded-xl border transition-colors',
                       isOngoing
                         ? 'border-[#E85D26]/30 bg-[#E85D26]/5'
-                        : 'border-white/8 bg-white/3 hover:bg-white/5'
+                        : 'border-white/8 bg-white/3 hover:bg-gray-50'
                     )}
                   >
                     {/* Timeline dot */}
@@ -342,14 +387,14 @@ export default function Dashboard() {
                         )}
                       />
                       {idx < sortedTournaments.length - 1 && (
-                        <div className="w-px h-6 bg-white/10" />
+                        <div className="w-px h-6 bg-gray-100" />
                       )}
                     </div>
 
                     {/* Content */}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <p className="text-sm font-semibold text-white truncate">{t.name}</p>
+                        <p className="text-sm font-semibold text-gray-900 truncate">{t.name}</p>
                         {statusBadge(status)}
                         {t.is_finals && (
                           <Badge variant="amber" size="xs">Finals</Badge>
@@ -389,7 +434,7 @@ export default function Dashboard() {
                 <Plus size={22} className="text-[#E85D26]" />
               </div>
               <div>
-                <p className="text-sm font-semibold text-white">New Evaluation</p>
+                <p className="text-sm font-semibold text-gray-900">New Evaluation</p>
                 <p className="text-xs text-gray-500 mt-0.5">Score a referee match</p>
               </div>
             </button>
@@ -399,23 +444,23 @@ export default function Dashboard() {
               className="flex items-center gap-4 p-4 rounded-xl bg-[#2D3270]/20 border border-[#2D3270]/40 hover:bg-[#2D3270]/30 transition-colors text-left group"
             >
               <div className="w-11 h-11 rounded-xl bg-[#2D3270]/30 flex items-center justify-center shrink-0 group-hover:bg-[#2D3270]/50 transition-colors">
-                <Users size={22} className="text-[#7B85C9]" />
+                <Users size={22} className="text-[#2D3270]" />
               </div>
               <div>
-                <p className="text-sm font-semibold text-white">View Rankings</p>
+                <p className="text-sm font-semibold text-gray-900">View Rankings</p>
                 <p className="text-xs text-gray-500 mt-0.5">Season leaderboard</p>
               </div>
             </button>
 
             <button
               onClick={() => navigate('/reports')}
-              className="flex items-center gap-4 p-4 rounded-xl bg-white/5 border border-white/10 hover:bg-white/8 transition-colors text-left group"
+              className="flex items-center gap-4 p-4 rounded-xl bg-gray-50 border border-gray-200 hover:bg-gray-100 transition-colors text-left group"
             >
-              <div className="w-11 h-11 rounded-xl bg-white/8 flex items-center justify-center shrink-0 group-hover:bg-white/12 transition-colors">
-                <BarChart3 size={22} className="text-gray-400" />
+              <div className="w-11 h-11 rounded-xl bg-gray-100 flex items-center justify-center shrink-0 group-hover:bg-white/12 transition-colors">
+                <BarChart3 size={22} className="text-gray-500" />
               </div>
               <div>
-                <p className="text-sm font-semibold text-white">Reports</p>
+                <p className="text-sm font-semibold text-gray-900">Reports</p>
                 <p className="text-xs text-gray-500 mt-0.5">Analytics &amp; exports</p>
               </div>
             </button>

@@ -1,5 +1,5 @@
-import { useState, useCallback, useEffect } from 'react'
-import { CheckCircle, XCircle, AlertCircle, X } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { CheckCircle, XCircle, AlertCircle } from 'lucide-react'
 import { cn } from '../../lib/utils'
 
 let toastQueue = []
@@ -33,15 +33,15 @@ export function ToastContainer() {
   }, [])
 
   const icons = {
-    success: <CheckCircle size={16} className="text-emerald-400 shrink-0" />,
-    error:   <XCircle size={16} className="text-red-400 shrink-0" />,
-    info:    <AlertCircle size={16} className="text-blue-400 shrink-0" />,
+    success: <CheckCircle size={16} className="text-emerald-600 shrink-0" />,
+    error:   <XCircle size={16} className="text-red-600 shrink-0" />,
+    info:    <AlertCircle size={16} className="text-blue-600 shrink-0" />,
   }
 
   const colors = {
-    success: 'border-emerald-500/30',
-    error:   'border-red-500/30',
-    info:    'border-blue-500/30',
+    success: 'border-emerald-300 bg-emerald-50',
+    error:   'border-red-300 bg-red-50',
+    info:    'border-blue-300 bg-blue-50',
   }
 
   return (
@@ -51,13 +51,13 @@ export function ToastContainer() {
           key={t.id}
           className={cn(
             'flex items-center gap-2.5 px-4 py-3 rounded-xl',
-            'bg-gray-900 border shadow-xl pointer-events-auto',
+            'border shadow-lg pointer-events-auto',
             'animate-in slide-in-from-bottom-2 duration-200',
             colors[t.type] || colors.info
           )}
         >
           {icons[t.type]}
-          <span className="text-sm text-gray-200">{t.message}</span>
+          <span className="text-sm text-gray-800">{t.message}</span>
         </div>
       ))}
     </div>

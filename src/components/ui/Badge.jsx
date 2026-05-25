@@ -2,14 +2,14 @@ import { cn } from '../../lib/utils'
 
 export function Badge({ children, className, variant = 'default', size = 'sm' }) {
   const variants = {
-    default: 'bg-white/10 text-white',
-    navy:    'bg-[#2D3270]/20 text-[#7B85C9]',
-    orange:  'bg-[#E85D26]/20 text-[#E85D26]',
-    green:   'bg-emerald-500/15 text-emerald-400',
-    yellow:  'bg-yellow-500/15 text-yellow-400',
-    red:     'bg-red-500/15 text-red-400',
-    blue:    'bg-blue-500/15 text-blue-400',
-    amber:   'bg-amber-500/15 text-amber-400',
+    default: 'bg-gray-100 text-gray-700',
+    navy:    'bg-[#2D3270]/10 text-[#2D3270]',
+    orange:  'bg-[#E85D26]/10 text-[#E85D26]',
+    green:   'bg-emerald-50 text-emerald-700',
+    yellow:  'bg-yellow-50 text-yellow-700',
+    red:     'bg-red-50 text-red-700',
+    blue:    'bg-blue-50 text-blue-700',
+    amber:   'bg-amber-50 text-amber-700',
   }
   const sizes = {
     xs: 'text-[10px] px-1.5 py-0.5',

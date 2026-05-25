@@ -12,12 +12,12 @@ export function Button({
   ...props
 }) {
   const variants = {
-    primary:  'bg-[#E85D26] hover:bg-[#C44D1E] text-white shadow-sm',
-    navy:     'bg-[#2D3270] hover:bg-[#1E2255] text-white shadow-sm',
-    ghost:    'hover:bg-white/10 text-gray-300 hover:text-white',
-    outline:  'border border-white/20 hover:bg-white/10 text-gray-300 hover:text-white',
-    danger:   'bg-red-500/20 hover:bg-red-500/30 text-red-400 border border-red-500/30',
-    success:  'bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 border border-emerald-500/30',
+    primary: 'bg-[#E85D26] hover:bg-[#C44D1E] text-white shadow-sm',
+    navy:    'bg-[#2D3270] hover:bg-[#1E2255] text-white shadow-sm',
+    ghost:   'hover:bg-gray-100 text-gray-700 hover:text-gray-900',
+    outline: 'border border-gray-300 hover:bg-gray-50 text-gray-700 hover:text-gray-900',
+    danger:  'bg-red-50 hover:bg-red-100 text-red-700 border border-red-200',
+    success: 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200',
   }
   const sizes = {
     xs:  'text-xs px-2.5 py-1.5 gap-1',

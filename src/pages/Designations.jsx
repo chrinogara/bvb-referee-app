@@ -397,27 +397,29 @@ export default function Designations() {
 
   useEffect(() => { loadAttendance() }, [loadAttendance])
 
-  const isPresent = (refId) => Boolean(attendanceMap[refId]?.[String(dayNumber)])
+  const attendanceKey = `${dayNumber}_${sectionNumber}`
+
+  const isPresent = (refId) => Boolean(attendanceMap[refId]?.[attendanceKey])
 
   const presentRefs = useMemo(
-    () => assignedReferees.filter((r) => isPresent(r.id)),
-    [assignedReferees, attendanceMap, dayNumber] // eslint-disable-line
+    () => assignedReferees.filter((r) => Boolean(attendanceMap[r.id]?.[attendanceKey])),
+    [assignedReferees, attendanceMap, attendanceKey]
   )
 
   async function togglePresence(refId) {
     const current = isPresent(refId)
-    await attendanceService.setPresent(tournamentId, refId, dayNumber, !current)
+    await attendanceService.setPresent(tournamentId, refId, dayNumber, sectionNumber, !current)
     setAttendanceMap((prev) => {
       const refAtt = { ...(prev[refId] || {}) }
-      const k = String(dayNumber)
-      if (current) delete refAtt[k]
-      else refAtt[k] = new Date().toISOString()
+      if (current) delete refAtt[attendanceKey]
+      else refAtt[attendanceKey] = new Date().toISOString()
       return { ...prev, [refId]: refAtt }
     })
   }
 
-  // Assignments
-  const [assignments, setAssignments] = useState([])
+  // Assignments — load all sections of the day so cross-section validation
+  // (pause warnings, total matches per referee) can see the full picture.
+  const [dayAssignments, setDayAssignments] = useState([])
   const [loadingAssignments, setLoadingAssignments] = useState(false)
 
   const loadAssignments = useCallback(async () => {
@@ -428,14 +430,20 @@ export default function Designations() {
       .select('*, referees(*)')
       .eq('tournament_id', tournamentId)
       .eq('day_number', dayNumber)
-      .eq('section_number', sectionNumber)
+      .order('section_number')
       .order('court')
       .order('session_order')
-    setAssignments(data || [])
+    setDayAssignments(data || [])
     setLoadingAssignments(false)
-  }, [tournamentId, dayNumber, sectionNumber])
+  }, [tournamentId, dayNumber])
 
   useEffect(() => { loadAssignments() }, [loadAssignments])
+
+  // Current-section view (used by court grid)
+  const assignments = useMemo(
+    () => dayAssignments.filter((a) => a.section_number === sectionNumber),
+    [dayAssignments, sectionNumber]
+  )
 
   const rankingById = useMemo(() => {
     const m = {}
@@ -513,6 +521,7 @@ export default function Designations() {
         presentReferees: presentRefs,
         courts,
         pattern: rotationPattern,
+        sectionOffset: (sectionNumber - 1) * courts.length,
       })
       const rows = newAssign.map((a) => ({
         tournament_id: tournamentId,
@@ -1166,7 +1175,7 @@ export default function Designations() {
         sessionOrder={modalState?.sessionOrder}
         presentRefs={presentRefs}
         rankingById={rankingById}
-        allAssignments={assignments}
+        allAssignments={dayAssignments}
         currentAssignment={
           modalState
             ? assignments.find(

@@ -765,6 +765,28 @@ export default function Designations() {
     }
   }
 
+  async function resetSections() {
+    if (!tournamentId) return
+    const confirmed = window.confirm(
+      'Reset all sections? This will clear all court assignments for Day ' +
+        dayNumber +
+        ' and reset sections to 1. You can then reconfigure Part 1, Part 2, etc.'
+    )
+    if (!confirmed) return
+    try {
+      await courtAssignmentService.clearDay(tournamentId, dayNumber)
+      await updateTournament(tournamentId, { sections_per_day: 1 })
+      setConfigSectionsPerDay(1)
+      setSectionNumber(1)
+      setConfigOpen(false)
+      toast.success('Sections reset — ready to reconfigure')
+      await loadAssignments()
+    } catch (err) {
+      console.error('resetSections error:', err)
+      toast.error(`Reset failed: ${err.message}`)
+    }
+  }
+
   return (
     <div className="flex flex-col h-full">
       <Header
@@ -1318,6 +1340,16 @@ export default function Designations() {
           <Button variant="primary" size="md" onClick={saveConfig} className="w-full">
             Save configuration
           </Button>
+
+          <div className="pt-3 border-t border-gray-200">
+            <p className="text-[10px] text-gray-500 mb-2 leading-snug">
+              Need to start over? Reset clears all assignments for Day {dayNumber} and
+              resets sections to 1, so you can reconfigure Part 1, Part 2, etc.
+            </p>
+            <Button variant="danger" size="md" onClick={resetSections} className="w-full">
+              <RotateCw size={14} /> Reset sections (Day {dayNumber})
+            </Button>
+          </div>
         </div>
       </Modal>
     </div>

@@ -48,9 +48,10 @@ import { checkConsecutiveMatches, getAssignmentSummary } from '../lib/validation
 // ─── Finals: end-of-tournament dedicated matches ────────────────────────────
 // Stored in court_assignments with a sentinel session_order so they don't
 // collide with regular rotation sessions (1..N). The `court` field holds the
-// final identifier (Finale femminile / Finale maschile); the optional
-// court_label column stores the user-typed venue (e.g. "Centre Court").
-const FINALS_COURT_NAMES = ['Finale femminile', 'Finale maschile']
+// final identifier (Women's Final / Men's Final); the optional court_label
+// column stores the chosen court number (1..4).
+const FINALS_COURT_NAMES = ["Women's Final", "Men's Final"]
+const FINALS_COURT_OPTIONS = ['1', '2', '3', '4']
 const FINALS_SESSION_ORDER = 99
 const FINALS_SECTION_NUMBER = 1
 const FINALS_ROLES = ['R1', 'R2']
@@ -625,7 +626,7 @@ export default function Designations() {
   // They use a fixed sentinel session_order so they don't show in the regular
   // rotation grid, and they load from any section.
   const [finalsAssignments, setFinalsAssignments] = useState([])
-  const [finalsCourtLabels, setFinalsCourtLabels] = useState({}) // { 'Finale femminile': 'Court 1', ... }
+  const [finalsCourtLabels, setFinalsCourtLabels] = useState({}) // { "Women's Final": '1', ... }
 
   const loadFinalsAssignments = useCallback(async () => {
     if (!tournamentId) return
@@ -706,7 +707,7 @@ export default function Designations() {
 
   async function clearAllFinals() {
     const confirmed = window.confirm(
-      `Clear ALL finals assignments for Day ${dayNumber} (R1, R2 for both Finale femminile and Finale maschile)?`
+      `Clear ALL finals assignments for Day ${dayNumber} (R1, R2 for both Women's Final and Men's Final)?`
     )
     if (!confirmed) return
     try {
@@ -1171,7 +1172,7 @@ export default function Designations() {
                 <div className="mt-6 pt-5 border-t border-amber-300/60">
                   <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
                     <div className="flex items-center gap-2">
-                      <span className="text-sm font-bold text-gray-800">Finals (Femminile & Maschile)</span>
+                      <span className="text-sm font-bold text-gray-800">Finals (Women's & Men's)</span>
                       <Badge variant="yellow" size="xs">END OF TOURNAMENT</Badge>
                     </div>
                     {finalsAssignments.length > 0 && (
@@ -1197,17 +1198,20 @@ export default function Designations() {
                           <MapPin size={14} className="text-amber-600" />
                           {court}
                         </div>
-                        <div className="mb-3">
-                          <label className="text-[10px] font-semibold uppercase tracking-wide text-gray-500 block mb-1">
-                            Campo
+                        <div className="mb-3 flex items-center gap-2">
+                          <label className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">
+                            Court
                           </label>
-                          <input
-                            type="text"
+                          <select
                             value={finalsCourtLabels[court] || ''}
                             onChange={(e) => handleFinalsCourtLabel(court, e.target.value)}
-                            placeholder="es. Centre Court, Court 1…"
-                            className="w-full bg-white border border-gray-300 rounded-lg px-2 py-1.5 text-xs text-gray-900"
-                          />
+                            className="w-20 bg-white border border-gray-300 rounded-lg px-2 py-1.5 text-xs text-gray-900"
+                          >
+                            <option value="">—</option>
+                            {FINALS_COURT_OPTIONS.map((n) => (
+                              <option key={n} value={n}>{n}</option>
+                            ))}
+                          </select>
                         </div>
                         <div className="space-y-2">
                           {FINALS_ROLES.map((role) => {

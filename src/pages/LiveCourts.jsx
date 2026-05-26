@@ -53,7 +53,7 @@ function CourtCanvas({ court, assignments, liveMatch, onToggleMatch, onEditStart
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-sm font-bold text-gray-900">{court}</span>
           {finalsLabel && (
-            <span className="text-xs text-gray-600">— {finalsLabel}</span>
+            <span className="text-xs text-gray-600">— Court {finalsLabel}</span>
           )}
           {isFinalsCourt && (
             <Badge variant="yellow" size="xs">FINAL</Badge>
@@ -310,7 +310,7 @@ export default function LiveCourts() {
   }, [tournament])
 
   // Finals courts are hardcoded names that activate only when assignments exist.
-  const FINALS_COURT_NAMES = ['Finale femminile', 'Finale maschile']
+  const FINALS_COURT_NAMES = ["Women's Final", "Men's Final"]
   const FINALS_SESSION_ORDER = 99
 
   // All possible courts (regular + finals), used to fetch assignments uniformly.

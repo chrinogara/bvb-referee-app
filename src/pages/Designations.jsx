@@ -135,18 +135,18 @@ function CourtSessionGrid({
   }
 
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-sm">
+    <div className="overflow-x-auto -mx-4 px-4">
+      <table className="min-w-full text-sm">
         <thead>
           <tr className="border-b border-gray-200">
-            <th className="text-left text-xs font-bold uppercase tracking-wider text-gray-500 py-2 pl-2">
+            <th className="text-left text-xs font-bold uppercase tracking-wider text-gray-500 py-2 pl-2 min-w-20">
               Court
             </th>
             {tokens.map((t, i) => (
               <th
                 key={i}
                 className={cn(
-                  'text-left text-xs font-bold uppercase tracking-wider py-2 px-2',
+                  'text-left text-xs font-bold uppercase tracking-wider py-2 px-2 min-w-32',
                   t === 'PAUSE' ? 'text-amber-400' : 'text-gray-500'
                 )}
               >
@@ -158,7 +158,7 @@ function CourtSessionGrid({
         <tbody>
           {courts.map((court) => (
             <tr key={court} className="border-b border-white/5">
-              <td className="py-3 pl-2">
+              <td className="py-3 pl-2 min-w-20">
                 <div className="flex items-center gap-2">
                   <MapPin size={14} className="text-[#E85D26]" />
                   <span className="font-semibold text-gray-900">{court}</span>
@@ -168,7 +168,7 @@ function CourtSessionGrid({
                 const sessionOrder = i + 1
                 if (t === 'PAUSE') {
                   return (
-                    <td key={i} className="py-3 px-2 text-amber-400/60 italic text-xs">
+                    <td key={i} className="py-3 px-2 min-w-32 text-amber-400/60 italic text-xs">
                       —
                     </td>
                   )
@@ -183,7 +183,7 @@ function CourtSessionGrid({
                 return (
                   <td
                     key={i}
-                    className="py-2 px-2"
+                    className="py-2 px-2 min-w-32"
                     onDragOver={handleDragOver}
                     onDrop={(e) => handleDrop(e, court, sessionOrder)}
                   >

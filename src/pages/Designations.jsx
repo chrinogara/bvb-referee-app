@@ -1154,7 +1154,7 @@ export default function Designations() {
         title="Tournament Configuration"
         size="md"
       >
-        <div className="space-y-4">
+        <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-2">
           <div>
             <label className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-2 block">
               Sections per day

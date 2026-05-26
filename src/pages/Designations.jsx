@@ -14,6 +14,7 @@ import {
   MessageCircle,
   Copy,
   Clock,
+  X,
 } from 'lucide-react'
 
 import { Header } from '../components/layout/Header'
@@ -49,11 +50,18 @@ import { checkConsecutiveMatches, getAssignmentSummary } from '../lib/validation
 function RefereeChip({ referee, present, onToggle, riskScore }) {
   const isLowFeedback = riskScore != null && riskScore < 3.0
   return (
-    <button
-      type="button"
+    <div
+      role="button"
+      tabIndex={0}
       onClick={onToggle}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          onToggle()
+        }
+      }}
       className={cn(
-        'relative flex items-center gap-2 px-3 py-2 rounded-xl border text-sm transition-all duration-150',
+        'relative flex items-center gap-2 px-3 py-2 rounded-xl border text-sm transition-all duration-150 cursor-pointer select-none',
         present
           ? 'bg-emerald-500/15 border-emerald-500/40 text-white'
           : 'bg-gray-50 border-gray-200 text-gray-500 hover:border-gray-400'
@@ -89,9 +97,20 @@ function RefereeChip({ referee, present, onToggle, riskScore }) {
         </span>
       )}
       {present && (
-        <CheckCircle size={14} className="text-emerald-400 ml-auto shrink-0" />
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation()
+            onToggle()
+          }}
+          title="Deselect referee"
+          aria-label="Deselect referee"
+          className="ml-auto shrink-0 w-5 h-5 rounded-full bg-emerald-500/30 hover:bg-red-500/40 text-emerald-300 hover:text-red-200 flex items-center justify-center transition-colors"
+        >
+          <X size={12} />
+        </button>
       )}
-    </button>
+    </div>
   )
 }
 

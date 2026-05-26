@@ -341,7 +341,7 @@ function ManualAssignModal({
 
 export default function Designations() {
   const [searchParams] = useSearchParams()
-  const { tournaments } = useTournaments()
+  const { tournaments, update: updateTournament } = useTournaments()
 
   const [tournamentId, setTournamentId] = useState(
     searchParams.get('tournamentId') || ''
@@ -751,15 +751,14 @@ export default function Designations() {
 
   async function saveConfig() {
     try {
-      const result = await tournamentService.update(tournamentId, {
+      await updateTournament(tournamentId, {
         courts: configCourts,
         rotation_pattern: configPattern,
         sections_per_day: configSectionsPerDay,
       })
-      if (!result) throw new Error('Update failed')
       setConfigOpen(false)
-      toast.success('Config saved — reloading')
-      setTimeout(() => window.location.reload(), 1000)
+      toast.success('Config saved')
+      setSectionNumber(1)
     } catch (err) {
       console.error('saveConfig error:', err)
       toast.error(`Save failed: ${err.message}`)

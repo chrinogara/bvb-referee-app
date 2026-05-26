@@ -523,13 +523,18 @@ export default function Designations() {
         session_order: a.session_order,
         role: a.role,
       }))
-      if (rows.length > 0) await supabase.from('court_assignments').insert(rows)
+      if (rows.length > 0) {
+        const { error: insertError } = await supabase
+          .from('court_assignments')
+          .insert(rows)
+        if (insertError) throw insertError
+      }
       warnings.forEach((w) => toast(w, 'info', 4000))
       toast.success(`✅ ${rows.length} assignments created`)
       await loadAssignments()
     } catch (err) {
       console.error(err)
-      toast.error('Auto-assign failed')
+      toast.error(`Auto-assign failed: ${err.message || 'unknown error'}`)
     } finally {
       setAutoAssigning(false)
     }

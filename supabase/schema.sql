@@ -147,11 +147,13 @@ CREATE TABLE IF NOT EXISTS court_assignments (
   day_number INTEGER NOT NULL,
   section_number INTEGER NOT NULL DEFAULT 1,
   court TEXT NOT NULL,
+  court_label TEXT, -- free-text venue name for finals (e.g. "Centre Court")
   session_order INTEGER NOT NULL,
   role TEXT DEFAULT 'R1',
   created_at TIMESTAMPTZ DEFAULT NOW(),
   UNIQUE(tournament_id, day_number, section_number, court, session_order, role)
 );
+ALTER TABLE court_assignments ADD COLUMN IF NOT EXISTS court_label TEXT;
 
 -- ─── ATTENDANCE (check-in per day) ────────────────────────────────────────────
 ALTER TABLE tournament_referees ADD COLUMN IF NOT EXISTS attendance JSONB DEFAULT '{}'::JSONB;

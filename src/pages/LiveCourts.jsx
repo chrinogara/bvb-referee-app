@@ -41,6 +41,7 @@ function CourtCanvas({ court, assignments, liveMatch, onToggleMatch, onEditStart
   const r2 = assignments.find((a) => a.role === 'R2')
   const lj1 = assignments.find((a) => a.role === 'LJ1')
   const lj2 = assignments.find((a) => a.role === 'LJ2')
+  const finalsLabel = isFinalsCourt ? assignments[0]?.court_label : null
 
   const isActive = !!liveMatch?.is_active
 
@@ -51,8 +52,11 @@ function CourtCanvas({ court, assignments, liveMatch, onToggleMatch, onEditStart
         'flex items-center justify-between px-4 py-2.5 border-b border-gray-200',
         isActive ? 'bg-emerald-50' : isFinalsCourt ? 'bg-amber-50' : 'bg-gray-50'
       )}>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <span className="text-sm font-bold text-gray-900">{court}</span>
+          {finalsLabel && (
+            <span className="text-xs text-gray-600">— {finalsLabel}</span>
+          )}
           {isFinalsCourt && (
             <Badge variant="yellow" size="xs">FINAL</Badge>
           )}
@@ -139,20 +143,20 @@ function CourtCanvas({ court, assignments, liveMatch, onToggleMatch, onEditStart
               anchor="left"
               big
             />
-            {/* LJ1 — right of R1 (top-right corner, same side as R1) */}
+            {/* LJ1 — back-right corner (right of R1, baseline of Side A) */}
             <RefereePin
               referee={lj1}
               ranking={lj1 && rankingById[lj1.referee_id]}
               role="LJ1"
-              style={{ top: '28%', right: '4%' }}
+              style={{ top: '10%', right: '4%' }}
               colorClass="bg-cyan-100 border-cyan-500 text-cyan-800"
             />
-            {/* LJ2 — right of R2 (top-left corner, same side as R2) */}
+            {/* LJ2 — back-left corner (right of R2, baseline of Side B) */}
             <RefereePin
               referee={lj2}
               ranking={lj2 && rankingById[lj2.referee_id]}
               role="LJ2"
-              style={{ top: '28%', left: '4%' }}
+              style={{ top: '90%', left: '4%' }}
               colorClass="bg-cyan-100 border-cyan-500 text-cyan-800"
             />
           </>
@@ -327,7 +331,7 @@ export default function LiveCourts() {
   }, [tournament])
 
   // Finals courts are hardcoded names that activate only when assignments exist.
-  const FINALS_COURT_NAMES = ['Court 5', 'Court 6']
+  const FINALS_COURT_NAMES = ['Finale femminile', 'Finale maschile']
   const FINALS_SESSION_ORDER = 99
 
   // All possible courts (regular + finals), used to fetch assignments uniformly.

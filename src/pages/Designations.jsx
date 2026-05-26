@@ -45,10 +45,12 @@ import { generateDesignationPDF, downloadPDF } from '../lib/pdf'
 import { cn, refereeName, refereeInitials, formatDate } from '../lib/utils'
 import { checkConsecutiveMatches, getAssignmentSummary } from '../lib/validationPause'
 
-// ─── Finals: end-of-tournament dedicated courts (Court 5, Court 6) ────────────
+// ─── Finals: end-of-tournament dedicated matches ────────────────────────────
 // Stored in court_assignments with a sentinel session_order so they don't
-// collide with regular rotation sessions (1..N).
-const FINALS_COURT_NAMES = ['Court 5', 'Court 6']
+// collide with regular rotation sessions (1..N). The `court` field holds the
+// final identifier (Finale femminile / Finale maschile); the optional
+// court_label column stores the user-typed venue (e.g. "Centre Court").
+const FINALS_COURT_NAMES = ['Finale femminile', 'Finale maschile']
 const FINALS_SESSION_ORDER = 99
 const FINALS_SECTION_NUMBER = 1
 const FINALS_ROLES = ['R1', 'R2', 'LJ1', 'LJ2']
@@ -615,6 +617,7 @@ export default function Designations() {
   // They use a fixed sentinel session_order so they don't show in the regular
   // rotation grid, and they load from any section.
   const [finalsAssignments, setFinalsAssignments] = useState([])
+  const [finalsCourtLabels, setFinalsCourtLabels] = useState({}) // { 'Finale femminile': 'Court 1', ... }
 
   const loadFinalsAssignments = useCallback(async () => {
     if (!tournamentId) return
@@ -626,6 +629,12 @@ export default function Designations() {
       .eq('session_order', FINALS_SESSION_ORDER)
       .in('court', FINALS_COURT_NAMES)
     setFinalsAssignments(data || [])
+    // Hydrate court labels from any row (all rows for the same final share the label)
+    const labels = {}
+    for (const row of data || []) {
+      if (row.court_label && !labels[row.court]) labels[row.court] = row.court_label
+    }
+    setFinalsCourtLabels((prev) => ({ ...prev, ...labels }))
   }, [tournamentId, dayNumber])
 
   useEffect(() => { loadFinalsAssignments() }, [loadFinalsAssignments])
@@ -654,6 +663,7 @@ export default function Designations() {
           court,
           session_order: FINALS_SESSION_ORDER,
           role,
+          court_label: finalsCourtLabels[court] || null,
         })
         if (error) throw error
       }
@@ -665,9 +675,30 @@ export default function Designations() {
     }
   }
 
+  async function handleFinalsCourtLabel(court, label) {
+    setFinalsCourtLabels((prev) => ({ ...prev, [court]: label }))
+    // Persist on existing rows if any. If no rows yet, the label is stored
+    // locally and will be saved with the first referee assignment.
+    const existingRows = finalsAssignments.filter((a) => a.court === court)
+    if (existingRows.length === 0) return
+    try {
+      const { error } = await supabase
+        .from('court_assignments')
+        .update({ court_label: label || null })
+        .eq('tournament_id', tournamentId)
+        .eq('day_number', dayNumber)
+        .eq('session_order', FINALS_SESSION_ORDER)
+        .eq('court', court)
+      if (error) throw error
+    } catch (err) {
+      console.error('handleFinalsCourtLabel error:', err)
+      toast.error(`Court label update failed: ${err.message}`)
+    }
+  }
+
   async function clearAllFinals() {
     const confirmed = window.confirm(
-      `Clear ALL finals assignments for Day ${dayNumber} (R1, R2, LJ1, LJ2 for both Court 5 and Court 6)?`
+      `Clear ALL finals assignments for Day ${dayNumber} (R1, R2, LJ1, LJ2 for both Finale femminile and Finale maschile)?`
     )
     if (!confirmed) return
     try {
@@ -1130,11 +1161,11 @@ export default function Designations() {
               </CardBody>
             </Card>
 
-            {/* Finals assignment — end-of-tournament dedicated courts */}
+            {/* Finals assignment — end-of-tournament dedicated matches */}
             <Card className="border-amber-300/60">
               <CardHeader className="flex items-center justify-between flex-wrap gap-2 bg-amber-50/60">
                 <div className="flex items-center gap-2">
-                  <CardTitle>Finals (Court 5, Court 6)</CardTitle>
+                  <CardTitle>Finals (Femminile & Maschile)</CardTitle>
                   <Badge variant="yellow" size="xs">END OF TOURNAMENT</Badge>
                 </div>
                 {finalsAssignments.length > 0 && (
@@ -1145,9 +1176,9 @@ export default function Designations() {
               </CardHeader>
               <CardBody>
                 <p className="text-xs text-gray-500 mb-3">
-                  Assign R1, R2 and two Line Judges for each final court on
-                  Day {dayNumber}. Court 5 and Court 6 appear in Live Courts
-                  only after at least one role is set.
+                  Assign R1, R2 and two Line Judges for each final on Day {dayNumber}.
+                  Type the court name in the field below. Finals appear in Live
+                  Courts only after at least one role is set.
                 </p>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {FINALS_COURT_NAMES.map((court) => (
@@ -1155,6 +1186,18 @@ export default function Designations() {
                       <div className="text-sm font-bold text-gray-800 mb-2 flex items-center gap-2">
                         <MapPin size={14} className="text-amber-600" />
                         {court}
+                      </div>
+                      <div className="mb-3">
+                        <label className="text-[10px] font-semibold uppercase tracking-wide text-gray-500 block mb-1">
+                          Campo
+                        </label>
+                        <input
+                          type="text"
+                          value={finalsCourtLabels[court] || ''}
+                          onChange={(e) => handleFinalsCourtLabel(court, e.target.value)}
+                          placeholder="es. Centre Court, Court 1…"
+                          className="w-full bg-white border border-gray-300 rounded-lg px-2 py-1.5 text-xs text-gray-900"
+                        />
                       </div>
                       <div className="space-y-2">
                         {FINALS_ROLES.map((role) => {

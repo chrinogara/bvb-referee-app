@@ -139,6 +139,76 @@ LEFT JOIN evaluations e ON e.referee_id = r.id
 GROUP BY r.id, r.last_name, r.first_name, r.ranking_level, r.gender
 ORDER BY avg_score DESC NULLS LAST;
 
+-- ─── COURT ASSIGNMENTS (session-based designations) ──────────────────────────
+CREATE TABLE IF NOT EXISTS court_assignments (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tournament_id UUID REFERENCES tournaments(id) ON DELETE CASCADE,
+  referee_id UUID REFERENCES referees(id) ON DELETE CASCADE,
+  day_number INTEGER NOT NULL,
+  section_number INTEGER NOT NULL DEFAULT 1,
+  court TEXT NOT NULL,
+  session_order INTEGER NOT NULL,
+  role TEXT DEFAULT 'R1',
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(tournament_id, day_number, section_number, court, session_order)
+);
+
+-- ─── ATTENDANCE (check-in per day) ────────────────────────────────────────────
+ALTER TABLE tournament_referees ADD COLUMN IF NOT EXISTS attendance JSONB DEFAULT '{}'::JSONB;
+
+-- ─── LIVE MATCHES (real-time court state) ───────────────────────────────────
+CREATE TABLE IF NOT EXISTS live_matches (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tournament_id UUID REFERENCES tournaments(id) ON DELETE CASCADE,
+  day_number INTEGER NOT NULL,
+  court TEXT NOT NULL,
+  session_order INTEGER NOT NULL,
+  start_time TIMESTAMPTZ,
+  is_active BOOLEAN DEFAULT FALSE,
+  is_test BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(tournament_id, day_number, court, session_order)
+);
+
+-- ─── FEEDBACK ALERTS (low-performance warnings) ───────────────────────────────
+CREATE TABLE IF NOT EXISTS feedback_alerts (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  referee_id UUID REFERENCES referees(id) ON DELETE CASCADE,
+  tournament_id UUID REFERENCES tournaments(id) ON DELETE CASCADE,
+  triggered_avg NUMERIC(3,1),
+  notes TEXT,
+  acknowledged BOOLEAN DEFAULT FALSE,
+  triggered_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ─── BRIEFINGS ────────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS briefings (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tournament_id UUID REFERENCES tournaments(id) ON DELETE CASCADE UNIQUE,
+  section_1 JSONB,
+  section_2 JSONB,
+  section_3 JSONB,
+  section_4 JSONB,
+  section_5 JSONB,
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ─── RC REPORTS ───────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS rc_reports (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tournament_id UUID REFERENCES tournaments(id) ON DELETE CASCADE UNIQUE,
+  general_notes TEXT,
+  referee_comments JSONB,
+  rule_clarifications JSONB,
+  next_steps TEXT,
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ─── TOURNAMENTS ADDITIONAL COLUMNS ────────────────────────────────────────────
+ALTER TABLE tournaments ADD COLUMN IF NOT EXISTS courts TEXT[] DEFAULT ARRAY['Court 1', 'Court 2', 'Court 3', 'Court 4'];
+ALTER TABLE tournaments ADD COLUMN IF NOT EXISTS rotation_pattern TEXT DEFAULT 'M1-M2-PAUSE-M3';
+ALTER TABLE tournaments ADD COLUMN IF NOT EXISTS sections_per_day INTEGER DEFAULT 1;
+
 -- ─── ROW LEVEL SECURITY (disabled for single-user app) ────────────────────────
 ALTER TABLE referees DISABLE ROW LEVEL SECURITY;
 ALTER TABLE tournaments DISABLE ROW LEVEL SECURITY;
@@ -147,3 +217,8 @@ ALTER TABLE matches DISABLE ROW LEVEL SECURITY;
 ALTER TABLE designations DISABLE ROW LEVEL SECURITY;
 ALTER TABLE evaluations DISABLE ROW LEVEL SECURITY;
 ALTER TABLE documents DISABLE ROW LEVEL SECURITY;
+ALTER TABLE court_assignments DISABLE ROW LEVEL SECURITY;
+ALTER TABLE live_matches DISABLE ROW LEVEL SECURITY;
+ALTER TABLE feedback_alerts DISABLE ROW LEVEL SECURITY;
+ALTER TABLE briefings DISABLE ROW LEVEL SECURITY;
+ALTER TABLE rc_reports DISABLE ROW LEVEL SECURITY;

@@ -310,7 +310,7 @@ export const attendanceService = {
       .select('referee_id, attendance, referees(*)')
       .eq('tournament_id', tournamentId),
 
-  setPresent: async (tournamentId, refereeId, dayNumber, present) => {
+  setPresent: async (tournamentId, refereeId, dayNumber, sectionNumber, present) => {
     // Read current attendance
     const { data: row } = await supabase
       .from('tournament_referees')
@@ -320,7 +320,7 @@ export const attendanceService = {
       .single()
 
     const att = { ...(row?.attendance || {}) }
-    const key = String(dayNumber)
+    const key = `${dayNumber}_${sectionNumber}`
     if (present) att[key] = new Date().toISOString()
     else delete att[key]
 

@@ -26,6 +26,7 @@ export function autoAssign({
   courts,
   pattern = 'M1-M2-PAUSE-M3',
   defaultRole = 'R1',
+  sectionOffset = 0,
 }) {
   if (!presentReferees?.length) {
     return { assignments: [], warnings: ['No referees marked as present.'] }
@@ -60,8 +61,10 @@ export function autoAssign({
   })
 
   const assignments = []
-  // Pointer into the rotated referee list — advances every assignment
-  let refIdx = 0
+  // Pointer into the rotated referee list — advances every assignment.
+  // sectionOffset shifts the starting position so different sections of the
+  // same day produce different rotations.
+  let refIdx = refs.length > 0 ? sectionOffset % refs.length : 0
 
   // For each session, fill all courts
   for (let s = 0; s < totalSessions; s++) {

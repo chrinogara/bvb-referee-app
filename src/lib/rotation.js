@@ -66,21 +66,37 @@ export function autoAssign({
   // same day produce different rotations.
   let refIdx = refs.length > 0 ? sectionOffset % refs.length : 0
 
+  // If pattern has no explicit PAUSE (e.g. "M1-M2-M3-M4"), limit each ref to max 3 sessions
+  // so the 4th becomes an automatic break. Otherwise use all work sessions.
+  const maxSessionsPerRef = workSessions > courts.length ? workSessions - 1 : workSessions
+  const refSessionCount = {}
+  refs.forEach((r) => (refSessionCount[r.id] = 0))
+
   // For each session, fill all courts
   for (let s = 0; s < totalSessions; s++) {
     const token = tokens[s]
     if (token === 'PAUSE') continue // Whole day pauses — skip (but we still increment)
 
     for (let c = 0; c < courts.length; c++) {
-      const ref = refs[refIdx % refs.length]
-      assignments.push({
-        court: courts[c],
-        session_order: s + 1,
-        referee_id: ref.id,
-        role: defaultRole,
-        _refereeObj: ref, // hint for UI rendering
-      })
-      refIdx++
+      // Find a referee who hasn't reached max sessions
+      let assigned = false
+      let attempts = 0
+      while (!assigned && attempts < refs.length * 2) {
+        const ref = refs[refIdx % refs.length]
+        if (refSessionCount[ref.id] < maxSessionsPerRef) {
+          assignments.push({
+            court: courts[c],
+            session_order: s + 1,
+            referee_id: ref.id,
+            role: defaultRole,
+            _refereeObj: ref, // hint for UI rendering
+          })
+          refSessionCount[ref.id]++
+          assigned = true
+        }
+        refIdx++
+        attempts++
+      }
     }
   }
 
@@ -119,6 +135,7 @@ export function validateAssignments(assignments) {
  * Common rotation presets.
  */
 export const ROTATION_PRESETS = [
+  { value: 'M1-M2-M3-M4',            label: '4 sessions (auto pause per referee)', sessions: 4 },
   { value: 'M1-M2-PAUSE-M3',         label: '4 sessions (work-work-pause-work)', sessions: 4 },
   { value: 'M1-M2-PAUSE-M3-M4',      label: '5 sessions (work-work-pause-work-work)', sessions: 5 },
   { value: 'M1-PAUSE-M2-PAUSE-M3',   label: '5 sessions (sparse pauses)', sessions: 5 },

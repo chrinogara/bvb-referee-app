@@ -897,6 +897,23 @@ export default function Designations() {
           </Card>
         )}
 
+        {/* Check-in reset indicator for multi-section days */}
+        {sectionsPerDay > 1 && presentRefs.length === 0 && (
+          <Card className="bg-blue-500/10 border-blue-500/30">
+            <CardBody className="flex items-start gap-2 text-sm">
+              <Clock size={16} className="text-blue-400 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-semibold text-blue-400">
+                  Part {sectionNumber} — check-in reset
+                </p>
+                <p className="text-blue-300/80 text-xs mt-1">
+                  No referees marked present yet. Click to select who officiates this section.
+                </p>
+              </div>
+            </CardBody>
+          </Card>
+        )}
+
         {/* Risk alert banner */}
         {riskyAssigned.length > 0 && (
           <Card className="bg-red-500/10 border-red-500/30">

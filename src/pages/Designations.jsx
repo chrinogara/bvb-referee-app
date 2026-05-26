@@ -1166,89 +1166,87 @@ export default function Designations() {
                     onSwap={handleSwap}
                   />
                 )}
-              </CardBody>
-            </Card>
 
-            {/* Finals assignment — end-of-tournament dedicated matches */}
-            <Card className="border-amber-300/60">
-              <CardHeader className="flex items-center justify-between flex-wrap gap-2 bg-amber-50/60">
-                <div className="flex items-center gap-2">
-                  <CardTitle>Finals (Femminile & Maschile)</CardTitle>
-                  <Badge variant="yellow" size="xs">END OF TOURNAMENT</Badge>
-                </div>
-                {finalsAssignments.length > 0 && (
-                  <Button variant="danger" size="xs" onClick={clearAllFinals}>
-                    <Trash2 size={12} /> Clear all finals
-                  </Button>
-                )}
-              </CardHeader>
-              <CardBody>
-                <p className="text-xs text-gray-500 mb-3">
-                  Assign R1 and R2 for each final on Day {dayNumber}.
-                  Type the court name in the field below. Finals appear in Live
-                  Courts only after R1 is assigned.
-                </p>
-                {finalsEligibleRefs.length === 0 && (
-                  <div className="mb-3 p-2 bg-amber-100/50 border border-amber-300 rounded text-xs text-amber-700">
-                    ⚠️ No referees eligible for finals. Minimum score required: 3.0
-                  </div>
-                )}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {FINALS_COURT_NAMES.map((court) => (
-                    <div key={court} className="border border-amber-200 rounded-xl p-3 bg-amber-50/30">
-                      <div className="text-sm font-bold text-gray-800 mb-2 flex items-center gap-2">
-                        <MapPin size={14} className="text-amber-600" />
-                        {court}
-                      </div>
-                      <div className="mb-3">
-                        <label className="text-[10px] font-semibold uppercase tracking-wide text-gray-500 block mb-1">
-                          Campo
-                        </label>
-                        <input
-                          type="text"
-                          value={finalsCourtLabels[court] || ''}
-                          onChange={(e) => handleFinalsCourtLabel(court, e.target.value)}
-                          placeholder="es. Centre Court, Court 1…"
-                          className="w-full bg-white border border-gray-300 rounded-lg px-2 py-1.5 text-xs text-gray-900"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        {FINALS_ROLES.map((role) => {
-                          const assigned = finalsAssignments.find(
-                            (a) => a.court === court && a.role === role
-                          )
-                          return (
-                            <div key={role} className="flex items-center gap-2">
-                              <span className="text-xs font-semibold text-gray-600 w-10 shrink-0">
-                                {role}
-                              </span>
-                              <select
-                                value={assigned?.referee_id || ''}
-                                onChange={(e) =>
-                                  handleFinalsAssign(court, role, e.target.value)
-                                }
-                                className="flex-1 bg-white border border-gray-300 rounded-lg px-2 py-1.5 text-xs text-gray-900"
-                              >
-                                <option value="">— Unassigned —</option>
-                                {finalsEligibleRefs.length > 0 ? (
-                                  finalsEligibleRefs.map((r) => {
-                                    const rk = rankingById[r.id]
-                                    return (
-                                      <option key={r.id} value={r.id}>
-                                        {refereeName(r)} · {rk?.avg_score?.toFixed(1)} ({r.ranking_level})
-                                      </option>
-                                    )
-                                  })
-                                ) : (
-                                  <option disabled>No eligible referees (avg ≥ 3.0)</option>
-                                )}
-                              </select>
-                            </div>
-                          )
-                        })}
-                      </div>
+                {/* Finals subsection — end-of-tournament dedicated matches */}
+                <div className="mt-6 pt-5 border-t border-amber-300/60">
+                  <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-bold text-gray-800">Finals (Femminile & Maschile)</span>
+                      <Badge variant="yellow" size="xs">END OF TOURNAMENT</Badge>
                     </div>
-                  ))}
+                    {finalsAssignments.length > 0 && (
+                      <Button variant="danger" size="xs" onClick={clearAllFinals}>
+                        <Trash2 size={12} /> Clear all finals
+                      </Button>
+                    )}
+                  </div>
+                  <p className="text-xs text-gray-500 mb-3">
+                    Assign R1 and R2 for each final on Day {dayNumber}.
+                    Type the court name in the field below. Finals appear in Live
+                    Courts only after R1 is assigned.
+                  </p>
+                  {finalsEligibleRefs.length === 0 && (
+                    <div className="mb-3 p-2 bg-amber-100/50 border border-amber-300 rounded text-xs text-amber-700">
+                      ⚠️ No referees eligible for finals. Minimum score required: 3.0
+                    </div>
+                  )}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {FINALS_COURT_NAMES.map((court) => (
+                      <div key={court} className="border border-amber-200 rounded-xl p-3 bg-amber-50/30">
+                        <div className="text-sm font-bold text-gray-800 mb-2 flex items-center gap-2">
+                          <MapPin size={14} className="text-amber-600" />
+                          {court}
+                        </div>
+                        <div className="mb-3">
+                          <label className="text-[10px] font-semibold uppercase tracking-wide text-gray-500 block mb-1">
+                            Campo
+                          </label>
+                          <input
+                            type="text"
+                            value={finalsCourtLabels[court] || ''}
+                            onChange={(e) => handleFinalsCourtLabel(court, e.target.value)}
+                            placeholder="es. Centre Court, Court 1…"
+                            className="w-full bg-white border border-gray-300 rounded-lg px-2 py-1.5 text-xs text-gray-900"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          {FINALS_ROLES.map((role) => {
+                            const assigned = finalsAssignments.find(
+                              (a) => a.court === court && a.role === role
+                            )
+                            return (
+                              <div key={role} className="flex items-center gap-2">
+                                <span className="text-xs font-semibold text-gray-600 w-10 shrink-0">
+                                  {role}
+                                </span>
+                                <select
+                                  value={assigned?.referee_id || ''}
+                                  onChange={(e) =>
+                                    handleFinalsAssign(court, role, e.target.value)
+                                  }
+                                  className="flex-1 bg-white border border-gray-300 rounded-lg px-2 py-1.5 text-xs text-gray-900"
+                                >
+                                  <option value="">— Unassigned —</option>
+                                  {finalsEligibleRefs.length > 0 ? (
+                                    finalsEligibleRefs.map((r) => {
+                                      const rk = rankingById[r.id]
+                                      return (
+                                        <option key={r.id} value={r.id}>
+                                          {refereeName(r)} · {rk?.avg_score?.toFixed(1)} ({r.ranking_level})
+                                        </option>
+                                      )
+                                    })
+                                  ) : (
+                                    <option disabled>No eligible referees (avg ≥ 3.0)</option>
+                                  )}
+                                </select>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </CardBody>
             </Card>

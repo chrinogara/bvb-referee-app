@@ -486,6 +486,14 @@ export default function Designations() {
     return m
   }, [assignedReferees])
 
+  // Finals-eligible refs: only those with avg_score >= 3.0
+  const finalsEligibleRefs = useMemo(() => {
+    return assignedReferees.filter((r) => {
+      const rk = rankingById[r.id]
+      return rk?.avg_score != null && rk.avg_score >= 3.0
+    })
+  }, [assignedReferees, rankingById])
+
   const riskyAssigned = useMemo(() => {
     const risky = []
     for (const a of assignments) {
@@ -1178,8 +1186,13 @@ export default function Designations() {
                 <p className="text-xs text-gray-500 mb-3">
                   Assign R1 and R2 for each final on Day {dayNumber}.
                   Type the court name in the field below. Finals appear in Live
-                  Courts only after at least one role is set.
+                  Courts only after R1 is assigned.
                 </p>
+                {finalsEligibleRefs.length === 0 && (
+                  <div className="mb-3 p-2 bg-amber-100/50 border border-amber-300 rounded text-xs text-amber-700">
+                    ⚠️ No referees eligible for finals. Minimum score required: 3.0
+                  </div>
+                )}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {FINALS_COURT_NAMES.map((court) => (
                     <div key={court} className="border border-amber-200 rounded-xl p-3 bg-amber-50/30">
@@ -1217,11 +1230,18 @@ export default function Designations() {
                                 className="flex-1 bg-white border border-gray-300 rounded-lg px-2 py-1.5 text-xs text-gray-900"
                               >
                                 <option value="">— Unassigned —</option>
-                                {assignedReferees.map((r) => (
-                                  <option key={r.id} value={r.id}>
-                                    {refereeName(r)} ({r.ranking_level})
-                                  </option>
-                                ))}
+                                {finalsEligibleRefs.length > 0 ? (
+                                  finalsEligibleRefs.map((r) => {
+                                    const rk = rankingById[r.id]
+                                    return (
+                                      <option key={r.id} value={r.id}>
+                                        {refereeName(r)} · {rk?.avg_score?.toFixed(1)} ({r.ranking_level})
+                                      </option>
+                                    )
+                                  })
+                                ) : (
+                                  <option disabled>No eligible referees (avg ≥ 3.0)</option>
+                                )}
                               </select>
                             </div>
                           )

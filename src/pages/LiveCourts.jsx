@@ -558,10 +558,10 @@ export default function LiveCourts() {
           </div>
         )}
 
-        {/* Finals courts — only shown when at least one has assignments */}
+        {/* Finals courts — only shown when at least R1 is assigned */}
         {tournament && (() => {
           const activeFinalsCourts = FINALS_COURT_NAMES.filter(
-            (c) => (courtData[c]?.assignments || []).length > 0
+            (c) => (courtData[c]?.assignments || []).some((a) => a.role === 'R1')
           )
           if (activeFinalsCourts.length === 0) return null
           return (

@@ -801,28 +801,36 @@ export default function Designations() {
                   </option>
                 ))}
               </Select>
-              {sectionsPerDay > 1 && (
-                <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-2">Section (Time Slot)</label>
-                  <div className="flex gap-2">
-                    {sectionOptions.map((sec) => (
-                      <button
-                        key={sec}
-                        onClick={() => setSectionNumber(sec)}
-                        className={cn(
-                          'flex-1 py-2 px-3 rounded-lg border font-medium text-sm transition-all',
-                          sectionNumber === sec
-                            ? 'bg-[#E85D26]/15 border-[#E85D26]/40 text-[#E85D26]'
-                            : 'bg-gray-50 border-gray-200 text-gray-600 hover:border-gray-400'
-                        )}
-                      >
-                        <Clock size={14} className="inline mr-1" />
-                        Part {sec}
-                      </button>
-                    ))}
-                  </div>
+              <div className="space-y-2">
+                <label className="block text-xs font-semibold text-gray-600">Section (Time Slot)</label>
+                <div className="flex gap-2 flex-wrap">
+                  {sectionOptions.map((sec) => (
+                    <button
+                      key={sec}
+                      onClick={() => setSectionNumber(sec)}
+                      className={cn(
+                        'flex-1 min-w-20 py-2 px-3 rounded-lg border font-medium text-sm transition-all',
+                        sectionNumber === sec
+                          ? 'bg-[#E85D26]/15 border-[#E85D26]/40 text-[#E85D26]'
+                          : 'bg-gray-50 border-gray-200 text-gray-600 hover:border-gray-400'
+                      )}
+                    >
+                      <Clock size={14} className="inline mr-1" />
+                      Part {sec}
+                    </button>
+                  ))}
+                  {sectionsPerDay < 6 && (
+                    <button
+                      type="button"
+                      onClick={openConfig}
+                      title="Add a new round/section"
+                      className="py-2 px-3 rounded-lg border border-dashed border-emerald-300 bg-emerald-50/50 hover:border-emerald-500/60 hover:bg-emerald-500/10 text-emerald-600 font-medium text-sm transition-all"
+                    >
+                      <Plus size={14} /> Add Round
+                    </button>
+                  )}
                 </div>
-              )}
+              </div>
             </div>
           </CardBody>
         </Card>
@@ -1148,14 +1156,44 @@ export default function Designations() {
             <label className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-2 block">
               Sections per day
             </label>
-            <input
-              type="number"
-              min="1"
-              max="6"
-              value={configSectionsPerDay}
-              onChange={(e) => setConfigSectionsPerDay(Math.max(1, Math.min(6, Number(e.target.value))))}
-              className="w-full bg-gray-50 border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900"
-            />
+            <div className="flex gap-2 items-end">
+              <div className="flex-1">
+                <input
+                  type="number"
+                  min="1"
+                  max="6"
+                  value={configSectionsPerDay}
+                  onChange={(e) => {
+                    const val = Number(e.target.value);
+                    if (!isNaN(val)) {
+                      setConfigSectionsPerDay(Math.max(1, Math.min(6, val)));
+                    }
+                  }}
+                  onBlur={() => {
+                    if (!configSectionsPerDay || isNaN(configSectionsPerDay)) {
+                      setConfigSectionsPerDay(1);
+                    }
+                  }}
+                  className="w-full bg-gray-50 border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={() => setConfigSectionsPerDay(Math.min(6, configSectionsPerDay + 1))}
+                className="px-3 py-2 rounded-lg border border-gray-300 bg-gray-50 hover:bg-emerald-500/10 hover:border-emerald-500/40 text-xs font-medium text-gray-600"
+              >
+                <Plus size={14} /> Add
+              </button>
+              {configSectionsPerDay > 1 && (
+                <button
+                  type="button"
+                  onClick={() => setConfigSectionsPerDay(Math.max(1, configSectionsPerDay - 1))}
+                  className="px-3 py-2 rounded-lg border border-gray-300 bg-gray-50 hover:bg-red-500/10 hover:border-red-500/40 text-xs font-medium text-gray-600"
+                >
+                  <Minus size={14} />
+                </button>
+              )}
+            </div>
             <p className="text-[10px] text-gray-500 mt-1">
               Set how many time slots (primo tempo, secondo tempo, etc.) exist for each day
             </p>

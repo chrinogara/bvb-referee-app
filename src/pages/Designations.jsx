@@ -738,11 +738,14 @@ export default function Designations() {
   const [configCourts, setConfigCourts] = useState([])
   const [configPattern, setConfigPattern] = useState('')
   const [configSectionsPerDay, setConfigSectionsPerDay] = useState(1)
+  const [configMatchesInput, setConfigMatchesInput] = useState(1)
 
   function openConfig() {
     setConfigCourts(courts)
     setConfigPattern(rotationPattern)
     setConfigSectionsPerDay(sectionsPerDay)
+    const matchCount = rotationPattern.split('-').filter((t) => t.toUpperCase() !== 'PAUSE').length
+    setConfigMatchesInput(matchCount)
     setConfigOpen(true)
   }
 
@@ -1270,16 +1273,25 @@ export default function Designations() {
                 type="number"
                 min="1"
                 max="20"
-                value={configPattern.split('-').filter((t) => t.toUpperCase() !== 'PAUSE').length}
+                value={configMatchesInput}
                 onChange={(e) => {
-                  const n = Math.max(1, Math.min(20, Number(e.target.value) || 1))
-                  // Build pattern: M1, M2, PAUSE, M3, M4, PAUSE, M5...
-                  const tokens = []
-                  for (let i = 1; i <= n; i++) {
-                    tokens.push(`M${i}`)
-                    if (i % 2 === 0 && i < n) tokens.push('PAUSE')
+                  const val = Number(e.target.value)
+                  if (!isNaN(val)) {
+                    const n = Math.max(1, Math.min(20, val))
+                    setConfigMatchesInput(n)
+                    // Build pattern: M1, M2, PAUSE, M3, M4, PAUSE, M5...
+                    const tokens = []
+                    for (let i = 1; i <= n; i++) {
+                      tokens.push(`M${i}`)
+                      if (i % 2 === 0 && i < n) tokens.push('PAUSE')
+                    }
+                    setConfigPattern(tokens.join('-'))
                   }
-                  setConfigPattern(tokens.join('-'))
+                }}
+                onBlur={() => {
+                  if (!configMatchesInput || isNaN(configMatchesInput)) {
+                    setConfigMatchesInput(1)
+                  }
                 }}
                 className="w-16 bg-white border border-gray-300 rounded-lg px-2 py-1 text-sm text-gray-900 text-center"
               />

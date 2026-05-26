@@ -750,14 +750,20 @@ export default function Designations() {
   }
 
   async function saveConfig() {
-    await tournamentService.update(tournamentId, {
-      courts: configCourts,
-      rotation_pattern: configPattern,
-      sections_per_day: configSectionsPerDay,
-    })
-    setConfigOpen(false)
-    toast.success('Config saved — reloading')
-    setTimeout(() => window.location.reload(), 500)
+    try {
+      const result = await tournamentService.update(tournamentId, {
+        courts: configCourts,
+        rotation_pattern: configPattern,
+        sections_per_day: configSectionsPerDay,
+      })
+      if (!result) throw new Error('Update failed')
+      setConfigOpen(false)
+      toast.success('Config saved — reloading')
+      setTimeout(() => window.location.reload(), 1000)
+    } catch (err) {
+      console.error('saveConfig error:', err)
+      toast.error(`Save failed: ${err.message}`)
+    }
   }
 
   return (

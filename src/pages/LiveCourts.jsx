@@ -328,6 +328,7 @@ export default function LiveCourts() {
 
   // Finals courts are hardcoded names that activate only when assignments exist.
   const FINALS_COURT_NAMES = ['Court 5', 'Court 6']
+  const FINALS_SESSION_ORDER = 99
 
   // All possible courts (regular + finals), used to fetch assignments uniformly.
   const courts = useMemo(
@@ -354,15 +355,19 @@ export default function LiveCourts() {
     return () => clearInterval(id)
   }, [loadData, tournamentId])
 
-  // Build court-keyed data for the current session
+  // Build court-keyed data. Regular courts use the selected session;
+  // finals courts always use FINALS_SESSION_ORDER (independent of the
+  // session dropdown), so they're visible whenever finals are assigned.
   const courtData = useMemo(() => {
     const data = {}
     for (const c of courts) {
+      const isFinals = FINALS_COURT_NAMES.includes(c)
+      const targetSession = isFinals ? FINALS_SESSION_ORDER : sessionOrder
       const sessAssigns = assignments.filter(
-        (a) => a.court === c && a.session_order === sessionOrder
+        (a) => a.court === c && a.session_order === targetSession
       )
       const live = liveMatches.find(
-        (l) => l.court === c && l.session_order === sessionOrder
+        (l) => l.court === c && l.session_order === targetSession
       )
       data[c] = { assignments: sessAssigns, liveMatch: live }
     }
@@ -384,15 +389,17 @@ export default function LiveCourts() {
 
   async function handleToggleMatch(court, start) {
     try {
+      const isFinals = FINALS_COURT_NAMES.includes(court)
+      const targetSession = isFinals ? FINALS_SESSION_ORDER : sessionOrder
       const existing = liveMatches.find(
-        (l) => l.court === court && l.session_order === sessionOrder
+        (l) => l.court === court && l.session_order === targetSession
       )
       if (start) {
         const { data, error } = await liveMatchService.startMatch({
           tournamentId,
           dayNumber,
           court,
-          sessionOrder,
+          sessionOrder: targetSession,
           startTime: defaultStartTime(),
           isTest: sandboxMode,
         })

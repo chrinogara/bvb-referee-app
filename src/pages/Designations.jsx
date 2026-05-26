@@ -45,6 +45,14 @@ import { generateDesignationPDF, downloadPDF } from '../lib/pdf'
 import { cn, refereeName, refereeInitials, formatDate } from '../lib/utils'
 import { checkConsecutiveMatches, getAssignmentSummary } from '../lib/validationPause'
 
+// ─── Finals: end-of-tournament dedicated courts (Court 5, Court 6) ────────────
+// Stored in court_assignments with a sentinel session_order so they don't
+// collide with regular rotation sessions (1..N).
+const FINALS_COURT_NAMES = ['Court 5', 'Court 6']
+const FINALS_SESSION_ORDER = 99
+const FINALS_SECTION_NUMBER = 1
+const FINALS_ROLES = ['R1', 'R2', 'LJ1', 'LJ2']
+
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
 function RefereeChip({ referee, present, onToggle, riskScore }) {
@@ -602,6 +610,82 @@ export default function Designations() {
     }
   }
 
+  // ─── Finals assignments ────────────────────────────────────────────────────
+  // Finals are tournament-level (not tied to the current section/day rotation).
+  // They use a fixed sentinel session_order so they don't show in the regular
+  // rotation grid, and they load from any section.
+  const [finalsAssignments, setFinalsAssignments] = useState([])
+
+  const loadFinalsAssignments = useCallback(async () => {
+    if (!tournamentId) return
+    const { data } = await supabase
+      .from('court_assignments')
+      .select('*, referees(*)')
+      .eq('tournament_id', tournamentId)
+      .eq('day_number', dayNumber)
+      .eq('session_order', FINALS_SESSION_ORDER)
+      .in('court', FINALS_COURT_NAMES)
+    setFinalsAssignments(data || [])
+  }, [tournamentId, dayNumber])
+
+  useEffect(() => { loadFinalsAssignments() }, [loadFinalsAssignments])
+
+  async function handleFinalsAssign(court, role, refereeId) {
+    try {
+      const existing = finalsAssignments.find(
+        (a) => a.court === court && a.role === role
+      )
+      if (refereeId === '') {
+        // Clear assignment
+        if (existing) {
+          await supabase.from('court_assignments').delete().eq('id', existing.id)
+        }
+      } else if (existing) {
+        await supabase
+          .from('court_assignments')
+          .update({ referee_id: refereeId })
+          .eq('id', existing.id)
+      } else {
+        const { error } = await supabase.from('court_assignments').insert({
+          tournament_id: tournamentId,
+          referee_id: refereeId,
+          day_number: dayNumber,
+          section_number: FINALS_SECTION_NUMBER,
+          court,
+          session_order: FINALS_SESSION_ORDER,
+          role,
+        })
+        if (error) throw error
+      }
+      await loadFinalsAssignments()
+      toast.success(`Finals ${court} ${role} updated`)
+    } catch (err) {
+      console.error('handleFinalsAssign error:', err)
+      toast.error(`Update failed: ${err.message}`)
+    }
+  }
+
+  async function clearAllFinals() {
+    const confirmed = window.confirm(
+      `Clear ALL finals assignments for Day ${dayNumber} (R1, R2, LJ1, LJ2 for both Court 5 and Court 6)?`
+    )
+    if (!confirmed) return
+    try {
+      await supabase
+        .from('court_assignments')
+        .delete()
+        .eq('tournament_id', tournamentId)
+        .eq('day_number', dayNumber)
+        .eq('session_order', FINALS_SESSION_ORDER)
+        .in('court', FINALS_COURT_NAMES)
+      await loadFinalsAssignments()
+      toast.success('Finals cleared')
+    } catch (err) {
+      console.error(err)
+      toast.error(`Clear failed: ${err.message}`)
+    }
+  }
+
   // Drag-and-drop swap (or move into empty slot)
   async function handleSwap(dragged, target) {
     const targetAssignment = assignments.find(
@@ -1043,6 +1127,66 @@ export default function Designations() {
                     onSwap={handleSwap}
                   />
                 )}
+              </CardBody>
+            </Card>
+
+            {/* Finals assignment — end-of-tournament dedicated courts */}
+            <Card className="border-amber-300/60">
+              <CardHeader className="flex items-center justify-between flex-wrap gap-2 bg-amber-50/60">
+                <div className="flex items-center gap-2">
+                  <CardTitle>Finals (Court 5, Court 6)</CardTitle>
+                  <Badge variant="yellow" size="xs">END OF TOURNAMENT</Badge>
+                </div>
+                {finalsAssignments.length > 0 && (
+                  <Button variant="danger" size="xs" onClick={clearAllFinals}>
+                    <Trash2 size={12} /> Clear all finals
+                  </Button>
+                )}
+              </CardHeader>
+              <CardBody>
+                <p className="text-xs text-gray-500 mb-3">
+                  Assign R1, R2 and two Line Judges for each final court on
+                  Day {dayNumber}. Court 5 and Court 6 appear in Live Courts
+                  only after at least one role is set.
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {FINALS_COURT_NAMES.map((court) => (
+                    <div key={court} className="border border-amber-200 rounded-xl p-3 bg-amber-50/30">
+                      <div className="text-sm font-bold text-gray-800 mb-2 flex items-center gap-2">
+                        <MapPin size={14} className="text-amber-600" />
+                        {court}
+                      </div>
+                      <div className="space-y-2">
+                        {FINALS_ROLES.map((role) => {
+                          const assigned = finalsAssignments.find(
+                            (a) => a.court === court && a.role === role
+                          )
+                          return (
+                            <div key={role} className="flex items-center gap-2">
+                              <span className="text-xs font-semibold text-gray-600 w-10 shrink-0">
+                                {role}
+                              </span>
+                              <select
+                                value={assigned?.referee_id || ''}
+                                onChange={(e) =>
+                                  handleFinalsAssign(court, role, e.target.value)
+                                }
+                                className="flex-1 bg-white border border-gray-300 rounded-lg px-2 py-1.5 text-xs text-gray-900"
+                              >
+                                <option value="">— Unassigned —</option>
+                                {assignedReferees.map((r) => (
+                                  <option key={r.id} value={r.id}>
+                                    {refereeName(r)} ({r.ranking_level})
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </CardBody>
             </Card>
 

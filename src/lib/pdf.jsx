@@ -508,11 +508,6 @@ function DesignationDocument({ tournament, dayNumber, assignmentsByCourt, rotati
                       <Text style={designationStyles.refName}>
                         {s.referees ? refereeName(s.referees) : '—'}
                       </Text>
-                      <Text style={designationStyles.refLevel}>
-                        {s.referees?.ranking_level
-                          ? `Lv.${s.referees.ranking_level}`
-                          : ''}
-                      </Text>
                       <Text style={designationStyles.refRole}>{s.role}</Text>
                     </>
                   )}

@@ -12,6 +12,8 @@ import {
   Activity,
   Trash2,
   RotateCcw,
+  MessageCircle,
+  Phone,
 } from 'lucide-react'
 import { toast } from '../components/ui/Toast'
 
@@ -37,6 +39,7 @@ import {
   roleColor,
 } from '../lib/utils'
 import { CRITERIA, getGrade, getGradeColor, getGradeBg } from '../lib/scoring'
+import { shareEvaluationToReferee } from '../lib/whatsapp'
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
@@ -117,6 +120,8 @@ function EditRefereeModal({ open, onClose, referee, onSave }) {
     last_name: referee?.last_name || '',
     gender: referee?.gender || 'M',
     ranking_level: referee?.ranking_level || 'B',
+    phone: referee?.phone || '',
+    email: referee?.email || '',
     notes: referee?.notes || '',
   })
   const [saving, setSaving] = useState(false)
@@ -130,6 +135,8 @@ function EditRefereeModal({ open, onClose, referee, onSave }) {
         last_name: referee.last_name || '',
         gender: referee.gender || 'M',
         ranking_level: referee.ranking_level || 'B',
+        phone: referee.phone || '',
+        email: referee.email || '',
         notes: referee.notes || '',
       })
     }
@@ -159,6 +166,8 @@ function EditRefereeModal({ open, onClose, referee, onSave }) {
         last_name: form.last_name.trim(),
         gender: form.gender,
         ranking_level: form.ranking_level,
+        phone: form.phone.trim() || null,
+        email: form.email.trim() || null,
         notes: form.notes.trim() || null,
       })
       onClose()
@@ -208,6 +217,24 @@ function EditRefereeModal({ open, onClose, referee, onSave }) {
             <option value="B">Level B</option>
             <option value="C">Level C</option>
           </Select>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <Input
+            label="Phone (for WhatsApp)"
+            name="phone"
+            value={form.phone}
+            onChange={handleChange}
+            placeholder="+32 470 12 34 56"
+            type="tel"
+          />
+          <Input
+            label="Email"
+            name="email"
+            value={form.email}
+            onChange={handleChange}
+            placeholder="referee@example.com"
+            type="email"
+          />
         </div>
         <Textarea
           label="Notes"
@@ -419,8 +446,29 @@ export default function RefereeProfile() {
                 )}
               </div>
 
+              {/* Contact info */}
+              {(referee.phone || referee.email) && (
+                <div className="flex items-center gap-3 flex-wrap text-xs text-gray-600">
+                  {referee.phone && (
+                    <a
+                      href={`https://wa.me/${referee.phone.replace(/[^0-9+]/g, '').replace(/^\+/, '')}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 hover:bg-emerald-100 transition-colors font-medium"
+                      title="Open WhatsApp"
+                    >
+                      <Phone size={11} />
+                      {referee.phone}
+                    </a>
+                  )}
+                  {referee.email && (
+                    <span className="text-gray-500">{referee.email}</span>
+                  )}
+                </div>
+              )}
+
               {referee.notes && (
-                <p className="text-xs text-gray-500 bg-gray-50 rounded-lg px-3 py-2 border border-white/8">
+                <p className="text-xs text-gray-500 bg-gray-50 rounded-lg px-3 py-2 border border-gray-200">
                   {referee.notes}
                 </p>
               )}
@@ -608,6 +656,25 @@ export default function RefereeProfile() {
                             {grade.grade}
                           </p>
                         </div>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            shareEvaluationToReferee({
+                              referee,
+                              evaluation: ev,
+                              tournament: ev.tournaments,
+                            })
+                          }
+                          className="p-1.5 rounded-lg hover:bg-emerald-100 text-gray-500 hover:text-emerald-700 transition-colors"
+                          aria-label="Send via WhatsApp"
+                          title={
+                            referee?.phone
+                              ? `Send to ${referee.first_name} (${referee.phone})`
+                              : 'Send via WhatsApp (no phone — choose contact manually)'
+                          }
+                        >
+                          <MessageCircle size={13} />
+                        </button>
                         <button
                           type="button"
                           onClick={() => handleDeleteEval(ev.id)}

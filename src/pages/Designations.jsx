@@ -685,7 +685,7 @@ export default function Designations() {
   return (
     <div className="flex flex-col h-full">
       <Header
-        title="Designations"
+        title="Assignments"
         subtitle={
           tournament
             ? `${tournament.name} — Day ${dayNumber}`

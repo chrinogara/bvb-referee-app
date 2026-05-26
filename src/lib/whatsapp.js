@@ -88,6 +88,77 @@ export async function copyDesignationMessage(message) {
 }
 
 /**
+ * Build an evaluation summary message for the referee (personal DM).
+ */
+export function buildEvaluationMessage({ referee, evaluation, tournament }) {
+  const name = referee?.first_name || 'there'
+  const date = evaluation?.evaluated_at
+    ? new Date(evaluation.evaluated_at).toLocaleDateString('en-GB', {
+        day: '2-digit', month: 'short', year: 'numeric',
+      })
+    : ''
+
+  const lines = []
+  lines.push(`Hi ${name},`)
+  lines.push('')
+  lines.push(`Your evaluation summary from *${tournament?.name || 'the tournament'}*${date ? ` (${date})` : ''}:`)
+  lines.push('')
+  if (evaluation.role) lines.push(`Role: *${evaluation.role}*`)
+  if (evaluation.match_description) lines.push(`${evaluation.match_description}`)
+  if (evaluation.overall_score != null) {
+    lines.push(`Overall: *${evaluation.overall_score.toFixed(1)}/5* — ${evaluation.grade || ''}`)
+  }
+  if (evaluation.repeat_penalty > 0) {
+    lines.push(`Repeat fault penalty: -${evaluation.repeat_penalty.toFixed(1)}`)
+  }
+  lines.push('')
+  lines.push('*Criteria scores*')
+
+  const criteria = [
+    { label: 'Positioning & Court Coverage',     key: 'positioning' },
+    { label: 'Official Signals & 3-Step',        key: 'signals' },
+    { label: 'Attitude & Player Management',     key: 'attitude' },
+    { label: 'Captain Communication',            key: 'captain_comm' },
+    { label: 'Presentation & Critical Situations', key: 'presentation' },
+  ]
+
+  for (const c of criteria) {
+    const score = evaluation[`score_${c.key}`]
+    const repeat = evaluation[`repeat_${c.key}`]
+    if (score != null) {
+      lines.push(`• ${c.label}: *${score}/5*${repeat ? ' ⚠ (repeated fault)' : ''}`)
+    }
+  }
+
+  if (evaluation.general_notes) {
+    lines.push('')
+    lines.push('*General feedback*')
+    lines.push(evaluation.general_notes)
+  }
+
+  lines.push('')
+  lines.push('Keep working hard!')
+  lines.push('RC Nogara Christian — CEV Referee Coach')
+
+  return lines.join('\n')
+}
+
+/**
+ * Open WhatsApp with an evaluation pre-filled, addressed to the referee's phone.
+ */
+export function shareEvaluationToReferee({ referee, evaluation, tournament }) {
+  const msg = buildEvaluationMessage({ referee, evaluation, tournament })
+  if (referee?.phone) {
+    const phone = referee.phone.replace(/[^0-9+]/g, '').replace(/^\+/, '')
+    const url = `https://wa.me/${phone}?text=${encodeURIComponent(msg)}`
+    window.open(url, '_blank', 'noopener,noreferrer')
+  } else {
+    // No phone — generic share
+    shareToWhatsApp(msg)
+  }
+}
+
+/**
  * Build a per-referee personalized message (DM).
  */
 export function buildPersonalMessage({ referee, tournament, dayNumber, assignments }) {

@@ -119,6 +119,8 @@ const BLANK_FORM = {
   last_name: '',
   gender: 'M',
   ranking_level: 'B',
+  phone: '',
+  email: '',
   notes: '',
 }
 
@@ -151,6 +153,8 @@ function AddRefereeModal({ open, onClose, onCreate }) {
         last_name: form.last_name.trim(),
         gender: form.gender,
         ranking_level: form.ranking_level,
+        phone: form.phone.trim() || null,
+        email: form.email.trim() || null,
         notes: form.notes.trim() || null,
       })
       setForm(BLANK_FORM)
@@ -204,6 +208,25 @@ function AddRefereeModal({ open, onClose, onCreate }) {
             <option value="B">Level B</option>
             <option value="C">Level C</option>
           </Select>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <Input
+            label="Phone (for WhatsApp)"
+            name="phone"
+            value={form.phone}
+            onChange={handleChange}
+            placeholder="+32 470 12 34 56"
+            type="tel"
+          />
+          <Input
+            label="Email (optional)"
+            name="email"
+            value={form.email}
+            onChange={handleChange}
+            placeholder="referee@example.com"
+            type="email"
+          />
         </div>
 
         <Textarea

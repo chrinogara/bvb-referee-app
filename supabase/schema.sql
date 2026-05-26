@@ -150,7 +150,7 @@ CREATE TABLE IF NOT EXISTS court_assignments (
   session_order INTEGER NOT NULL,
   role TEXT DEFAULT 'R1',
   created_at TIMESTAMPTZ DEFAULT NOW(),
-  UNIQUE(tournament_id, day_number, section_number, court, session_order)
+  UNIQUE(tournament_id, day_number, section_number, court, session_order, role)
 );
 
 -- ─── ATTENDANCE (check-in per day) ────────────────────────────────────────────

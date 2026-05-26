@@ -53,7 +53,7 @@ import { checkConsecutiveMatches, getAssignmentSummary } from '../lib/validation
 const FINALS_COURT_NAMES = ['Finale femminile', 'Finale maschile']
 const FINALS_SESSION_ORDER = 99
 const FINALS_SECTION_NUMBER = 1
-const FINALS_ROLES = ['R1', 'R2', 'LJ1', 'LJ2']
+const FINALS_ROLES = ['R1', 'R2']
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
@@ -698,7 +698,7 @@ export default function Designations() {
 
   async function clearAllFinals() {
     const confirmed = window.confirm(
-      `Clear ALL finals assignments for Day ${dayNumber} (R1, R2, LJ1, LJ2 for both Finale femminile and Finale maschile)?`
+      `Clear ALL finals assignments for Day ${dayNumber} (R1, R2 for both Finale femminile and Finale maschile)?`
     )
     if (!confirmed) return
     try {
@@ -1176,7 +1176,7 @@ export default function Designations() {
               </CardHeader>
               <CardBody>
                 <p className="text-xs text-gray-500 mb-3">
-                  Assign R1, R2 and two Line Judges for each final on Day {dayNumber}.
+                  Assign R1 and R2 for each final on Day {dayNumber}.
                   Type the court name in the field below. Finals appear in Live
                   Courts only after at least one role is set.
                 </p>

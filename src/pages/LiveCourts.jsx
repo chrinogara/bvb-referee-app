@@ -39,8 +39,6 @@ function CourtCanvas({ court, assignments, liveMatch, onToggleMatch, onEditStart
   // Pull referee for each role
   const r1 = assignments.find((a) => a.role === 'R1')
   const r2 = assignments.find((a) => a.role === 'R2')
-  const lj1 = assignments.find((a) => a.role === 'LJ1')
-  const lj2 = assignments.find((a) => a.role === 'LJ2')
   const finalsLabel = isFinalsCourt ? assignments[0]?.court_label : null
 
   const isActive = !!liveMatch?.is_active
@@ -130,36 +128,17 @@ function CourtCanvas({ court, assignments, liveMatch, onToggleMatch, onEditStart
           big
         />
 
-        {/* Finals-only: R2 + two line judges adjacent to R1 and R2 */}
+        {/* Finals-only: R2 on the opposite side of R1 */}
         {isFinalsCourt && (
-          <>
-            {/* R2 — net level, LEFT side (ground) */}
-            <RefereePin
-              referee={r2}
-              ranking={r2 && rankingById[r2.referee_id]}
-              role="R2"
-              style={{ top: '50%', left: '4%' }}
-              colorClass="bg-blue-100 border-blue-500 text-blue-800"
-              anchor="left"
-              big
-            />
-            {/* LJ1 — back-right corner (right of R1, baseline of Side A) */}
-            <RefereePin
-              referee={lj1}
-              ranking={lj1 && rankingById[lj1.referee_id]}
-              role="LJ1"
-              style={{ top: '10%', right: '4%' }}
-              colorClass="bg-cyan-100 border-cyan-500 text-cyan-800"
-            />
-            {/* LJ2 — back-left corner (right of R2, baseline of Side B) */}
-            <RefereePin
-              referee={lj2}
-              ranking={lj2 && rankingById[lj2.referee_id]}
-              role="LJ2"
-              style={{ top: '90%', left: '4%' }}
-              colorClass="bg-cyan-100 border-cyan-500 text-cyan-800"
-            />
-          </>
+          <RefereePin
+            referee={r2}
+            ranking={r2 && rankingById[r2.referee_id]}
+            role="R2"
+            style={{ top: '50%', left: '4%' }}
+            colorClass="bg-blue-100 border-blue-500 text-blue-800"
+            anchor="left"
+            big
+          />
         )}
       </div>
 

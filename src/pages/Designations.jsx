@@ -13,6 +13,7 @@ import {
   RotateCw,
   MessageCircle,
   Copy,
+  Clock,
 } from 'lucide-react'
 
 import { Header } from '../components/layout/Header'
@@ -41,6 +42,7 @@ import {
 } from '../lib/whatsapp'
 import { generateDesignationPDF, downloadPDF } from '../lib/pdf'
 import { cn, refereeName, refereeInitials, formatDate } from '../lib/utils'
+import { checkConsecutiveMatches, getAssignmentSummary } from '../lib/validationPause'
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
@@ -236,12 +238,42 @@ function CourtSessionGrid({
   )
 }
 
-function ManualAssignModal({ open, onClose, court, sessionOrder, presentRefs, rankingById, currentAssignment, onSave, onRemove }) {
+function ManualAssignModal({
+  open,
+  onClose,
+  court,
+  sessionOrder,
+  presentRefs,
+  rankingById,
+  currentAssignment,
+  onSave,
+  onRemove,
+  allAssignments
+}) {
+  const [pauseWarnings, setPauseWarnings] = useState({})
+
+  useEffect(() => {
+    const warnings = {}
+    for (const r of presentRefs) {
+      const result = checkConsecutiveMatches(allAssignments || [], r.id, court, sessionOrder)
+      if (result.isViolation) {
+        warnings[r.id] = result
+      }
+    }
+    setPauseWarnings(warnings)
+  }, [presentRefs, allAssignments, court, sessionOrder])
+
   if (!open) return null
   return (
     <Modal open={open} onClose={onClose} title={`${court} — Session ${sessionOrder}`} size="md">
       <div className="space-y-3">
         <p className="text-xs text-gray-500 uppercase tracking-wider">Select referee</p>
+        {Object.keys(pauseWarnings).length > 0 && (
+          <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/30">
+            <p className="text-xs text-amber-600 font-medium">⚠️ Pause Alert Active</p>
+            <p className="text-xs text-amber-600/80 mt-1">Some referees have 3+ consecutive matches. Consider giving them a break.</p>
+          </div>
+        )}
         <div className="max-h-96 overflow-y-auto space-y-1.5">
           {presentRefs.length === 0 && (
             <p className="text-sm text-gray-500 text-center py-6">
@@ -252,6 +284,7 @@ function ManualAssignModal({ open, onClose, court, sessionOrder, presentRefs, ra
             const ranking = rankingById[r.id]
             const isLow = ranking?.avg_score != null && ranking.avg_score < 3.0
             const isCurrent = currentAssignment?.referee_id === r.id
+            const hasWarning = pauseWarnings[r.id]
             return (
               <button
                 key={r.id}
@@ -259,7 +292,9 @@ function ManualAssignModal({ open, onClose, court, sessionOrder, presentRefs, ra
                 onClick={() => onSave(r.id)}
                 className={cn(
                   'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg border transition-colors',
-                  isCurrent
+                  hasWarning
+                    ? 'bg-amber-500/10 border-amber-500/40'
+                    : isCurrent
                     ? 'bg-[#E85D26]/15 border-[#E85D26]/40'
                     : 'bg-gray-50 border-gray-200 hover:border-gray-400'
                 )}
@@ -277,6 +312,11 @@ function ManualAssignModal({ open, onClose, court, sessionOrder, presentRefs, ra
                     {ranking?.total_evaluations > 0 && ` · ${ranking.total_evaluations} evals`}
                   </div>
                 </div>
+                {hasWarning && (
+                  <Badge variant="orange" size="xs">
+                    <Clock size={9} /> Rest
+                  </Badge>
+                )}
                 {isLow && (
                   <Badge variant="red" size="xs">
                     <AlertTriangle size={9} /> Low
@@ -307,6 +347,7 @@ export default function Designations() {
     searchParams.get('tournamentId') || ''
   )
   const [dayNumber, setDayNumber] = useState(1)
+  const [sectionNumber, setSectionNumber] = useState(1)
 
   useEffect(() => {
     if (!tournamentId && tournaments.length > 0) {
@@ -331,6 +372,15 @@ export default function Designations() {
     }
     return ['Court 1', 'Court 2', 'Court 3', 'Court 4']
   }, [tournament])
+
+  const sectionsPerDay = useMemo(() => {
+    return tournament?.sections_per_day || 1
+  }, [tournament])
+
+  const sectionOptions = useMemo(
+    () => Array.from({ length: sectionsPerDay }, (_, i) => i + 1),
+    [sectionsPerDay]
+  )
 
   const rotationPattern = tournament?.rotation_pattern || 'M1-M2-PAUSE-M3'
 
@@ -373,10 +423,17 @@ export default function Designations() {
   const loadAssignments = useCallback(async () => {
     if (!tournamentId) return
     setLoadingAssignments(true)
-    const { data } = await courtAssignmentService.getByDay(tournamentId, dayNumber)
+    const { data } = await supabase
+      .from('court_assignments')
+      .select('*, referees(*)')
+      .eq('tournament_id', tournamentId)
+      .eq('day_number', dayNumber)
+      .eq('section_number', sectionNumber)
+      .order('court')
+      .order('session_order')
     setAssignments(data || [])
     setLoadingAssignments(false)
-  }, [tournamentId, dayNumber])
+  }, [tournamentId, dayNumber, sectionNumber])
 
   useEffect(() => { loadAssignments() }, [loadAssignments])
 
@@ -446,7 +503,12 @@ export default function Designations() {
     }
     setAutoAssigning(true)
     try {
-      await courtAssignmentService.clearDay(tournamentId, dayNumber)
+      await supabase
+        .from('court_assignments')
+        .delete()
+        .eq('tournament_id', tournamentId)
+        .eq('day_number', dayNumber)
+        .eq('section_number', sectionNumber)
       const { assignments: newAssign, warnings } = autoAssign({
         presentReferees: presentRefs,
         courts,
@@ -456,11 +518,12 @@ export default function Designations() {
         tournament_id: tournamentId,
         referee_id: a.referee_id,
         day_number: dayNumber,
+        section_number: sectionNumber,
         court: a.court,
         session_order: a.session_order,
         role: a.role,
       }))
-      if (rows.length > 0) await courtAssignmentService.bulkCreate(rows)
+      if (rows.length > 0) await supabase.from('court_assignments').insert(rows)
       warnings.forEach((w) => toast(w, 'info', 4000))
       toast.success(`✅ ${rows.length} assignments created`)
       await loadAssignments()
@@ -482,12 +545,16 @@ export default function Designations() {
     )
     try {
       if (existing) {
-        await courtAssignmentService.update(existing.id, { referee_id: refereeId })
+        await supabase
+          .from('court_assignments')
+          .update({ referee_id: refereeId })
+          .eq('id', existing.id)
       } else {
-        await courtAssignmentService.create({
+        await supabase.from('court_assignments').insert({
           tournament_id: tournamentId,
           referee_id: refereeId,
           day_number: dayNumber,
+          section_number: sectionNumber,
           court: modalState.court,
           session_order: modalState.sessionOrder,
           role: 'R1',
@@ -548,8 +615,13 @@ export default function Designations() {
   }
 
   async function handleClear() {
-    if (!confirm('Clear ALL assignments for this day?')) return
-    await courtAssignmentService.clearDay(tournamentId, dayNumber)
+    if (!confirm(`Clear ALL assignments for this section (Day ${dayNumber}, Section ${sectionNumber})?`)) return
+    await supabase
+      .from('court_assignments')
+      .delete()
+      .eq('tournament_id', tournamentId)
+      .eq('day_number', dayNumber)
+      .eq('section_number', sectionNumber)
     await loadAssignments()
     toast('Cleared', 'info')
   }
@@ -665,10 +737,12 @@ export default function Designations() {
   const [configOpen, setConfigOpen] = useState(false)
   const [configCourts, setConfigCourts] = useState([])
   const [configPattern, setConfigPattern] = useState('')
+  const [configSectionsPerDay, setConfigSectionsPerDay] = useState(1)
 
   function openConfig() {
     setConfigCourts(courts)
     setConfigPattern(rotationPattern)
+    setConfigSectionsPerDay(sectionsPerDay)
     setConfigOpen(true)
   }
 
@@ -676,6 +750,7 @@ export default function Designations() {
     await tournamentService.update(tournamentId, {
       courts: configCourts,
       rotation_pattern: configPattern,
+      sections_per_day: configSectionsPerDay,
     })
     setConfigOpen(false)
     toast.success('Config saved — reloading')
@@ -688,7 +763,7 @@ export default function Designations() {
         title="Assignments"
         subtitle={
           tournament
-            ? `${tournament.name} — Day ${dayNumber}`
+            ? `${tournament.name} — Day ${dayNumber}${sectionsPerDay > 1 ? ` · Section ${sectionNumber}/${sectionsPerDay}` : ''}`
             : 'Select a tournament to begin'
         }
         actions={
@@ -699,9 +774,9 @@ export default function Designations() {
       />
 
       <div className="flex-1 overflow-y-auto p-4 space-y-4 max-w-6xl mx-auto w-full">
-        {/* Tournament + Day selector */}
+        {/* Tournament + Day + Section selector */}
         <Card>
-          <CardBody className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <CardBody className="space-y-3">
             <Select
               label="Tournament"
               value={tournamentId}
@@ -714,17 +789,41 @@ export default function Designations() {
                 </option>
               ))}
             </Select>
-            <Select
-              label="Day"
-              value={dayNumber}
-              onChange={(e) => setDayNumber(Number(e.target.value))}
-            >
-              {dayOptions.map((d) => (
-                <option key={d} value={d}>
-                  Day {d}
-                </option>
-              ))}
-            </Select>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <Select
+                label="Day"
+                value={dayNumber}
+                onChange={(e) => setDayNumber(Number(e.target.value))}
+              >
+                {dayOptions.map((d) => (
+                  <option key={d} value={d}>
+                    Day {d}
+                  </option>
+                ))}
+              </Select>
+              {sectionsPerDay > 1 && (
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-2">Section (Time Slot)</label>
+                  <div className="flex gap-2">
+                    {sectionOptions.map((sec) => (
+                      <button
+                        key={sec}
+                        onClick={() => setSectionNumber(sec)}
+                        className={cn(
+                          'flex-1 py-2 px-3 rounded-lg border font-medium text-sm transition-all',
+                          sectionNumber === sec
+                            ? 'bg-[#E85D26]/15 border-[#E85D26]/40 text-[#E85D26]'
+                            : 'bg-gray-50 border-gray-200 text-gray-600 hover:border-gray-400'
+                        )}
+                      >
+                        <Clock size={14} className="inline mr-1" />
+                        Part {sec}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
           </CardBody>
         </Card>
 
@@ -1024,6 +1123,7 @@ export default function Designations() {
         sessionOrder={modalState?.sessionOrder}
         presentRefs={presentRefs}
         rankingById={rankingById}
+        allAssignments={assignments}
         currentAssignment={
           modalState
             ? assignments.find(
@@ -1044,6 +1144,23 @@ export default function Designations() {
         size="md"
       >
         <div className="space-y-4">
+          <div>
+            <label className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-2 block">
+              Sections per day
+            </label>
+            <input
+              type="number"
+              min="1"
+              max="6"
+              value={configSectionsPerDay}
+              onChange={(e) => setConfigSectionsPerDay(Math.max(1, Math.min(6, Number(e.target.value))))}
+              className="w-full bg-gray-50 border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900"
+            />
+            <p className="text-[10px] text-gray-500 mt-1">
+              Set how many time slots (primo tempo, secondo tempo, etc.) exist for each day
+            </p>
+          </div>
+
           <div>
             <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-2">
               Courts

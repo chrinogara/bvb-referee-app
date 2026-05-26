@@ -35,7 +35,7 @@ import { cn, refereeName, refereeInitials, formatTime } from '../lib/utils'
 //   LJ1 — diagonal corner from R1 (back-left of side A)
 //   LJ2 — diagonal corner from LJ1 (back-right of side B)
 //
-function CourtCanvas({ court, assignments, liveMatch, onToggleMatch, onEditStartTime, rankingById }) {
+function CourtCanvas({ court, assignments, liveMatch, onToggleMatch, onEditStartTime, rankingById, isFinalsCourt = false }) {
   // Pull referee for each role
   const r1 = assignments.find((a) => a.role === 'R1')
   const r2 = assignments.find((a) => a.role === 'R2')
@@ -45,14 +45,17 @@ function CourtCanvas({ court, assignments, liveMatch, onToggleMatch, onEditStart
   const isActive = !!liveMatch?.is_active
 
   return (
-    <Card className="overflow-hidden">
+    <Card className={cn('overflow-hidden', isFinalsCourt && 'ring-2 ring-amber-400/60')}>
       {/* Header: court name + status LED */}
       <div className={cn(
         'flex items-center justify-between px-4 py-2.5 border-b border-gray-200',
-        isActive ? 'bg-emerald-50' : 'bg-gray-50'
+        isActive ? 'bg-emerald-50' : isFinalsCourt ? 'bg-amber-50' : 'bg-gray-50'
       )}>
         <div className="flex items-center gap-2">
           <span className="text-sm font-bold text-gray-900">{court}</span>
+          {isFinalsCourt && (
+            <Badge variant="yellow" size="xs">FINAL</Badge>
+          )}
           {isActive ? (
             <span className="relative flex items-center gap-1">
               <span className="relative flex w-2.5 h-2.5">
@@ -112,16 +115,7 @@ function CourtCanvas({ court, assignments, liveMatch, onToggleMatch, onEditStart
           </text>
         </svg>
 
-        {/* Referee pins — positioned inside the sand area but outside the SVG court */}
-        {/* LJ1 — top-left corner (just outside top-left of SVG court) */}
-        <RefereePin
-          referee={lj1}
-          ranking={lj1 && rankingById[lj1.referee_id]}
-          role="LJ1"
-          style={{ top: '5%', left: '5%' }}
-          colorClass="bg-cyan-100 border-cyan-500 text-cyan-800"
-        />
-        {/* R1 — net level, RIGHT side (chair) */}
+        {/* R1 — net level, RIGHT side (chair) — shown on every court */}
         <RefereePin
           referee={r1}
           ranking={r1 && rankingById[r1.referee_id]}
@@ -131,24 +125,38 @@ function CourtCanvas({ court, assignments, liveMatch, onToggleMatch, onEditStart
           anchor="right"
           big
         />
-        {/* R2 — net level, LEFT side (ground) */}
-        <RefereePin
-          referee={r2}
-          ranking={r2 && rankingById[r2.referee_id]}
-          role="R2"
-          style={{ top: '50%', left: '4%' }}
-          colorClass="bg-blue-100 border-blue-500 text-blue-800"
-          anchor="left"
-          big
-        />
-        {/* LJ2 — bottom-right corner (diagonal of LJ1) */}
-        <RefereePin
-          referee={lj2}
-          ranking={lj2 && rankingById[lj2.referee_id]}
-          role="LJ2"
-          style={{ bottom: '5%', right: '5%' }}
-          colorClass="bg-cyan-100 border-cyan-500 text-cyan-800"
-        />
+
+        {/* Finals-only: R2 + two line judges adjacent to R1 and R2 */}
+        {isFinalsCourt && (
+          <>
+            {/* R2 — net level, LEFT side (ground) */}
+            <RefereePin
+              referee={r2}
+              ranking={r2 && rankingById[r2.referee_id]}
+              role="R2"
+              style={{ top: '50%', left: '4%' }}
+              colorClass="bg-blue-100 border-blue-500 text-blue-800"
+              anchor="left"
+              big
+            />
+            {/* LJ1 — right of R1 (top-right corner, same side as R1) */}
+            <RefereePin
+              referee={lj1}
+              ranking={lj1 && rankingById[lj1.referee_id]}
+              role="LJ1"
+              style={{ top: '28%', right: '4%' }}
+              colorClass="bg-cyan-100 border-cyan-500 text-cyan-800"
+            />
+            {/* LJ2 — right of R2 (top-left corner, same side as R2) */}
+            <RefereePin
+              referee={lj2}
+              ranking={lj2 && rankingById[lj2.referee_id]}
+              role="LJ2"
+              style={{ top: '28%', left: '4%' }}
+              colorClass="bg-cyan-100 border-cyan-500 text-cyan-800"
+            />
+          </>
+        )}
       </div>
 
       {/* Footer: actions */}
@@ -310,11 +318,22 @@ export default function LiveCourts() {
   }, [tournaments, tournamentId])
 
   const tournament = tournaments.find((t) => t.id === tournamentId)
-  const courts = useMemo(() => {
+
+  // Regular courts come from the tournament config.
+  const regularCourts = useMemo(() => {
     if (!tournament) return []
     if (Array.isArray(tournament.courts) && tournament.courts.length > 0) return tournament.courts
     return ['Court 1', 'Court 2', 'Court 3', 'Court 4']
   }, [tournament])
+
+  // Finals courts are hardcoded names that activate only when assignments exist.
+  const FINALS_COURT_NAMES = ['Court 5', 'Court 6']
+
+  // All possible courts (regular + finals), used to fetch assignments uniformly.
+  const courts = useMemo(
+    () => [...regularCourts, ...FINALS_COURT_NAMES],
+    [regularCourts]
+  )
 
   const loadData = useCallback(async () => {
     if (!tournamentId) return
@@ -531,10 +550,10 @@ export default function LiveCourts() {
           </CardBody>
         </Card>
 
-        {/* 4-court grid */}
+        {/* Regular courts grid */}
         {tournament && (
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-            {courts.map((c) => (
+            {regularCourts.map((c) => (
               <CourtCanvas
                 key={c}
                 court={c}
@@ -543,12 +562,45 @@ export default function LiveCourts() {
                 onToggleMatch={handleToggleMatch}
                 onEditStartTime={handleEditStartTime}
                 rankingById={rankingById}
+                isFinalsCourt={false}
               />
             ))}
           </div>
         )}
 
-        {tournament && courts.length === 0 && (
+        {/* Finals courts — only shown when at least one has assignments */}
+        {tournament && (() => {
+          const activeFinalsCourts = FINALS_COURT_NAMES.filter(
+            (c) => (courtData[c]?.assignments || []).length > 0
+          )
+          if (activeFinalsCourts.length === 0) return null
+          return (
+            <div>
+              <div className="flex items-center gap-2 mt-6 mb-3">
+                <span className="text-xs font-bold uppercase tracking-wider text-amber-600">
+                  Finals
+                </span>
+                <span className="h-px flex-1 bg-amber-300/40" />
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {activeFinalsCourts.map((c) => (
+                  <CourtCanvas
+                    key={c}
+                    court={c}
+                    assignments={courtData[c]?.assignments || []}
+                    liveMatch={courtData[c]?.liveMatch}
+                    onToggleMatch={handleToggleMatch}
+                    onEditStartTime={handleEditStartTime}
+                    rankingById={rankingById}
+                    isFinalsCourt={true}
+                  />
+                ))}
+              </div>
+            </div>
+          )
+        })()}
+
+        {tournament && regularCourts.length === 0 && (
           <Card>
             <CardBody className="text-center py-10 text-sm text-gray-500">
               No courts configured. Go to Assignments → Config to set them up.

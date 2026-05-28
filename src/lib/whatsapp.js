@@ -1,4 +1,5 @@
 import { formatDate, refereeName } from './utils'
+import { translateTextToEnglish } from './translate'
 
 /**
  * Build a WhatsApp-formatted designation message.
@@ -9,9 +10,9 @@ import { formatDate, refereeName } from './utils'
  * @param {Array}  args.assignments Array of { court, session_order, referee, role }
  * @param {boolean} args.isUpdate   Adds "🔄 UPDATED" tag if true
  * @param {string} args.rotationPattern e.g. "M1-M2-PAUSE-M3"
- * @returns {string}
+ * @returns {Promise<string>}
  */
-export function buildDesignationMessage({
+export async function buildDesignationMessage({
   tournament,
   dayNumber,
   assignments,
@@ -20,10 +21,13 @@ export function buildDesignationMessage({
 }) {
   const lines = []
 
+  // Translate tournament name if present
+  const tournamentName = tournament?.name ? await translateTextToEnglish(tournament.name) : 'Tournament'
+
   // Header
   if (isUpdate) lines.push('*[UPDATED] BVB REFEREE ASSIGNMENTS*')
   else lines.push('*BVB Referee Assignments*')
-  lines.push(`*${tournament?.name || 'Tournament'}* — Day ${dayNumber}`)
+  lines.push(`*${tournamentName}* — Day ${dayNumber}`)
   if (tournament?.start_date) {
     lines.push(`Date: ${formatDate(tournament.start_date)}`)
   }
@@ -90,7 +94,7 @@ export async function copyDesignationMessage(message) {
 /**
  * Build an evaluation summary message for the referee (personal DM).
  */
-export function buildEvaluationMessage({ referee, evaluation, tournament }) {
+export async function buildEvaluationMessage({ referee, evaluation, tournament }) {
   const name = referee?.first_name || 'there'
   const date = evaluation?.evaluated_at
     ? new Date(evaluation.evaluated_at).toLocaleDateString('en-GB', {
@@ -98,10 +102,14 @@ export function buildEvaluationMessage({ referee, evaluation, tournament }) {
       })
     : ''
 
+  // Translate tournament name and general notes if present
+  const tournamentName = tournament?.name ? await translateTextToEnglish(tournament.name) : 'the tournament'
+  const generalNotes = evaluation.general_notes ? await translateTextToEnglish(evaluation.general_notes) : null
+
   const lines = []
   lines.push(`Hi ${name},`)
   lines.push('')
-  lines.push(`Your evaluation summary from *${tournament?.name || 'the tournament'}*${date ? ` (${date})` : ''}:`)
+  lines.push(`Your evaluation summary from *${tournamentName}*${date ? ` (${date})` : ''}:`)
   lines.push('')
   if (evaluation.role) lines.push(`Role: *${evaluation.role}*`)
   if (evaluation.match_description) lines.push(`${evaluation.match_description}`)
@@ -130,10 +138,10 @@ export function buildEvaluationMessage({ referee, evaluation, tournament }) {
     }
   }
 
-  if (evaluation.general_notes) {
+  if (generalNotes) {
     lines.push('')
     lines.push('*General feedback*')
-    lines.push(evaluation.general_notes)
+    lines.push(generalNotes)
   }
 
   lines.push('')
@@ -146,8 +154,8 @@ export function buildEvaluationMessage({ referee, evaluation, tournament }) {
 /**
  * Open WhatsApp with an evaluation pre-filled, addressed to the referee's phone.
  */
-export function shareEvaluationToReferee({ referee, evaluation, tournament }) {
-  const msg = buildEvaluationMessage({ referee, evaluation, tournament })
+export async function shareEvaluationToReferee({ referee, evaluation, tournament }) {
+  const msg = await buildEvaluationMessage({ referee, evaluation, tournament })
   if (referee?.phone) {
     const phone = referee.phone.replace(/[^0-9+]/g, '').replace(/^\+/, '')
     const url = `https://wa.me/${phone}?text=${encodeURIComponent(msg)}`
@@ -161,17 +169,20 @@ export function shareEvaluationToReferee({ referee, evaluation, tournament }) {
 /**
  * Build a per-referee personalized message (DM).
  */
-export function buildPersonalMessage({ referee, tournament, dayNumber, assignments }) {
+export async function buildPersonalMessage({ referee, tournament, dayNumber, assignments }) {
   const name = referee.first_name
   const mine = assignments.filter((a) => a.referee_id === referee.id)
     .sort((a, b) => a.session_order - b.session_order)
 
+  // Translate tournament name if present
+  const tournamentName = tournament?.name ? await translateTextToEnglish(tournament.name) : 'the tournament'
+
   if (mine.length === 0) {
-    return `Hi ${name},\n\nYou are not assigned to any court today (${tournament.name} Day ${dayNumber}).\n\nRC Nogara Christian — CEV Referee Coach`
+    return `Hi ${name},\n\nYou are not assigned to any court today (${tournamentName} Day ${dayNumber}).\n\nRC Nogara Christian — CEV Referee Coach`
   }
 
   const lines = [
-    `Hi ${name}, here are your assignments for *${tournament.name}* Day ${dayNumber}:`,
+    `Hi ${name}, here are your assignments for *${tournamentName}* Day ${dayNumber}:`,
     '',
   ]
   for (const a of mine) {

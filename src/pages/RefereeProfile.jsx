@@ -663,7 +663,7 @@ export default function RefereeProfile() {
                               referee,
                               evaluation: ev,
                               tournament: ev.tournaments,
-                            })
+                            }).catch(err => console.error('Failed to send evaluation:', err))
                           }
                           className="p-1.5 rounded-lg hover:bg-emerald-100 text-gray-500 hover:text-emerald-700 transition-colors"
                           aria-label="Send via WhatsApp"

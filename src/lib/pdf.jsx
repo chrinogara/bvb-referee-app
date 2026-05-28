@@ -9,6 +9,7 @@ import {
 } from '@react-pdf/renderer'
 import { formatDate, formatDateTime, refereeName } from './utils'
 import { CRITERIA, getGrade } from './scoring'
+import { translateTextToEnglish } from './translate'
 
 const NAVY = '#2D3270'
 const ORANGE = '#E85D26'
@@ -856,7 +857,13 @@ function RcReportDocument({ report, tournament }) {
 }
 
 export async function generateRcReportPDF(report, tournament) {
-  const blob = await pdf(<RcReportDocument report={report} tournament={tournament} />).toBlob()
+  // Translate tournament name if present
+  const translatedTournament = tournament ? {
+    ...tournament,
+    name: tournament.name ? await translateTextToEnglish(tournament.name) : tournament.name,
+  } : tournament
+
+  const blob = await pdf(<RcReportDocument report={report} tournament={translatedTournament} />).toBlob()
   return blob
 }
 
@@ -955,6 +962,12 @@ function EvaluationsSummaryDocument({ tournament, evaluations, refereeStats }) {
 }
 
 export async function generateEvaluationsSummaryPDF({ tournament, evaluations }) {
+  // Translate tournament name if present
+  const translatedTournament = tournament ? {
+    ...tournament,
+    name: tournament.name ? await translateTextToEnglish(tournament.name) : tournament.name,
+  } : tournament
+
   // Per-referee aggregation
   const statsMap = {}
   for (const ev of evaluations) {
@@ -980,7 +993,7 @@ export async function generateEvaluationsSummaryPDF({ tournament, evaluations })
 
   const blob = await pdf(
     <EvaluationsSummaryDocument
-      tournament={tournament}
+      tournament={translatedTournament}
       evaluations={evaluations}
       refereeStats={refereeStats}
     />
@@ -994,6 +1007,12 @@ export async function generateDesignationPDF({
   assignments,
   rotationPattern,
 }) {
+  // Translate tournament name if present
+  const translatedTournament = tournament ? {
+    ...tournament,
+    name: tournament.name ? await translateTextToEnglish(tournament.name) : tournament.name,
+  } : tournament
+
   // Group by court
   const byCourt = {}
   for (const a of assignments) {
@@ -1016,7 +1035,7 @@ export async function generateDesignationPDF({
 
   const blob = await pdf(
     <DesignationDocument
-      tournament={tournament}
+      tournament={translatedTournament}
       dayNumber={dayNumber}
       assignmentsByCourt={sorted}
       rotationPattern={rotationPattern}
@@ -1028,12 +1047,18 @@ export async function generateDesignationPDF({
 // ─── Evaluation PDF (existing) ────────────────────────────────────────────────
 
 export async function generateEvaluationPDF(evaluation, referee, match, tournament) {
+  // Translate tournament name if present
+  const translatedTournament = tournament ? {
+    ...tournament,
+    name: tournament.name ? await translateTextToEnglish(tournament.name) : tournament.name,
+  } : tournament
+
   const blob = await pdf(
     <EvaluationDocument
       evaluation={evaluation}
       referee={referee}
       match={match}
-      tournament={tournament}
+      tournament={translatedTournament}
     />
   ).toBlob()
   return blob

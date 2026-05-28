@@ -746,12 +746,12 @@ export default function Designations() {
   // Share actions
   const [hasSentBefore, setHasSentBefore] = useState(false)
 
-  function handleWhatsApp() {
+  async function handleWhatsApp() {
     if (assignments.length === 0) {
       toast.error('No assignments to share')
       return
     }
-    const msg = buildDesignationMessage({
+    const msg = await buildDesignationMessage({
       tournament,
       dayNumber,
       assignments,
@@ -765,7 +765,7 @@ export default function Designations() {
 
   async function handleCopy() {
     if (assignments.length === 0) return
-    const msg = buildDesignationMessage({
+    const msg = await buildDesignationMessage({
       tournament,
       dayNumber,
       assignments,
@@ -778,8 +778,8 @@ export default function Designations() {
   }
 
   // Personal DM per referee
-  function handlePersonalDM(referee) {
-    const msg = buildPersonalMessage({
+  async function handlePersonalDM(referee) {
+    const msg = await buildPersonalMessage({
       referee,
       tournament,
       dayNumber,

@@ -9,11 +9,9 @@ import { Button } from '../components/ui/Button'
 import { Input, Select, Textarea } from '../components/ui/Input'
 import { Modal } from '../components/ui/Modal'
 import { ScoreCircle } from '../components/ui/ScoreCircle'
-import { TranslationSuggestion } from '../components/TranslationSuggestion'
 
 import { useReferees } from '../hooks/useReferees'
 import { useRanking } from '../hooks/useRanking'
-import { useAutoTranslate } from '../hooks/useAutoTranslate'
 
 import { cn, refereeName, refereeInitials, levelColor } from '../lib/utils'
 
@@ -131,17 +129,6 @@ function AddRefereeModal({ open, onClose, onCreate }) {
   const [saving, setSaving] = useState(false)
   const [errors, setErrors] = useState({})
 
-  const {
-    value: notesValue,
-    setValue: setNotesValue,
-    handleBlur: handleNotesBlur,
-    handleChange: handleNotesTranslationChange,
-    suggestion: notesSuggestion,
-    showSuggestion: showNotesSuggestion,
-    acceptSuggestion: acceptNotesSuggestion,
-    rejectSuggestion: rejectNotesSuggestion,
-  } = useAutoTranslate(form.notes)
-
   function handleChange(e) {
     const { name, value } = e.target
     setForm((prev) => ({ ...prev, [name]: value }))
@@ -242,32 +229,14 @@ function AddRefereeModal({ open, onClose, onCreate }) {
           />
         </div>
 
-        <div className="space-y-2">
-          <Textarea
-            label="Notes (optional)"
-            name="notes"
-            value={notesValue}
-            onChange={(e) => {
-              const val = e.target.value
-              handleChange({ target: { name: 'notes', value: val } })
-              setNotesValue(val)
-              handleNotesTranslationChange(val)
-            }}
-            onBlur={handleNotesBlur}
-            placeholder="Any additional notes about this referee…"
-            rows={3}
-          />
-          <TranslationSuggestion
-            suggestion={notesSuggestion}
-            onAccept={() => {
-              setForm((prev) => ({ ...prev, notes: notesSuggestion }))
-              setNotesValue(notesSuggestion)
-              acceptNotesSuggestion()
-            }}
-            onReject={rejectNotesSuggestion}
-            isVisible={showNotesSuggestion}
-          />
-        </div>
+        <Textarea
+          label="Notes (optional)"
+          name="notes"
+          value={form.notes}
+          onChange={handleChange}
+          placeholder="Any additional notes about this referee…"
+          rows={3}
+        />
 
         {errors.submit && (
           <p className="text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">

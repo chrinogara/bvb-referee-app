@@ -18,10 +18,8 @@ import { Card, CardHeader, CardBody, CardTitle } from '../components/ui/Card'
 import { Select, Textarea } from '../components/ui/Input'
 import { Badge } from '../components/ui/Badge'
 import { toast } from '../components/ui/Toast'
-import { TranslationSuggestion } from '../components/TranslationSuggestion'
 
 import { useTournaments } from '../hooks/useTournaments'
-import { useAutoTranslate } from '../hooks/useAutoTranslate'
 import { briefingService } from '../lib/supabase'
 import { formatDate, formatDateTime } from '../lib/utils'
 
@@ -84,21 +82,6 @@ export default function Briefing() {
   const [saving, setSaving] = useState(false)
   const [dirty, setDirty] = useState(false)
   const [lastSavedAt, setLastSavedAt] = useState(null)
-
-  // Translation hooks for each section
-  const translationKeyPoints = useAutoTranslate(briefing.key_points)
-  const translationCommonFaults = useAutoTranslate(briefing.common_faults)
-  const translationTechnicalFocus = useAutoTranslate(briefing.technical_focus)
-  const translationCaptainComm = useAutoTranslate(briefing.captain_communication)
-  const translationGeneralNotes = useAutoTranslate(briefing.general_notes)
-
-  const translations = {
-    key_points: translationKeyPoints,
-    common_faults: translationCommonFaults,
-    technical_focus: translationTechnicalFocus,
-    captain_communication: translationCaptainComm,
-    general_notes: translationGeneralNotes,
-  }
 
   const tournament = tournaments.find((t) => t.id === tournamentId)
 
@@ -297,7 +280,6 @@ export default function Briefing() {
             {SECTIONS.map((s) => {
               const Icon = s.icon
               const value = briefing[s.key] || ''
-              const trans = translations[s.key]
               return (
                 <Card key={s.key}>
                   <CardHeader className="flex items-center justify-between">
@@ -311,28 +293,12 @@ export default function Briefing() {
                       </Badge>
                     )}
                   </CardHeader>
-                  <CardBody className="space-y-3">
+                  <CardBody>
                     <Textarea
-                      value={trans.value}
-                      onChange={(e) => {
-                        const val = e.target.value
-                        trans.setValue(val)
-                        setField(s.key, val)
-                        trans.handleChange?.(val)
-                      }}
-                      onBlur={trans.handleBlur}
+                      value={value}
+                      onChange={(e) => setField(s.key, e.target.value)}
                       placeholder={s.placeholder}
                       rows={5}
-                    />
-                    <TranslationSuggestion
-                      suggestion={trans.suggestion}
-                      onAccept={() => {
-                        setField(s.key, trans.suggestion)
-                        trans.setValue(trans.suggestion)
-                        trans.acceptSuggestion()
-                      }}
-                      onReject={trans.rejectSuggestion}
-                      isVisible={trans.showSuggestion}
                     />
                   </CardBody>
                 </Card>

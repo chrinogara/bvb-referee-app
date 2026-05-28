@@ -3,7 +3,6 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useReferees } from '../hooks/useReferees'
 import { useTournaments } from '../hooks/useTournaments'
 import { useEvaluations } from '../hooks/useEvaluations'
-import { useAutoTranslate } from '../hooks/useAutoTranslate'
 import { useAppStore } from '../store/appStore'
 import { CRITERIA, computeScore, SCORE_LABELS, getGrade } from '../lib/scoring'
 import { generateEvaluationPDF, downloadPDF, sharePDFWhatsApp } from '../lib/pdf'
@@ -15,7 +14,6 @@ import { Select, Textarea } from '../components/ui/Input'
 import { ScoreCircle } from '../components/ui/ScoreCircle'
 import { Badge } from '../components/ui/Badge'
 import { toast } from '../components/ui/Toast'
-import { TranslationSuggestion } from '../components/TranslationSuggestion'
 import {
   AlertTriangle,
   ChevronDown,
@@ -237,34 +235,6 @@ function NumberStepper({ label, value, onChange, min = 1, max = 99 }) {
 function CriterionCard({ criterion, score, repeat, note, onScore, onRepeat, onNote, error }) {
   const [descOpen, setDescOpen] = useState(false)
   const [noteOpen, setNoteOpen] = useState(!!note)
-  const {
-    value: noteValue,
-    setValue: setNoteValue,
-    handleBlur: handleNoteBlur,
-    handleChange: handleNoteChange,
-    suggestion,
-    showSuggestion,
-    acceptSuggestion: acceptNoteSuggestion,
-    rejectSuggestion: rejectNoteSuggestion,
-    clearSuggestion: clearNoteSuggestion,
-  } = useAutoTranslate(note)
-
-  const handleNoteInputChange = (e) => {
-    const newValue = e.target.value
-    setNoteValue(newValue)
-    onNote(newValue)
-    handleNoteChange(newValue)
-  }
-
-  const handleAcceptTranslation = () => {
-    onNote(suggestion)
-    setNoteValue(suggestion)
-    acceptNoteSuggestion()
-  }
-
-  const handleRejectTranslation = () => {
-    rejectNoteSuggestion()
-  }
 
   return (
     <Card className={cn('overflow-hidden', error && 'border-red-500/40')}>
@@ -363,9 +333,8 @@ function CriterionCard({ criterion, score, repeat, note, onScore, onRepeat, onNo
               Observation
             </label>
             <textarea
-              value={noteValue}
-              onChange={handleNoteInputChange}
-              onBlur={handleNoteBlur}
+              value={note}
+              onChange={(e) => onNote(e.target.value)}
               placeholder="What did you observe? Be specific…"
               rows={2}
               className={cn(
@@ -374,12 +343,6 @@ function CriterionCard({ criterion, score, repeat, note, onScore, onRepeat, onNo
                 'focus:outline-none focus:border-[#E85D26]/60 focus:ring-1 focus:ring-[#E85D26]/30',
                 'transition-colors duration-150'
               )}
-            />
-            <TranslationSuggestion
-              suggestion={suggestion}
-              onAccept={handleAcceptTranslation}
-              onReject={handleRejectTranslation}
-              isVisible={showSuggestion}
             />
           </div>
         )}
@@ -489,16 +452,6 @@ export default function Evaluate() {
   )
 
   const [generalNotes, setGeneralNotes] = useState('')
-  const {
-    value: generalNotesValue,
-    setValue: setGeneralNotesValue,
-    handleBlur: handleGeneralNotesBlur,
-    handleChange: handleGeneralNotesChange,
-    suggestion: generalNotesSuggestion,
-    showSuggestion: showGeneralNotesSuggestion,
-    acceptSuggestion: acceptGeneralNotesSuggestion,
-    rejectSuggestion: rejectGeneralNotesSuggestion,
-  } = useAutoTranslate(generalNotes)
 
   // ── Post-save state ─────────────────────────────────────────────────────────
   const [saving, setSaving] = useState(false)
@@ -794,16 +747,10 @@ export default function Evaluate() {
                 General Feedback
               </h2>
             </CardHeader>
-            <CardBody className="space-y-3">
+            <CardBody>
               <textarea
-                value={generalNotesValue}
-                onChange={(e) => {
-                  const val = e.target.value
-                  setGeneralNotesValue(val)
-                  setGeneralNotes(val)
-                  handleGeneralNotesChange(val)
-                }}
-                onBlur={handleGeneralNotesBlur}
+                value={generalNotes}
+                onChange={(e) => setGeneralNotes(e.target.value)}
                 placeholder="Overall impressions, strengths, areas for improvement…"
                 rows={4}
                 className={cn(
@@ -812,16 +759,6 @@ export default function Evaluate() {
                   'focus:outline-none focus:border-[#E85D26]/60 focus:ring-1 focus:ring-[#E85D26]/30',
                   'transition-colors duration-150'
                 )}
-              />
-              <TranslationSuggestion
-                suggestion={generalNotesSuggestion}
-                onAccept={() => {
-                  setGeneralNotes(generalNotesSuggestion)
-                  setGeneralNotesValue(generalNotesSuggestion)
-                  acceptGeneralNotesSuggestion()
-                }}
-                onReject={rejectGeneralNotesSuggestion}
-                isVisible={showGeneralNotesSuggestion}
               />
             </CardBody>
           </Card>

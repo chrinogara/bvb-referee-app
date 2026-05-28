@@ -9,7 +9,7 @@ export async function translateTextToEnglish(text) {
   try {
     const apiKey = import.meta.env.VITE_CLAUDE_API_KEY
     if (!apiKey) {
-      console.error('Claude API key not configured')
+      console.warn('Claude API key not configured - translation skipped')
       return text
     }
 
@@ -33,20 +33,28 @@ Respond ONLY with the English translation, nothing else.
 
 Italian text: "${text}"`,
           },
-        ],
+        }),
       }),
     })
 
     if (!response.ok) {
-      console.error('Translation API error:', response.statusText)
+      const errorText = await response.text()
+      console.error('Translation API error:', response.status, errorText)
       return text
     }
 
     const data = await response.json()
     const translation = data.content[0]?.text?.trim()
-    return translation || text
+
+    if (!translation) {
+      console.warn('No translation returned from API')
+      return text
+    }
+
+    console.log(`Translated: "${text.substring(0, 50)}..." → "${translation.substring(0, 50)}..."`)
+    return translation
   } catch (err) {
-    console.error('Translation failed:', err)
+    console.error('Translation request failed:', err.message)
     return text
   }
 }
@@ -67,15 +75,73 @@ export async function translateEvaluationPayload(payloadToTranslate) {
     'note_presentation',
   ]
 
+  console.log('Starting translation of evaluation payload...')
   for (const field of noteFields) {
     if (translated[field]) {
+      console.log(`Translating ${field}...`)
+      const original = translated[field]
       translated[field] = await translateTextToEnglish(translated[field])
+      console.log(`${field} translated:`, original !== translated[field] ? 'SUCCESS' : 'FAILED - returned original')
     }
   }
 
   if (translated.general_notes) {
+    console.log('Translating general_notes...')
+    const original = translated.general_notes
     translated.general_notes = await translateTextToEnglish(translated.general_notes)
+    console.log('general_notes translated:', original !== translated.general_notes ? 'SUCCESS' : 'FAILED - returned original')
   }
 
+  console.log('Evaluation payload translation complete')
   return translated
+}
+
+/**
+ * Test if the Claude API is accessible
+ * @returns {Promise<boolean>} - True if API is working
+ */
+export async function testClaudeAPI() {
+  try {
+    const apiKey = import.meta.env.VITE_CLAUDE_API_KEY
+    if (!apiKey) {
+      console.error('API key not found')
+      return false
+    }
+
+    console.log('Testing Claude API with key:', apiKey.substring(0, 20) + '...')
+
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model: 'claude-opus-4-8',
+        max_tokens: 100,
+        messages: [
+          {
+            role: 'user',
+            content: 'Translate "Ciao" to English. Respond only with the translation.',
+          },
+        ],
+      }),
+    })
+
+    console.log('API Response Status:', response.status)
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error('API Error:', errorText)
+      return false
+    }
+
+    const data = await response.json()
+    console.log('API Response:', data)
+    return true
+  } catch (err) {
+    console.error('API Test Failed:', err)
+    return false
+  }
 }

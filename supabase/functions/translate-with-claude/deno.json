@@ -1,0 +1,5 @@
+{
+  "imports": {
+    "https://sdk.anthropic.com/": "https://cdn.jsdelivr.net/npm/@anthropic-ai/sdk@1.24.1/+esm"
+  }
+}

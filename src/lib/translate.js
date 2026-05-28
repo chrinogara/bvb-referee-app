@@ -79,24 +79,39 @@ export async function translateEvaluationPayload(payloadToTranslate) {
     'note_presentation',
   ]
 
-  console.log('Starting translation of evaluation payload...')
-  for (const field of noteFields) {
-    if (translated[field]) {
-      console.log(`Translating ${field}...`)
-      const original = translated[field]
-      translated[field] = await translateTextToEnglish(translated[field])
-      console.log(`${field} translated:`, original !== translated[field] ? 'SUCCESS' : 'FAILED - returned original')
+  try {
+    console.log('Starting translation of evaluation payload...')
+    for (const field of noteFields) {
+      if (translated[field] && translated[field].length > 0) {
+        console.log(`Translating ${field}: "${translated[field].substring(0, 50)}..."`)
+        const original = translated[field]
+        try {
+          translated[field] = await translateTextToEnglish(translated[field])
+          console.log(`✅ ${field}: "${translated[field].substring(0, 50)}..."`)
+        } catch (err) {
+          console.error(`❌ Failed to translate ${field}:`, err)
+          // Keep original if translation fails
+        }
+      }
     }
+
+    if (translated.general_notes && translated.general_notes.length > 0) {
+      console.log(`Translating general_notes: "${translated.general_notes.substring(0, 50)}..."`)
+      const original = translated.general_notes
+      try {
+        translated.general_notes = await translateTextToEnglish(translated.general_notes)
+        console.log(`✅ general_notes: "${translated.general_notes.substring(0, 50)}..."`)
+      } catch (err) {
+        console.error('❌ Failed to translate general_notes:', err)
+        // Keep original if translation fails
+      }
+    }
+
+    console.log('✅ Evaluation payload translation complete')
+  } catch (err) {
+    console.error('❌ Critical error in translateEvaluationPayload:', err)
   }
 
-  if (translated.general_notes) {
-    console.log('Translating general_notes...')
-    const original = translated.general_notes
-    translated.general_notes = await translateTextToEnglish(translated.general_notes)
-    console.log('general_notes translated:', original !== translated.general_notes ? 'SUCCESS' : 'FAILED - returned original')
-  }
-
-  console.log('Evaluation payload translation complete')
   return translated
 }
 

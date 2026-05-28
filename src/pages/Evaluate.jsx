@@ -605,7 +605,20 @@ export default function Evaluate() {
     setSaving(true)
     try {
       // Translate all notes to English before saving
+      console.log('Original payload notes:', {
+        positioning: payload.note_positioning,
+        attitude: payload.note_attitude,
+        general: payload.general_notes,
+      })
+
       const translatedPayload = await translateEvaluationPayload(payload)
+
+      console.log('Translated payload notes:', {
+        positioning: translatedPayload.note_positioning,
+        attitude: translatedPayload.note_attitude,
+        general: translatedPayload.general_notes,
+      })
+
       const saved = await create(translatedPayload)
       setSavedEval(saved)
 

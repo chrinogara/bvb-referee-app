@@ -18,9 +18,11 @@ import { Button } from '../components/ui/Button'
 import { Card, CardHeader, CardBody, CardTitle } from '../components/ui/Card'
 import { Input, Select, Textarea } from '../components/ui/Input'
 import { Modal } from '../components/ui/Modal'
+import { TranslationSuggestion } from '../components/TranslationSuggestion'
 import { useTournaments, useTournamentReferees } from '../hooks/useTournaments'
 import { useReferees } from '../hooks/useReferees'
 import { useEvaluations } from '../hooks/useEvaluations'
+import { useAutoTranslate } from '../hooks/useAutoTranslate'
 import { matchService, courtAssignmentService } from '../lib/supabase'
 import {
   cn,
@@ -98,6 +100,16 @@ function OverviewTab({ tournament, refereesCount, matchesCount, evaluationsCount
   const [regulations, setRegulations] = useState(tournament.regulations || '')
   const [saving, setSaving] = useState(false)
 
+  const {
+    value: regulationsValue,
+    setValue: setRegulationsValue,
+    handleBlur: handleRegulationsBlur,
+    suggestion: regulationsSuggestion,
+    showSuggestion: showRegulationsSuggestion,
+    acceptSuggestion: acceptRegulationsSuggestion,
+    rejectSuggestion: rejectRegulationsSuggestion,
+  } = useAutoTranslate(regulations)
+
   async function saveRegulations() {
     setSaving(true)
     try {
@@ -170,9 +182,23 @@ function OverviewTab({ tournament, refereesCount, matchesCount, evaluationsCount
             <div className="flex flex-col gap-3">
               <Textarea
                 rows={5}
-                value={regulations}
-                onChange={(e) => setRegulations(e.target.value)}
+                value={regulationsValue}
+                onChange={(e) => {
+                  setRegulationsValue(e.target.value)
+                  setRegulations(e.target.value)
+                }}
+                onBlur={handleRegulationsBlur}
                 placeholder="Add tournament regulations, notes or reminders..."
+              />
+              <TranslationSuggestion
+                suggestion={regulationsSuggestion}
+                onAccept={() => {
+                  setRegulations(regulationsSuggestion)
+                  setRegulationsValue(regulationsSuggestion)
+                  acceptRegulationsSuggestion()
+                }}
+                onReject={rejectRegulationsSuggestion}
+                isVisible={showRegulationsSuggestion}
               />
               <div className="flex gap-2">
                 <Button size="sm" variant="outline" onClick={() => { setEditing(false); setRegulations(tournament.regulations || '') }}>

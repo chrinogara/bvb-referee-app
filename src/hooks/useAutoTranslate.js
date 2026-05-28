@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { getTranslationSuggestion } from '../lib/beachVolleyTranslator'
 
 /**
@@ -9,6 +9,11 @@ export function useAutoTranslate(initialValue = '') {
   const [value, setValue] = useState(initialValue)
   const [suggestion, setSuggestion] = useState(null)
   const [showSuggestion, setShowSuggestion] = useState(false)
+
+  // Sync internal state when parent value changes
+  useEffect(() => {
+    setValue(initialValue)
+  }, [initialValue])
 
   const handleBlur = useCallback((e) => {
     const text = e.target.value

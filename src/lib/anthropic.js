@@ -122,6 +122,19 @@ async function callAnthropic(messages) {
   return response.json()
 }
 
+// ─── Strip thinking blocks from conversation history ────────────────────────
+function stripThinkingBlocks(messages) {
+  return messages.map(msg => {
+    if (msg.role === 'assistant' && Array.isArray(msg.content)) {
+      return {
+        ...msg,
+        content: msg.content.filter(block => block.type !== 'thinking' && block.type !== 'redacted_thinking')
+      }
+    }
+    return msg
+  })
+}
+
 // ─── Public API ──────────────────────────────────────────────────────────────
 export async function askRulesAssistant(question, conversationHistory = []) {
   const context = await buildRagContext(question)
@@ -131,7 +144,7 @@ export async function askRulesAssistant(question, conversationHistory = []) {
     : `(No relevant document snippets found — you may use the web_search tool on fivb.com / cev.eu only.)\n\nQUESTION: ${question}`
 
   const messages = [
-    ...conversationHistory,
+    ...stripThinkingBlocks(conversationHistory),
     { role: 'user', content: userContent },
   ]
 

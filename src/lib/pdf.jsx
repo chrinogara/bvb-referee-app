@@ -1055,6 +1055,7 @@ export function sharePDFWhatsApp(blob, filename) {
       return navigator.share({
         files: [file],
         title: 'BVB Referee Evaluation',
+        text: 'Referee Evaluation Report - Belgian Beach Volleyball Tour 2026',
       })
     }
   }

@@ -5,26 +5,46 @@
 
 const ITALIAN_WORDS = [
   'il', 'la', 'i', 'le', 'di', 'da', 'che', 'e', 'o', 'per', 'con', 'su', 'in', 'è',
-  'arbitro', 'arbitri', 'arbitro', 'giudice', 'giudici', 'linea', 'linee',
+  'arbitro', 'arbitri', 'giudice', 'giudici', 'linea', 'linee',
   'posizionamento', 'segnale', 'segnali', 'atteggiamento', 'comunicazione', 'presentazione',
   'buono', 'ottimo', 'eccellente', 'scarso', 'pessimo', 'adeguato', 'insufficiente',
   'nota', 'note', 'osservazione', 'osservazioni', 'commento', 'commenti',
-  'campo', 'campi', 'court', 'tribunale', 'torneo', 'tornei', 'match', 'gara',
+  'campo', 'campi', 'torneo', 'tornei', 'gara',
   'giornata', 'giorno', 'giornate', 'giorni', 'sessione', 'sessioni',
-  'pausa', 'pausa', 'riposo', 'lavoro', 'turno', 'turni',
+  'pausa', 'riposo', 'lavoro', 'turno', 'turni',
   'finale', 'finali', 'semifinale', 'semifinali', 'qualificazione', 'qualificazioni',
-  'squadra', 'squadre', 'team', 'giocatore', 'giocatori', 'giocatrice', 'giocatrici',
-  'allenatore', 'allenatori', 'coach', 'allenamento', 'allenamenti',
+  'squadra', 'squadre', 'giocatore', 'giocatori', 'giocatrice', 'giocatrici',
+  'allenatore', 'allenatori', 'allenamento', 'allenamenti',
   'regola', 'regole', 'regolamento', 'regolamenti', 'fallo', 'falli', 'infrazioni',
-  'punto', 'punti', 'punteggio', 'punteggi', 'set', 'sets', 'partita', 'partite',
+  'punto', 'punti', 'punteggio', 'punteggi', 'partita', 'partite',
   'attacco', 'attacchi', 'difesa', 'difese', 'blocco', 'blocchi', 'ricezione', 'ricezioni',
   'palleggio', 'palleggi', 'schiacciata', 'schiacciate', 'muro', 'muri',
   'assegnazione', 'assegnazioni', 'designazione', 'designazioni', 'ruolo', 'ruoli',
-  'r1', 'r2', 'lj1', 'lj2', 'giudice', 'giudici', 'umpire', 'umpires',
-  'feedback', 'valutazione', 'valutazioni', 'valutazione', 'punteggio',
-  'briefing', 'briefing', 'riunione', 'riunioni', 'convocazione', 'convocazioni',
-  'rapporto', 'rapporti', 'report', 'relazione', 'relazioni',
-  'sconto', 'sconti', 'penalità', 'penalità', 'multa', 'multe',
+  'r1', 'r2', 'lj1', 'lj2',
+  'valutazione', 'valutazioni',
+  'briefing', 'riunione', 'riunioni', 'convocazione', 'convocazioni',
+  'rapporto', 'rapporti', 'relazione', 'relazioni',
+  'penalità', 'multa', 'multe',
+  // Common verbs
+  'chiede', 'chiedere', 'chiedo', 'lasciare', 'lascia', 'lascio', 'sono', 'hai', 'ha', 'abbiamo', 'hanno',
+  'fai', 'fa', 'faccio', 'facciamo', 'fanno', 'devi', 'deve', 'dobbiamo', 'devono',
+  'posso', 'puoi', 'può', 'possiamo', 'possono', 'voglio', 'vuoi', 'vuole', 'vogliamo', 'vogliono',
+  'penso', 'pensi', 'pensa', 'pensiamo', 'pensano', 'vedo', 'vedi', 'vede', 'vediamo', 'vedono',
+  'sentiamo', 'sento', 'senti', 'sente', 'sentono', 'vengo', 'vieni', 'viene', 'veniamo', 'vengono',
+  'esco', 'esci', 'esce', 'usciamo', 'escono', 'giochiamo', 'gioco', 'giochi', 'gioca', 'giocano',
+  'segno', 'segni', 'segna', 'segniamo', 'segnano', 'continuo', 'continui', 'continua', 'continuiamo', 'continuano',
+  'comincio', 'cominci', 'comincia', 'cominciamo', 'cominciano', 'finisco', 'finisci', 'finisce', 'finiamo', 'finiscono',
+  'preferisco', 'preferisci', 'preferisce', 'preferiamo', 'preferiscono',
+  // Pronouns
+  'mi', 'ti', 'te', 'tuo', 'sua', 'nostro', 'vostro', 'loro',
+  // Adjectives and adverbs
+  'molto', 'poco', 'bravo', 'brave', 'male', 'bello', 'bella', 'buona', 'cattivo', 'cattiva',
+  'grande', 'piccolo', 'piccola', 'nuovo', 'nuova', 'vecchio', 'vecchia', 'facile', 'difficile',
+  'veloce', 'lento', 'velocemente', 'lentamente', 'sbagliato', 'sbagliata', 'giusto', 'giusta',
+  'corretto', 'corretta', 'errato', 'errata', 'non',
+  // Articles and prepositions
+  'un', 'una', 'del', 'della', 'dei', 'delle', 'dal', 'dalla', 'nel', 'nella', 'sul',
+  'sulle', 'col', 'dalla',
 ];
 
 const BEACH_VOLLEY_DICTIONARY = {
@@ -341,6 +361,35 @@ const BEACH_VOLLEY_DICTIONARY = {
   'errato': 'wrong',
   'errata': 'wrong',
 
+  // Common connectors & particles
+  'che': 'that',
+  'e': 'and',
+  'o': 'or',
+  'non': 'not',
+
+  // Time/work related
+  'giorno': 'day',
+  'giorni': 'days',
+  'lavoro': 'work',
+
+  // Lowercase role identifiers
+  'r1': 'R1',
+  'r2': 'R2',
+  'lj1': 'LJ1',
+  'lj2': 'LJ2',
+
+  // Plural forms
+  'multiple': 'multiple',
+  'ottimo': 'excellent',
+  'multe': 'fines',
+
+  // Additional verbs and words
+  'dato': 'given',
+  'situazione': 'situation',
+  'passaggio': 'passing',
+  'dito': 'finger',
+  'mano': 'hand',
+
   // Common phrases
   'buon lavoro': 'good work',
   'ottima prestazione': 'excellent performance',
@@ -374,7 +423,6 @@ export function translateBeachVolleyText(italianText) {
   if (!italianText || typeof italianText !== 'string') return italianText
 
   let translation = italianText
-  const lowerText = italianText.toLowerCase()
 
   // Sort by length (longer phrases first) to avoid partial replacements
   const sortedEntries = Object.entries(BEACH_VOLLEY_DICTIONARY).sort(
@@ -382,7 +430,10 @@ export function translateBeachVolleyText(italianText) {
   )
 
   for (const [italian, english] of sortedEntries) {
-    const regex = new RegExp(`\\b${italian}\\b`, 'gi')
+    // Escape special regex characters in the dictionary key
+    const escaped = italian.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    // Use word boundaries with lookahead/lookbehind for better matching
+    const regex = new RegExp(`(?<!\\w)${escaped}(?!\\w)`, 'gi')
     translation = translation.replace(regex, english)
   }
 

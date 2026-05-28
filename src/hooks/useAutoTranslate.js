@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { getTranslationSuggestion } from '../lib/beachVolleyTranslator'
 
 /**
@@ -9,14 +9,14 @@ export function useAutoTranslate(initialValue = '') {
   const [value, setValue] = useState(initialValue)
   const [suggestion, setSuggestion] = useState(null)
   const [showSuggestion, setShowSuggestion] = useState(false)
+  const debounceTimerRef = useRef(null)
 
   // Sync internal state when parent value changes
   useEffect(() => {
     setValue(initialValue)
   }, [initialValue])
 
-  const handleBlur = useCallback((e) => {
-    const text = e.target.value
+  const checkTranslation = useCallback((text) => {
     if (!text || text.length < 3) {
       setShowSuggestion(false)
       return
@@ -31,6 +31,20 @@ export function useAutoTranslate(initialValue = '') {
       setShowSuggestion(false)
     }
   }, [])
+
+  const handleBlur = useCallback((e) => {
+    const text = e.target.value
+    checkTranslation(text)
+  }, [checkTranslation])
+
+  const handleChange = useCallback((text) => {
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current)
+    }
+    debounceTimerRef.current = setTimeout(() => {
+      checkTranslation(text)
+    }, 500)
+  }, [checkTranslation])
 
   const acceptSuggestion = useCallback(() => {
     if (suggestion) {
@@ -54,6 +68,7 @@ export function useAutoTranslate(initialValue = '') {
     value,
     setValue,
     handleBlur,
+    handleChange,
     suggestion,
     showSuggestion,
     acceptSuggestion,

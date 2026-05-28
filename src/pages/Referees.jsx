@@ -135,6 +135,7 @@ function AddRefereeModal({ open, onClose, onCreate }) {
     value: notesValue,
     setValue: setNotesValue,
     handleBlur: handleNotesBlur,
+    handleChange: handleNotesTranslationChange,
     suggestion: notesSuggestion,
     showSuggestion: showNotesSuggestion,
     acceptSuggestion: acceptNotesSuggestion,
@@ -247,8 +248,10 @@ function AddRefereeModal({ open, onClose, onCreate }) {
             name="notes"
             value={notesValue}
             onChange={(e) => {
-              handleChange({ target: { name: 'notes', value: e.target.value } })
-              setNotesValue(e.target.value)
+              const val = e.target.value
+              handleChange({ target: { name: 'notes', value: val } })
+              setNotesValue(val)
+              handleNotesTranslationChange(val)
             }}
             onBlur={handleNotesBlur}
             placeholder="Any additional notes about this referee…"

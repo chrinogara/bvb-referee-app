@@ -104,6 +104,7 @@ function OverviewTab({ tournament, refereesCount, matchesCount, evaluationsCount
     value: regulationsValue,
     setValue: setRegulationsValue,
     handleBlur: handleRegulationsBlur,
+    handleChange: handleRegulationsChange,
     suggestion: regulationsSuggestion,
     showSuggestion: showRegulationsSuggestion,
     acceptSuggestion: acceptRegulationsSuggestion,
@@ -184,8 +185,10 @@ function OverviewTab({ tournament, refereesCount, matchesCount, evaluationsCount
                 rows={5}
                 value={regulationsValue}
                 onChange={(e) => {
-                  setRegulationsValue(e.target.value)
-                  setRegulations(e.target.value)
+                  const val = e.target.value
+                  setRegulationsValue(val)
+                  setRegulations(val)
+                  handleRegulationsChange(val)
                 }}
                 onBlur={handleRegulationsBlur}
                 placeholder="Add tournament regulations, notes or reminders..."

@@ -315,8 +315,10 @@ export default function Briefing() {
                     <Textarea
                       value={trans.value}
                       onChange={(e) => {
-                        trans.setValue(e.target.value)
-                        setField(s.key, e.target.value)
+                        const val = e.target.value
+                        trans.setValue(val)
+                        setField(s.key, val)
+                        trans.handleChange?.(val)
                       }}
                       onBlur={trans.handleBlur}
                       placeholder={s.placeholder}

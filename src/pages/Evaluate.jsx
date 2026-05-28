@@ -241,6 +241,7 @@ function CriterionCard({ criterion, score, repeat, note, onScore, onRepeat, onNo
     value: noteValue,
     setValue: setNoteValue,
     handleBlur: handleNoteBlur,
+    handleChange: handleNoteChange,
     suggestion,
     showSuggestion,
     acceptSuggestion: acceptNoteSuggestion,
@@ -248,10 +249,11 @@ function CriterionCard({ criterion, score, repeat, note, onScore, onRepeat, onNo
     clearSuggestion: clearNoteSuggestion,
   } = useAutoTranslate(note)
 
-  const handleNoteChange = (e) => {
+  const handleNoteInputChange = (e) => {
     const newValue = e.target.value
     setNoteValue(newValue)
     onNote(newValue)
+    handleNoteChange(newValue)
   }
 
   const handleAcceptTranslation = () => {
@@ -362,7 +364,7 @@ function CriterionCard({ criterion, score, repeat, note, onScore, onRepeat, onNo
             </label>
             <textarea
               value={noteValue}
-              onChange={handleNoteChange}
+              onChange={handleNoteInputChange}
               onBlur={handleNoteBlur}
               placeholder="What did you observe? Be specific…"
               rows={2}
@@ -491,6 +493,7 @@ export default function Evaluate() {
     value: generalNotesValue,
     setValue: setGeneralNotesValue,
     handleBlur: handleGeneralNotesBlur,
+    handleChange: handleGeneralNotesChange,
     suggestion: generalNotesSuggestion,
     showSuggestion: showGeneralNotesSuggestion,
     acceptSuggestion: acceptGeneralNotesSuggestion,
@@ -795,8 +798,10 @@ export default function Evaluate() {
               <textarea
                 value={generalNotesValue}
                 onChange={(e) => {
-                  setGeneralNotesValue(e.target.value)
-                  setGeneralNotes(e.target.value)
+                  const val = e.target.value
+                  setGeneralNotesValue(val)
+                  setGeneralNotes(val)
+                  handleGeneralNotesChange(val)
                 }}
                 onBlur={handleGeneralNotesBlur}
                 placeholder="Overall impressions, strengths, areas for improvement…"

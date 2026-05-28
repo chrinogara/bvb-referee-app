@@ -1,64 +1,37 @@
+import { supabase } from './supabase'
+
 /**
- * Translate Italian text to English using Claude API
+ * Translate Italian text to English via the Supabase Edge Function.
+ *
+ * The Anthropic API key lives only on the server (as the ANTHROPIC_API_KEY
+ * secret on Supabase), so it is never shipped to the browser. The client just
+ * calls the `translate-with-claude` Edge Function.
+ *
  * @param {string} text - The text to translate
- * @returns {Promise<string>} - The translated text or original if translation fails
+ * @returns {Promise<string>} - The translated text, or the original if translation fails
  */
 export async function translateTextToEnglish(text) {
-  if (!text || text.length < 5) return text
+  if (!text || text.trim().length < 5) return text
 
   try {
-    const apiKey = import.meta.env.VITE_CLAUDE_API_KEY
-    if (!apiKey) {
-      console.warn('Claude API key not configured - translation skipped')
-      return text
-    }
-
     const controller = new AbortController()
-    const timeout = setTimeout(() => controller.abort(), 15000) // 15 second timeout
+    const timeout = setTimeout(() => controller.abort(), 15000) // 15s timeout
 
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: 'claude-opus-4-8',
-        max_tokens: 1024,
-        messages: [
-          {
-            role: 'user',
-            content: `Translate the following Italian text to English. Keep the meaning and context intact.
-Respond ONLY with the translation, without any quotes, explanations, or additional text.
-
-${text}`,
-          },
-        ],
-      }),
-      signal: controller.signal,
+    const { data, error } = await supabase.functions.invoke('translate-with-claude', {
+      body: { text },
     })
 
     clearTimeout(timeout)
 
-    if (!response.ok) {
-      const errorText = await response.text()
-      console.error('Translation API error:', response.status, errorText)
+    if (error) {
+      console.error('Translation function error:', error.message)
       return text
     }
 
-    const data = await response.json()
-    let translation = data.content[0]?.text?.trim()
-
+    const translation = data?.translation?.trim()
     if (!translation) {
-      console.warn('No translation returned from API')
+      console.warn('No translation returned from function')
       return text
-    }
-
-    // Remove surrounding quotes if present
-    if ((translation.startsWith('"') && translation.endsWith('"')) ||
-        (translation.startsWith("'") && translation.endsWith("'"))) {
-      translation = translation.slice(1, -1)
     }
 
     console.log(`Translated: "${text.substring(0, 50)}..." → "${translation.substring(0, 50)}..."`)
@@ -70,8 +43,8 @@ ${text}`,
 }
 
 /**
- * Translate evaluation payload fields
- * @param {Object} payload - The evaluation data to translate
+ * Translate evaluation payload fields.
+ * @param {Object} payloadToTranslate - The evaluation data to translate
  * @returns {Promise<Object>} - The payload with translated fields
  */
 export async function translateEvaluationPayload(payloadToTranslate) {
@@ -90,7 +63,6 @@ export async function translateEvaluationPayload(payloadToTranslate) {
     for (const field of noteFields) {
       if (translated[field] && translated[field].length > 0) {
         console.log(`Translating ${field}: "${translated[field].substring(0, 50)}..."`)
-        const original = translated[field]
         try {
           translated[field] = await translateTextToEnglish(translated[field])
           console.log(`✅ ${field}: "${translated[field].substring(0, 50)}..."`)
@@ -103,7 +75,6 @@ export async function translateEvaluationPayload(payloadToTranslate) {
 
     if (translated.general_notes && translated.general_notes.length > 0) {
       console.log(`Translating general_notes: "${translated.general_notes.substring(0, 50)}..."`)
-      const original = translated.general_notes
       try {
         translated.general_notes = await translateTextToEnglish(translated.general_notes)
         console.log(`✅ general_notes: "${translated.general_notes.substring(0, 50)}..."`)
@@ -122,51 +93,24 @@ export async function translateEvaluationPayload(payloadToTranslate) {
 }
 
 /**
- * Test if the Claude API is accessible
- * @returns {Promise<boolean>} - True if API is working
+ * Test if the translation Edge Function is reachable.
+ * @returns {Promise<boolean>} - True if the function responds with a translation
  */
 export async function testClaudeAPI() {
   try {
-    const apiKey = import.meta.env.VITE_CLAUDE_API_KEY
-    if (!apiKey) {
-      console.error('API key not found')
-      return false
-    }
-
-    console.log('Testing Claude API with key:', apiKey.substring(0, 20) + '...')
-
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: 'claude-opus-4-8',
-        max_tokens: 100,
-        messages: [
-          {
-            role: 'user',
-            content: 'Translate "Ciao" to English. Respond only with the translation.',
-          },
-        ],
-      }),
+    const { data, error } = await supabase.functions.invoke('translate-with-claude', {
+      body: { text: 'Ciao, come stai?' },
     })
 
-    console.log('API Response Status:', response.status)
-
-    if (!response.ok) {
-      const errorText = await response.text()
-      console.error('API Error:', errorText)
+    if (error) {
+      console.error('Translation function test failed:', error.message)
       return false
     }
 
-    const data = await response.json()
-    console.log('API Response:', data)
-    return true
+    console.log('Translation function test response:', data)
+    return Boolean(data?.translation)
   } catch (err) {
-    console.error('API Test Failed:', err)
+    console.error('Translation function test failed:', err)
     return false
   }
 }

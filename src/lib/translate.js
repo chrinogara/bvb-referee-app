@@ -26,14 +26,12 @@ export async function translateTextToEnglish(text) {
         messages: [
           {
             role: 'user',
-            content: `You are a professional translator for beach volleyball referee reports.
+            content: `Translate the following Italian text to English. Keep the meaning and context intact.
+Respond ONLY with the translation, without any quotes, explanations, or additional text.
 
-Translate this Italian text to English. Keep the meaning and context intact, especially for beach volleyball terminology.
-Respond ONLY with the English translation, nothing else.
-
-Italian text: "${text}"`,
+${text}`,
           },
-        }),
+        ],
       }),
     })
 
@@ -44,11 +42,17 @@ Italian text: "${text}"`,
     }
 
     const data = await response.json()
-    const translation = data.content[0]?.text?.trim()
+    let translation = data.content[0]?.text?.trim()
 
     if (!translation) {
       console.warn('No translation returned from API')
       return text
+    }
+
+    // Remove surrounding quotes if present
+    if ((translation.startsWith('"') && translation.endsWith('"')) ||
+        (translation.startsWith("'") && translation.endsWith("'"))) {
+      translation = translation.slice(1, -1)
     }
 
     console.log(`Translated: "${text.substring(0, 50)}..." → "${translation.substring(0, 50)}..."`)

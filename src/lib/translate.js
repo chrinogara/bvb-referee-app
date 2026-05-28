@@ -13,6 +13,9 @@ export async function translateTextToEnglish(text) {
       return text
     }
 
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 15000) // 15 second timeout
+
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
@@ -33,7 +36,10 @@ ${text}`,
           },
         ],
       }),
+      signal: controller.signal,
     })
+
+    clearTimeout(timeout)
 
     if (!response.ok) {
       const errorText = await response.text()

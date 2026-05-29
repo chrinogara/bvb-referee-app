@@ -134,9 +134,19 @@ export function TranslateButton({ text, onTranslated }) {
                   toast.success('Copiato negli appunti!')
                   setShowTranslation(false)
                 }}
-                className="px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
+                className="px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
               >
                 Copia
+              </button>
+              <button
+                onClick={() => {
+                  onTranslated?.(translation)
+                  toast.success('Testo sostituito!')
+                  setShowTranslation(false)
+                }}
+                className="px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors"
+              >
+                Sostituisci
               </button>
             </div>
           </div>

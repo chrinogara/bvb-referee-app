@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Languages, Loader } from 'lucide-react'
 import { translateTextToEnglish } from '../lib/translate'
 import { toast } from './ui/Toast'
@@ -71,8 +72,8 @@ export function TranslateButton({ text, onTranslated }) {
         )}
       </button>
 
-      {/* Translation modal/popover */}
-      {showTranslation && (
+      {/* Translation modal/popover - rendered via Portal to bypass relative positioning */}
+      {showTranslation && createPortal(
         <div
           className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/30 backdrop-blur-sm overflow-y-auto"
           onClick={() => setShowTranslation(false)}
@@ -134,7 +135,8 @@ export function TranslateButton({ text, onTranslated }) {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   )

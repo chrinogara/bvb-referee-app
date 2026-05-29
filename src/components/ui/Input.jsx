@@ -42,14 +42,14 @@ export function Textarea({ className, label, error, rows = 3, translate = false,
             'text-gray-900 placeholder-gray-400 text-sm resize-none',
             'focus:outline-none focus:border-[#E85D26]/60 focus:ring-2 focus:ring-[#E85D26]/20',
             'transition-colors duration-150',
-            translate && 'pr-12',
+            translate && 'pr-14',
             error && 'border-red-400',
             className
           )}
           {...props}
         />
         {showButton && (
-          <div className="absolute bottom-2 right-2">
+          <div className="absolute top-1/2 -translate-y-1/2 right-2 sm:top-auto sm:-translate-y-0 sm:bottom-2">
             <TranslateButton text={props.value} onTranslated={onTranslated} />
           </div>
         )}

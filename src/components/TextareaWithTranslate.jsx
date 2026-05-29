@@ -42,13 +42,13 @@ export function TextareaWithTranslate({
             'text-gray-900 placeholder-gray-400 text-sm resize-none',
             'focus:outline-none focus:border-[#E85D26]/60 focus:ring-1 focus:ring-[#E85D26]/30',
             'transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed',
-            'pr-12', // Space for button
+            'pr-14', // Space for button
             className
           )}
         />
-        {/* Translate button positioned in bottom-right corner */}
+        {/* Translate button centered vertically on mobile, bottom-right on desktop */}
         {showTranslateButton && value?.trim().length > 0 && (
-          <div className="absolute bottom-2 right-2">
+          <div className="absolute top-1/2 -translate-y-1/2 right-2 sm:top-auto sm:-translate-y-0 sm:bottom-2">
             <TranslateButton
               text={value}
               onTranslated={onTranslated}

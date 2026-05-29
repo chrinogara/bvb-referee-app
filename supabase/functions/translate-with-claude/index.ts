@@ -1,14 +1,3 @@
-// Supabase Edge Function: translate-with-claude
-//
-// Translates Italian text to English using the Claude API.
-// The Anthropic API key is read from the ANTHROPIC_API_KEY secret on the
-// server, so it is NEVER exposed to the browser/client.
-//
-// Set the secret with:
-//   supabase secrets set ANTHROPIC_API_KEY=sk-ant-...
-//
-// Call from the client with supabase.functions.invoke('translate-with-claude', { body: { text } })
-
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
@@ -17,38 +6,57 @@ const corsHeaders = {
 };
 
 Deno.serve(async (req: Request): Promise<Response> => {
-  // Handle CORS preflight
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
 
+  // Parse body safely — req.json() throws on empty body
+  let text: string | undefined;
+  let targetLanguage = "english";
   try {
-    const { text, targetLanguage = "english" } = await req.json();
-
-    // Nothing to translate
-    if (!text || typeof text !== "string" || text.trim().length === 0) {
+    const rawBody = await req.text();
+    if (!rawBody || rawBody.trim().length === 0) {
+      console.warn("Empty request body");
       return new Response(
-        JSON.stringify({ success: true, translation: text ?? "", original: text ?? "" }),
+        JSON.stringify({ success: true, translation: "", original: "" }),
         { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
+    const body = JSON.parse(rawBody);
+    text = body.text;
+    targetLanguage = body.targetLanguage ?? "english";
+  } catch (parseError) {
+    console.error("Body parse error:", parseError instanceof Error ? parseError.message : parseError);
+    return new Response(
+      JSON.stringify({ error: "Invalid JSON body" }),
+      { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+    );
+  }
 
-    const apiKey = Deno.env.get("ANTHROPIC_API_KEY");
-    if (!apiKey) {
-      return new Response(
-        JSON.stringify({ error: "ANTHROPIC_API_KEY not configured" }),
-        { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
-      );
-    }
+  if (!text || typeof text !== "string" || text.trim().length === 0) {
+    return new Response(
+      JSON.stringify({ success: true, translation: text ?? "", original: text ?? "" }),
+      { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
+    );
+  }
 
-    const languageMap: Record<string, string> = {
-      "english": "English",
-      "french": "French",
-      "dutch": "Dutch",
-    };
+  const apiKey = Deno.env.get("ANTHROPIC_API_KEY");
+  if (!apiKey) {
+    console.error("ANTHROPIC_API_KEY secret is not set");
+    return new Response(
+      JSON.stringify({ error: "ANTHROPIC_API_KEY not configured" }),
+      { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
+    );
+  }
 
-    const targetLang = languageMap[targetLanguage.toLowerCase()] || "English";
+  const languageMap: Record<string, string> = {
+    english: "English",
+    french: "French",
+    dutch: "Dutch",
+  };
+  const targetLang = languageMap[targetLanguage.toLowerCase()] || "English";
 
+  try {
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
@@ -57,18 +65,17 @@ Deno.serve(async (req: Request): Promise<Response> => {
         "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
-        model: "claude-opus-4-8",
+        model: "claude-haiku-4-5-20251001",
         max_tokens: 1024,
         messages: [
           {
             role: "user",
             content:
               `You are a professional translator specializing in beach volleyball referee reports.\n\n` +
-              `IMPORTANT: Translate ONLY to ${targetLang}, not to English.\n\n` +
-              `Translate the following Italian text to ${targetLang}. Keep the meaning and ` +
-              `context intact. Maintain professional beach volleyball terminology.\n` +
-              `Output ONLY the ${targetLang} translation. Do not include the original text, ` +
-              `explanations, quotes, or any other text.\n\n` +
+              `IMPORTANT: Translate ONLY to ${targetLang}.\n\n` +
+              `Translate the following Italian text to ${targetLang}. Keep meaning and context intact. ` +
+              `Maintain professional beach volleyball terminology.\n` +
+              `Output ONLY the ${targetLang} translation. No original text, no explanations, no quotes.\n\n` +
               `Text to translate:\n${text}`,
           },
         ],
@@ -87,7 +94,6 @@ Deno.serve(async (req: Request): Promise<Response> => {
     const data = await response.json();
     let translation: string = data?.content?.[0]?.text?.trim() ?? "";
 
-    // Strip surrounding quotes if Claude wrapped the response
     if (
       (translation.startsWith('"') && translation.endsWith('"')) ||
       (translation.startsWith("'") && translation.endsWith("'"))
@@ -95,7 +101,6 @@ Deno.serve(async (req: Request): Promise<Response> => {
       translation = translation.slice(1, -1);
     }
 
-    // Fall back to the original text if no translation came back
     if (!translation) translation = text;
 
     return new Response(
@@ -105,9 +110,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
   } catch (error) {
     console.error("Translation error:", error);
     return new Response(
-      JSON.stringify({
-        error: error instanceof Error ? error.message : "Unknown error",
-      }),
+      JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }),
       { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
     );
   }

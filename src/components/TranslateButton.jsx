@@ -5,9 +5,9 @@ import { translateTextToEnglish } from '../lib/translate'
 import { toast } from './ui/Toast'
 
 const LANGUAGES = [
-  { id: 'english', label: 'English 🇬🇧' },
-  { id: 'french', label: 'Français 🇫🇷' },
-  { id: 'dutch', label: 'Nederlands 🇳🇱' },
+  { id: 'english', label: 'English', flag: '🇬🇧' },
+  { id: 'french', label: 'Français', flag: '🇫🇷' },
+  { id: 'dutch', label: 'Nederlands', flag: '🇳🇱' },
 ]
 
 export function TranslateButton({ text, onTranslated }) {
@@ -93,13 +93,14 @@ export function TranslateButton({ text, onTranslated }) {
                     key={lang.id}
                     onClick={() => handleLanguageChange(lang.id)}
                     disabled={loading}
-                    className={`px-3 sm:px-4 py-2 sm:py-2.5 text-sm sm:text-base font-medium rounded-lg transition-colors whitespace-nowrap flex items-center justify-center gap-1 ${
+                    className={`px-1 py-2 rounded-lg transition-colors flex flex-col items-center justify-center gap-1 ${
                       selectedLanguage === lang.id
                         ? 'bg-blue-600 text-white'
                         : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                     } disabled:opacity-50 disabled:cursor-not-allowed`}
                   >
-                    {lang.label}
+                    <span className="text-lg leading-none">{lang.flag}</span>
+                    <span className="text-xs sm:text-sm font-medium leading-none">{lang.label}</span>
                   </button>
                 ))}
               </div>
@@ -107,7 +108,7 @@ export function TranslateButton({ text, onTranslated }) {
 
             {/* Title */}
             <h3 className="text-xs sm:text-sm font-semibold text-gray-900 mb-2">
-              {LANGUAGES.find(l => l.id === selectedLanguage)?.label.split(' ')[0]} Translation
+              {LANGUAGES.find(l => l.id === selectedLanguage)?.label} Translation
             </h3>
 
             {/* Translation Text with scroll */}

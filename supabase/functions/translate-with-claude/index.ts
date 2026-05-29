@@ -63,11 +63,13 @@ Deno.serve(async (req: Request): Promise<Response> => {
           {
             role: "user",
             content:
-              `You are a professional translator for beach volleyball referee reports.\n\n` +
+              `You are a professional translator specializing in beach volleyball referee reports.\n\n` +
+              `IMPORTANT: Translate ONLY to ${targetLang}, not to English.\n\n` +
               `Translate the following Italian text to ${targetLang}. Keep the meaning and ` +
-              `context intact, especially beach volleyball terminology.\n` +
-              `Respond ONLY with the ${targetLang} translation, without quotes, explanations, ` +
-              `or any additional text.\n\n${text}`,
+              `context intact. Maintain professional beach volleyball terminology.\n` +
+              `Output ONLY the ${targetLang} translation. Do not include the original text, ` +
+              `explanations, quotes, or any other text.\n\n` +
+              `Text to translate:\n${text}`,
           },
         ],
       }),

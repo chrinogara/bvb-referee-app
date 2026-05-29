@@ -71,19 +71,26 @@ export function TranslateButton({ text, onTranslated }) {
 
       {/* Translation modal/popover */}
       {showTranslation && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/30 backdrop-blur-sm">
-          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-5 animate-in fade-in-0 zoom-in-95 duration-200">
-            <div className="mb-4">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/30 backdrop-blur-sm overflow-y-auto"
+          onClick={() => setShowTranslation(false)}
+        >
+          <div
+            className="bg-white rounded-xl shadow-2xl w-full max-w-sm max-h-[90vh] p-3 sm:p-5 animate-in fade-in-0 zoom-in-95 duration-200 overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Language Selector */}
+            <div className="mb-3 sm:mb-4">
               <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2 block">
                 Lingua
               </label>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
                 {LANGUAGES.map(lang => (
                   <button
                     key={lang.id}
                     onClick={() => handleLanguageChange(lang.id)}
                     disabled={loading}
-                    className={`px-3 py-2 text-xs font-medium rounded-lg transition-colors ${
+                    className={`px-2 sm:px-3 py-1.5 sm:py-2 text-xs font-medium rounded-lg transition-colors whitespace-nowrap ${
                       selectedLanguage === lang.id
                         ? 'bg-blue-600 text-white'
                         : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -95,16 +102,21 @@ export function TranslateButton({ text, onTranslated }) {
               </div>
             </div>
 
-            <h3 className="text-sm font-semibold text-gray-900 mb-3">
+            {/* Title */}
+            <h3 className="text-xs sm:text-sm font-semibold text-gray-900 mb-2">
               {LANGUAGES.find(l => l.id === selectedLanguage)?.label.split(' ')[0]} Translation
             </h3>
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
-              <p className="text-sm text-gray-800 whitespace-pre-wrap">{translation}</p>
+
+            {/* Translation Text with scroll */}
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-2.5 sm:p-4 mb-3 sm:mb-4 max-h-32 sm:max-h-40 overflow-y-auto">
+              <p className="text-xs sm:text-sm text-gray-800 whitespace-pre-wrap leading-relaxed">{translation}</p>
             </div>
+
+            {/* Action Buttons */}
             <div className="flex gap-2 justify-end">
               <button
                 onClick={() => setShowTranslation(false)}
-                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+                className="px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
               >
                 Chiudi
               </button>
@@ -114,7 +126,7 @@ export function TranslateButton({ text, onTranslated }) {
                   toast.success('Copiato negli appunti!')
                   setShowTranslation(false)
                 }}
-                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
+                className="px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
               >
                 Copia
               </button>

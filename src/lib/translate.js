@@ -45,56 +45,6 @@ export async function translateTextToEnglish(text, targetLanguage = 'english') {
 }
 
 /**
- * Translate evaluation payload fields.
- * @param {Object} payloadToTranslate - The evaluation data to translate
- * @returns {Promise<Object>} - The payload with translated fields
- */
-export async function translateEvaluationPayload(payloadToTranslate) {
-  const translated = { ...payloadToTranslate }
-
-  const noteFields = [
-    'note_positioning',
-    'note_signals',
-    'note_attitude',
-    'note_captain_comm',
-    'note_presentation',
-  ]
-
-  try {
-    console.log('Starting translation of evaluation payload...')
-    for (const field of noteFields) {
-      if (translated[field] && translated[field].length > 0) {
-        console.log(`Translating ${field}: "${translated[field].substring(0, 50)}..."`)
-        try {
-          translated[field] = await translateTextToEnglish(translated[field])
-          console.log(`✅ ${field}: "${translated[field].substring(0, 50)}..."`)
-        } catch (err) {
-          console.error(`❌ Failed to translate ${field}:`, err)
-          // Keep original if translation fails
-        }
-      }
-    }
-
-    if (translated.general_notes && translated.general_notes.length > 0) {
-      console.log(`Translating general_notes: "${translated.general_notes.substring(0, 50)}..."`)
-      try {
-        translated.general_notes = await translateTextToEnglish(translated.general_notes)
-        console.log(`✅ general_notes: "${translated.general_notes.substring(0, 50)}..."`)
-      } catch (err) {
-        console.error('❌ Failed to translate general_notes:', err)
-        // Keep original if translation fails
-      }
-    }
-
-    console.log('✅ Evaluation payload translation complete')
-  } catch (err) {
-    console.error('❌ Critical error in translateEvaluationPayload:', err)
-  }
-
-  return translated
-}
-
-/**
  * Test if the translation Edge Function is reachable.
  * @returns {Promise<boolean>} - True if the function responds with a translation
  */

@@ -7,7 +7,6 @@ import { useClaudeTranslate } from '../hooks/useClaudeTranslate'
 import { useAppStore } from '../store/appStore'
 import { CRITERIA, computeScore, SCORE_LABELS, getGrade } from '../lib/scoring'
 import { generateEvaluationPDF, downloadPDF, sharePDFWhatsApp } from '../lib/pdf'
-import { translateTextToEnglish, translateEvaluationPayload } from '../lib/translate'
 import { cn, refereeName, roleColor, scoreColor } from '../lib/utils'
 import { Header } from '../components/layout/Header'
 import { Button } from '../components/ui/Button'
@@ -602,22 +601,10 @@ export default function Evaluate() {
 
     setSaving(true)
     try {
-      // Translate all notes to English before saving
-      console.log('Original payload notes:', {
-        positioning: payload.note_positioning,
-        attitude: payload.note_attitude,
-        general: payload.general_notes,
-      })
-
-      const translatedPayload = await translateEvaluationPayload(payload)
-
-      console.log('Translated payload notes:', {
-        positioning: translatedPayload.note_positioning,
-        attitude: translatedPayload.note_attitude,
-        general: translatedPayload.general_notes,
-      })
-
-      const saved = await create(translatedPayload)
+      // Notes are saved verbatim — exactly in the language the user chose via
+      // the inline TranslateButton (Italian, English, French, or Dutch). No
+      // automatic re-translation, so the PDF shows precisely what was entered.
+      const saved = await create(payload)
       setSavedEval(saved)
 
       // Persist last-used values

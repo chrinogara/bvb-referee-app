@@ -4,24 +4,14 @@ import { Languages, Loader } from 'lucide-react'
 import { translateTextToEnglish } from '../lib/translate'
 import { toast } from './ui/Toast'
 
-const LANGUAGES = [
-  { id: 'english', label: 'English', flag: '🇬🇧' },
-  { id: 'french', label: 'Français', flag: '🇫🇷' },
-  { id: 'dutch', label: 'Nederlands', flag: '🇳🇱' },
-]
-
 export function TranslateButton({ text, onTranslated }) {
   const [loading, setLoading] = useState(false)
   const [showTranslation, setShowTranslation] = useState(false)
   const [translation, setTranslation] = useState('')
-  const [selectedLanguage, setSelectedLanguage] = useState('english')
-  const [originalText, setOriginalText] = useState('')
 
   const handleClose = () => {
     setShowTranslation(false)
     setTranslation('')
-    setOriginalText('')
-    setSelectedLanguage('english')
   }
 
   const handleTranslate = async () => {
@@ -30,35 +20,17 @@ export function TranslateButton({ text, onTranslated }) {
       return
     }
 
-    setOriginalText(text)
     setShowTranslation(true)
     setLoading(true)
 
     try {
-      const result = await translateTextToEnglish(text, selectedLanguage)
+      const result = await translateTextToEnglish(text, 'english')
       setTranslation(result)
     } catch (err) {
       console.error('Translation failed:', err)
       toast.error('Traduzione non riuscita')
     } finally {
       setLoading(false)
-    }
-  }
-
-  const handleLanguageChange = async (language) => {
-    setSelectedLanguage(language)
-    const sourceText = originalText || text
-    if (sourceText) {
-      setLoading(true)
-      try {
-        const result = await translateTextToEnglish(sourceText, language)
-        setTranslation(result)
-      } catch (err) {
-        console.error('Translation failed:', err)
-        toast.error('Traduzione non riuscita')
-      } finally {
-        setLoading(false)
-      }
     }
   }
 
@@ -90,33 +62,9 @@ export function TranslateButton({ text, onTranslated }) {
             className="bg-white rounded-xl shadow-2xl w-full max-w-sm max-h-[90vh] p-3 sm:p-5 animate-in fade-in-0 zoom-in-95 duration-200 overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Language Selector */}
-            <div className="mb-4 sm:mb-5">
-              <label className="text-sm sm:text-base font-semibold text-gray-700 uppercase tracking-wide mb-3 block">
-                Lingua
-              </label>
-              <div className="grid grid-cols-3 gap-2 sm:gap-3">
-                {LANGUAGES.map(lang => (
-                  <button
-                    key={lang.id}
-                    onClick={() => handleLanguageChange(lang.id)}
-                    disabled={loading}
-                    className={`px-1 py-2 rounded-lg transition-colors flex flex-col items-center justify-center gap-1 ${
-                      selectedLanguage === lang.id
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                    } disabled:opacity-50 disabled:cursor-not-allowed`}
-                  >
-                    <span className="text-lg leading-none">{lang.flag}</span>
-                    <span className="text-xs sm:text-sm font-medium leading-none">{lang.label}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-
             {/* Title */}
             <h3 className="text-xs sm:text-sm font-semibold text-gray-900 mb-2">
-              {LANGUAGES.find(l => l.id === selectedLanguage)?.label} Translation
+              English Translation
             </h3>
 
             {/* Translation Text with scroll */}
@@ -152,7 +100,8 @@ export function TranslateButton({ text, onTranslated }) {
                   toast.success('Testo sostituito!')
                   handleClose()
                 }}
-                className="px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors"
+                disabled={loading || !translation}
+                className="px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Sostituisci
               </button>

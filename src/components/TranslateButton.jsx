@@ -80,17 +80,17 @@ export function TranslateButton({ text, onTranslated }) {
             onClick={(e) => e.stopPropagation()}
           >
             {/* Language Selector */}
-            <div className="mb-3 sm:mb-4">
-              <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2 block">
+            <div className="mb-4 sm:mb-5">
+              <label className="text-sm sm:text-base font-semibold text-gray-700 uppercase tracking-wide mb-3 block">
                 Lingua
               </label>
-              <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
+              <div className="grid grid-cols-3 gap-2 sm:gap-3">
                 {LANGUAGES.map(lang => (
                   <button
                     key={lang.id}
                     onClick={() => handleLanguageChange(lang.id)}
                     disabled={loading}
-                    className={`px-2 sm:px-3 py-1.5 sm:py-2 text-xs font-medium rounded-lg transition-colors whitespace-nowrap ${
+                    className={`px-3 sm:px-4 py-2 sm:py-2.5 text-sm sm:text-base font-medium rounded-lg transition-colors whitespace-nowrap ${
                       selectedLanguage === lang.id
                         ? 'bg-blue-600 text-white'
                         : 'bg-gray-100 text-gray-700 hover:bg-gray-200'

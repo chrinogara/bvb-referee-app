@@ -21,11 +21,13 @@ export function TranslateButton({ text, onTranslated }) {
       return
     }
 
+    // Show modal immediately for language selection
+    setShowTranslation(true)
     setLoading(true)
+
     try {
       const result = await translateTextToEnglish(text, selectedLanguage)
       setTranslation(result)
-      setShowTranslation(true)
       onTranslated?.(result)
     } catch (err) {
       console.error('Translation failed:', err)

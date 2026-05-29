@@ -1,16 +1,17 @@
 import { supabase } from './supabase'
 
 /**
- * Translate Italian text to English via the Supabase Edge Function.
+ * Translate Italian text to specified language via the Supabase Edge Function.
  *
  * The Anthropic API key lives only on the server (as the ANTHROPIC_API_KEY
  * secret on Supabase), so it is never shipped to the browser. The client just
  * calls the `translate-with-claude` Edge Function.
  *
  * @param {string} text - The text to translate
+ * @param {string} targetLanguage - Target language: 'english', 'french', or 'dutch' (default: 'english')
  * @returns {Promise<string>} - The translated text, or the original if translation fails
  */
-export async function translateTextToEnglish(text) {
+export async function translateTextToEnglish(text, targetLanguage = 'english') {
   if (!text || text.trim().length < 5) return text
 
   try {
@@ -18,7 +19,7 @@ export async function translateTextToEnglish(text) {
     const timeout = setTimeout(() => controller.abort(), 15000) // 15s timeout
 
     const { data, error } = await supabase.functions.invoke('translate-with-claude', {
-      body: { text },
+      body: { text, targetLanguage },
     })
 
     clearTimeout(timeout)

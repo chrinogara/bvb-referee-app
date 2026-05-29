@@ -23,7 +23,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
   }
 
   try {
-    const { text } = await req.json();
+    const { text, targetLanguage = "english" } = await req.json();
 
     // Nothing to translate
     if (!text || typeof text !== "string" || text.trim().length === 0) {
@@ -41,6 +41,14 @@ Deno.serve(async (req: Request): Promise<Response> => {
       );
     }
 
+    const languageMap: Record<string, string> = {
+      "english": "English",
+      "french": "French",
+      "dutch": "Dutch",
+    };
+
+    const targetLang = languageMap[targetLanguage.toLowerCase()] || "English";
+
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
@@ -56,9 +64,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
             role: "user",
             content:
               `You are a professional translator for beach volleyball referee reports.\n\n` +
-              `Translate the following Italian text to English. Keep the meaning and ` +
+              `Translate the following Italian text to ${targetLang}. Keep the meaning and ` +
               `context intact, especially beach volleyball terminology.\n` +
-              `Respond ONLY with the English translation, without quotes, explanations, ` +
+              `Respond ONLY with the ${targetLang} translation, without quotes, explanations, ` +
               `or any additional text.\n\n${text}`,
           },
         ],

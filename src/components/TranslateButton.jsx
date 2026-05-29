@@ -3,10 +3,17 @@ import { Languages, Loader } from 'lucide-react'
 import { translateTextToEnglish } from '../lib/translate'
 import { toast } from './ui/Toast'
 
+const LANGUAGES = [
+  { id: 'english', label: 'English 🇬🇧' },
+  { id: 'french', label: 'Français 🇫🇷' },
+  { id: 'dutch', label: 'Nederlands 🇳🇱' },
+]
+
 export function TranslateButton({ text, onTranslated }) {
   const [loading, setLoading] = useState(false)
   const [showTranslation, setShowTranslation] = useState(false)
   const [translation, setTranslation] = useState('')
+  const [selectedLanguage, setSelectedLanguage] = useState('english')
 
   const handleTranslate = async () => {
     if (!text || text.trim().length < 3) {
@@ -16,7 +23,7 @@ export function TranslateButton({ text, onTranslated }) {
 
     setLoading(true)
     try {
-      const result = await translateTextToEnglish(text)
+      const result = await translateTextToEnglish(text, selectedLanguage)
       setTranslation(result)
       setShowTranslation(true)
       onTranslated?.(result)
@@ -25,6 +32,22 @@ export function TranslateButton({ text, onTranslated }) {
       toast.error('Traduzione non riuscita')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleLanguageChange = async (language) => {
+    setSelectedLanguage(language)
+    if (translation) {
+      setLoading(true)
+      try {
+        const result = await translateTextToEnglish(text, language)
+        setTranslation(result)
+      } catch (err) {
+        console.error('Translation failed:', err)
+        toast.error('Traduzione non riuscita')
+      } finally {
+        setLoading(false)
+      }
     }
   }
 
@@ -50,8 +73,30 @@ export function TranslateButton({ text, onTranslated }) {
       {showTranslation && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/30 backdrop-blur-sm">
           <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-5 animate-in fade-in-0 zoom-in-95 duration-200">
+            <div className="mb-4">
+              <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2 block">
+                Lingua
+              </label>
+              <div className="grid grid-cols-3 gap-2">
+                {LANGUAGES.map(lang => (
+                  <button
+                    key={lang.id}
+                    onClick={() => handleLanguageChange(lang.id)}
+                    disabled={loading}
+                    className={`px-3 py-2 text-xs font-medium rounded-lg transition-colors ${
+                      selectedLanguage === lang.id
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    } disabled:opacity-50 disabled:cursor-not-allowed`}
+                  >
+                    {lang.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             <h3 className="text-sm font-semibold text-gray-900 mb-3">
-              English Translation
+              {LANGUAGES.find(l => l.id === selectedLanguage)?.label.split(' ')[0]} Translation
             </h3>
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
               <p className="text-sm text-gray-800 whitespace-pre-wrap">{translation}</p>

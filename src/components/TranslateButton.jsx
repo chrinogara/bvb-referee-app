@@ -93,7 +93,7 @@ export function TranslateButton({ text, onTranslated }) {
                     key={lang.id}
                     onClick={() => handleLanguageChange(lang.id)}
                     disabled={loading}
-                    className={`px-3 sm:px-4 py-2 sm:py-2.5 text-sm sm:text-base font-medium rounded-lg transition-colors whitespace-nowrap ${
+                    className={`px-3 sm:px-4 py-2 sm:py-2.5 text-sm sm:text-base font-medium rounded-lg transition-colors whitespace-nowrap flex items-center justify-center gap-1 ${
                       selectedLanguage === lang.id
                         ? 'bg-blue-600 text-white'
                         : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -112,7 +112,11 @@ export function TranslateButton({ text, onTranslated }) {
 
             {/* Translation Text with scroll */}
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-2.5 sm:p-4 mb-3 sm:mb-4 max-h-32 sm:max-h-40 overflow-y-auto">
-              <p className="text-xs sm:text-sm text-gray-800 whitespace-pre-wrap leading-relaxed">{translation}</p>
+              {loading ? (
+                <p className="text-xs sm:text-sm text-gray-500 italic">Caricamento traduzione...</p>
+              ) : (
+                <p className="text-xs sm:text-sm text-gray-800 whitespace-pre-wrap leading-relaxed">{translation}</p>
+              )}
             </div>
 
             {/* Action Buttons */}

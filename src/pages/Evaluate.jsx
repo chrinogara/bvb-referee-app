@@ -17,6 +17,7 @@ import { ScoreCircle } from '../components/ui/ScoreCircle'
 import { Badge } from '../components/ui/Badge'
 import { toast } from '../components/ui/Toast'
 import { TranslationSuggestion } from '../components/TranslationSuggestion'
+import { TextareaWithTranslate } from '../components/TextareaWithTranslate'
 import {
   AlertTriangle,
   ChevronDown,
@@ -354,21 +355,14 @@ function CriterionCard({ criterion, score, repeat, note, onScore, onRepeat, onNo
           </button>
         ) : (
           <div className="space-y-1">
-            <label className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">
-              Observation
-            </label>
-            <textarea
+            <TextareaWithTranslate
               value={noteValue}
               onChange={handleNoteChange}
               onBlur={handleBlur}
               placeholder="What did you observe? Be specific…"
               rows={2}
-              className={cn(
-                'w-full bg-gray-50 border border-gray-300 rounded-lg px-3 py-2',
-                'text-gray-900 placeholder-gray-400 text-sm resize-none',
-                'focus:outline-none focus:border-[#E85D26]/60 focus:ring-1 focus:ring-[#E85D26]/30',
-                'transition-colors duration-150'
-              )}
+              label="Observation"
+              showTranslateButton={true}
             />
             <TranslationSuggestion
               suggestion={suggestion}
@@ -819,18 +813,13 @@ export default function Evaluate() {
               </h2>
             </CardHeader>
             <CardBody>
-              <textarea
+              <TextareaWithTranslate
                 value={generalNotesValue}
                 onChange={handleGeneralNotesChange}
                 onBlur={handleGeneralNotesBlur}
                 placeholder="Overall impressions, strengths, areas for improvement…"
                 rows={4}
-                className={cn(
-                  'w-full bg-gray-50 border border-gray-300 rounded-lg px-3 py-2.5',
-                  'text-gray-900 placeholder-gray-400 text-sm resize-none',
-                  'focus:outline-none focus:border-[#E85D26]/60 focus:ring-1 focus:ring-[#E85D26]/30',
-                  'transition-colors duration-150'
-                )}
+                showTranslateButton={true}
               />
               <TranslationSuggestion
                 suggestion={generalNotesSuggestion}

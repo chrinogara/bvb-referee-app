@@ -20,6 +20,7 @@ export async function translateTextToEnglish(text, targetLanguage = 'english') {
 
     const { data, error } = await supabase.functions.invoke('translate-with-claude', {
       body: { text, targetLanguage },
+      signal: controller.signal,
     })
 
     clearTimeout(timeout)

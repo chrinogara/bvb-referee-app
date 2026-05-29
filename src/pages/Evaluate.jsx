@@ -363,6 +363,10 @@ function CriterionCard({ criterion, score, repeat, note, onScore, onRepeat, onNo
               rows={2}
               label="Observation"
               showTranslateButton={true}
+              onTranslated={(translation) => {
+                onNote(translation)
+                setNoteValue(translation)
+              }}
             />
             <TranslationSuggestion
               suggestion={suggestion}
@@ -820,6 +824,10 @@ export default function Evaluate() {
                 placeholder="Overall impressions, strengths, areas for improvement…"
                 rows={4}
                 showTranslateButton={true}
+                onTranslated={(translation) => {
+                  setGeneralNotes(translation)
+                  setGeneralNotesValue(translation)
+                }}
               />
               <TranslationSuggestion
                 suggestion={generalNotesSuggestion}

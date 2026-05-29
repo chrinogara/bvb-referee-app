@@ -15,6 +15,14 @@ export function TranslateButton({ text, onTranslated }) {
   const [showTranslation, setShowTranslation] = useState(false)
   const [translation, setTranslation] = useState('')
   const [selectedLanguage, setSelectedLanguage] = useState('english')
+  const [originalText, setOriginalText] = useState('')
+
+  const handleClose = () => {
+    setShowTranslation(false)
+    setTranslation('')
+    setOriginalText('')
+    setSelectedLanguage('english')
+  }
 
   const handleTranslate = async () => {
     if (!text || text.trim().length < 3) {
@@ -22,14 +30,13 @@ export function TranslateButton({ text, onTranslated }) {
       return
     }
 
-    // Show modal immediately for language selection
+    setOriginalText(text)
     setShowTranslation(true)
     setLoading(true)
 
     try {
       const result = await translateTextToEnglish(text, selectedLanguage)
       setTranslation(result)
-      onTranslated?.(result)
     } catch (err) {
       console.error('Translation failed:', err)
       toast.error('Traduzione non riuscita')
@@ -40,10 +47,11 @@ export function TranslateButton({ text, onTranslated }) {
 
   const handleLanguageChange = async (language) => {
     setSelectedLanguage(language)
-    if (translation) {
+    const sourceText = originalText || text
+    if (sourceText) {
       setLoading(true)
       try {
-        const result = await translateTextToEnglish(text, language)
+        const result = await translateTextToEnglish(sourceText, language)
         setTranslation(result)
       } catch (err) {
         console.error('Translation failed:', err)
@@ -76,7 +84,7 @@ export function TranslateButton({ text, onTranslated }) {
       {showTranslation && createPortal(
         <div
           className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/30 backdrop-blur-sm overflow-y-auto"
-          onClick={() => setShowTranslation(false)}
+          onClick={handleClose}
         >
           <div
             className="bg-white rounded-xl shadow-2xl w-full max-w-sm max-h-[90vh] p-3 sm:p-5 animate-in fade-in-0 zoom-in-95 duration-200 overflow-y-auto"
@@ -123,7 +131,7 @@ export function TranslateButton({ text, onTranslated }) {
             {/* Action Buttons */}
             <div className="flex gap-2 justify-end">
               <button
-                onClick={() => setShowTranslation(false)}
+                onClick={handleClose}
                 className="px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
               >
                 Chiudi
@@ -132,7 +140,7 @@ export function TranslateButton({ text, onTranslated }) {
                 onClick={() => {
                   navigator.clipboard.writeText(translation)
                   toast.success('Copiato negli appunti!')
-                  setShowTranslation(false)
+                  handleClose()
                 }}
                 className="px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
               >
@@ -142,7 +150,7 @@ export function TranslateButton({ text, onTranslated }) {
                 onClick={() => {
                   onTranslated?.(translation)
                   toast.success('Testo sostituito!')
-                  setShowTranslation(false)
+                  handleClose()
                 }}
                 className="px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors"
               >

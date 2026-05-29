@@ -173,6 +173,7 @@ function OverviewTab({ tournament, refereesCount, matchesCount, evaluationsCount
                 value={regulations}
                 onChange={(e) => setRegulations(e.target.value)}
                 placeholder="Add tournament regulations, notes or reminders..."
+                translate
               />
               <div className="flex gap-2">
                 <Button size="sm" variant="outline" onClick={() => { setEditing(false); setRegulations(tournament.regulations || '') }}>

@@ -236,6 +236,7 @@ function AddRefereeModal({ open, onClose, onCreate }) {
           onChange={handleChange}
           placeholder="Any additional notes about this referee…"
           rows={3}
+          translate
         />
 
         {errors.submit && (

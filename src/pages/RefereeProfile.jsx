@@ -14,6 +14,7 @@ import {
   RotateCcw,
   MessageCircle,
   Phone,
+  Languages,
 } from 'lucide-react'
 import { toast } from '../components/ui/Toast'
 
@@ -24,10 +25,12 @@ import { Button } from '../components/ui/Button'
 import { Input, Select, Textarea } from '../components/ui/Input'
 import { Modal } from '../components/ui/Modal'
 import { ScoreCircle } from '../components/ui/ScoreCircle'
+import { TranslationPreview } from '../components/TranslationPreview'
 
 import { useReferee, useReferees } from '../hooks/useReferees'
 import { useEvaluations } from '../hooks/useEvaluations'
 import { useRanking } from '../hooks/useRanking'
+import { useAutoTranslate } from '../hooks/useAutoTranslate'
 
 import {
   cn,
@@ -127,6 +130,15 @@ function EditRefereeModal({ open, onClose, referee, onSave }) {
   const [saving, setSaving] = useState(false)
   const [errors, setErrors] = useState({})
 
+  const {
+    translations,
+    translating,
+    showPreview,
+    requestTranslations,
+    applyTranslations,
+    cancelTranslations,
+  } = useAutoTranslate('referee_profile')
+
   // Sync when referee changes
   useMemo(() => {
     if (referee) {
@@ -153,6 +165,19 @@ function EditRefereeModal({ open, onClose, referee, onSave }) {
     if (!form.first_name.trim()) errs.first_name = 'Required'
     if (!form.last_name.trim()) errs.last_name = 'Required'
     return errs
+  }
+
+  async function handleTranslate() {
+    if (!form.notes?.trim()) return
+    await requestTranslations({ notes: form.notes })
+  }
+
+  function handleApproveTranslations(approvals) {
+    const translated = applyTranslations(approvals)
+    if (translated) {
+      setForm((prev) => ({ ...prev, notes: translated.notes }))
+      toast.success('Translation applied')
+    }
   }
 
   async function handleSubmit(e) {
@@ -236,14 +261,29 @@ function EditRefereeModal({ open, onClose, referee, onSave }) {
             type="email"
           />
         </div>
-        <Textarea
-          label="Notes"
-          name="notes"
-          value={form.notes}
-          onChange={handleChange}
-          placeholder="Internal notes about this referee…"
-          rows={3}
-        />
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <label className="text-sm font-medium text-gray-700">Notes</label>
+            <Button
+              type="button"
+              variant="ghost"
+              size="xs"
+              onClick={handleTranslate}
+              loading={translating}
+              disabled={!form.notes?.trim()}
+              title="Translate notes to English"
+            >
+              <Languages size={13} /> Translate
+            </Button>
+          </div>
+          <Textarea
+            name="notes"
+            value={form.notes}
+            onChange={handleChange}
+            placeholder="Internal notes about this referee…"
+            rows={3}
+          />
+        </div>
         {errors.submit && (
           <p className="text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
             {errors.submit}
@@ -254,6 +294,15 @@ function EditRefereeModal({ open, onClose, referee, onSave }) {
           <Button variant="primary" type="submit" loading={saving}>Save Changes</Button>
         </div>
       </form>
+
+      {showPreview && (
+        <TranslationPreview
+          translations={translations}
+          isLoading={translating}
+          onApprove={handleApproveTranslations}
+          onReject={cancelTranslations}
+        />
+      )}
     </Modal>
   )
 }

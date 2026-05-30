@@ -884,7 +884,7 @@ export default function RcReport() {
 
             {/* Action bar */}
             <Card>
-              <CardBody className="flex flex-wrap items-center justify-between gap-3">
+              <CardBody className="space-y-3 sm:flex sm:flex-wrap sm:items-center sm:justify-between sm:gap-3">
                 <div className="text-xs text-gray-500">
                   {loading
                     ? 'Loading…'
@@ -893,7 +893,7 @@ export default function RcReport() {
                     : 'Not yet saved'}
                   {dirty && <Badge variant="amber" size="xs" className="ml-2">Unsaved</Badge>}
                 </div>
-                <div className="flex gap-2">
+                <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
                   {lastSavedAt && (
                     <Button variant="ghost" size="sm" onClick={handleClear}>
                       <Trash2 size={13} /> Clear

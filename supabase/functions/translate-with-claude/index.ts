@@ -13,6 +13,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
   // Parse body safely — req.json() throws on empty body
   let text: string | undefined;
   let targetLanguage = "english";
+  let contextType = "general";
   try {
     const rawBody = await req.text();
     if (!rawBody || rawBody.trim().length === 0) {
@@ -25,6 +26,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     const body = JSON.parse(rawBody);
     text = body.text;
     targetLanguage = body.targetLanguage ?? "english";
+    contextType = body.contextType ?? "general";
   } catch (parseError) {
     console.error("Body parse error:", parseError instanceof Error ? parseError.message : parseError);
     return new Response(
@@ -56,6 +58,46 @@ Deno.serve(async (req: Request): Promise<Response> => {
   };
   const targetLang = languageMap[targetLanguage.toLowerCase()] || "English";
 
+  // Context-specific prompts for different document types
+  const contextPrompts: Record<string, string> = {
+    briefing:
+      `You are a professional translator specializing in beach volleyball referee reports and tournament briefings.\n\n` +
+      `IMPORTANT: Translate ONLY to ${targetLang}.\n\n` +
+      `Translate the following Italian briefing text to ${targetLang}. ` +
+      `Maintain professional beach volleyball terminology and tournament-specific context. ` +
+      `Keep meaning, tone, and structure intact.\n` +
+      `Output ONLY the ${targetLang} translation. No original text, no explanations, no quotes.\n\n` +
+      `Text to translate:\n${text}`,
+
+    rc_report:
+      `You are a professional translator specializing in beach volleyball Referee Coach reports.\n\n` +
+      `IMPORTANT: Translate ONLY to ${targetLang}.\n\n` +
+      `Translate the following Italian RC report text to ${targetLang}. ` +
+      `Preserve beach volleyball terminology, referee names, team names, and organizational context. ` +
+      `Maintain professional tone and accuracy.\n` +
+      `Output ONLY the ${targetLang} translation. No original text, no explanations, no quotes.\n\n` +
+      `Text to translate:\n${text}`,
+
+    evaluation:
+      `You are a professional translator specializing in beach volleyball referee evaluation reports.\n\n` +
+      `IMPORTANT: Translate ONLY to ${targetLang}.\n\n` +
+      `Translate the following Italian evaluation text to ${targetLang}. ` +
+      `Maintain beach volleyball terminology, specific performance criteria, and professional tone. ` +
+      `Preserve names, dates, and technical details.\n` +
+      `Output ONLY the ${targetLang} translation. No original text, no explanations, no quotes.\n\n` +
+      `Text to translate:\n${text}`,
+
+    general:
+      `You are a professional translator specializing in beach volleyball referee reports.\n\n` +
+      `IMPORTANT: Translate ONLY to ${targetLang}.\n\n` +
+      `Translate the following Italian text to ${targetLang}. Keep meaning and context intact. ` +
+      `Maintain professional beach volleyball terminology.\n` +
+      `Output ONLY the ${targetLang} translation. No original text, no explanations, no quotes.\n\n` +
+      `Text to translate:\n${text}`,
+  };
+
+  const systemPrompt = contextPrompts[contextType] || contextPrompts["general"];
+
   try {
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -70,13 +112,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
         messages: [
           {
             role: "user",
-            content:
-              `You are a professional translator specializing in beach volleyball referee reports.\n\n` +
-              `IMPORTANT: Translate ONLY to ${targetLang}.\n\n` +
-              `Translate the following Italian text to ${targetLang}. Keep meaning and context intact. ` +
-              `Maintain professional beach volleyball terminology.\n` +
-              `Output ONLY the ${targetLang} translation. No original text, no explanations, no quotes.\n\n` +
-              `Text to translate:\n${text}`,
+            content: systemPrompt,
           },
         ],
       }),

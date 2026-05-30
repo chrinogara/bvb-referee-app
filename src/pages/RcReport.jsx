@@ -15,6 +15,7 @@ import {
   StickyNote,
   CheckCircle,
   X,
+  Languages,
 } from 'lucide-react'
 
 import { Header } from '../components/layout/Header'
@@ -23,9 +24,11 @@ import { Card, CardHeader, CardBody, CardTitle } from '../components/ui/Card'
 import { Input, Select, Textarea } from '../components/ui/Input'
 import { Badge } from '../components/ui/Badge'
 import { toast } from '../components/ui/Toast'
+import { TranslationPreview } from '../components/TranslationPreview'
 
 import { useTournaments, useTournamentReferees } from '../hooks/useTournaments'
 import { useEvaluations } from '../hooks/useEvaluations'
+import { useAutoTranslate } from '../hooks/useAutoTranslate'
 import { rcReportService } from '../lib/supabase'
 import { generateRcReportPDF, downloadPDF } from '../lib/pdf'
 import { CRITERIA } from '../lib/scoring'
@@ -382,6 +385,15 @@ export default function RcReport() {
   const [dirty, setDirty] = useState(false)
   const [lastSavedAt, setLastSavedAt] = useState(null)
 
+  const {
+    translations,
+    translating,
+    showPreview,
+    requestTranslations,
+    applyTranslations,
+    cancelTranslations,
+  } = useAutoTranslate('rc_report')
+
   // Auto-select closest tournament
   useEffect(() => {
     if (!tournamentId && tournaments.length > 0) {
@@ -523,6 +535,37 @@ export default function RcReport() {
     setLastSavedAt(null)
     setDirty(false)
     toast('Report cleared', 'info')
+  }
+
+  async function handleTranslate() {
+    const fieldsToTranslate = {
+      court_conditions_note: report.court_conditions_note,
+      equipment_quality_note: report.equipment_quality_note,
+      scheduling_note: report.scheduling_note,
+      hospitality_note: report.hospitality_note,
+      general_notes: report.general_notes,
+    }
+    // Filter to only non-empty fields
+    const filtered = Object.fromEntries(
+      Object.entries(fieldsToTranslate).filter(([, v]) => v && v.trim())
+    )
+    if (Object.keys(filtered).length === 0) {
+      toast.warning('No text to translate')
+      return
+    }
+    await requestTranslations(filtered)
+  }
+
+  function handleApproveTranslations(approvals) {
+    const translated = applyTranslations(approvals)
+    if (translated) {
+      setReport((prev) => ({
+        ...prev,
+        ...translated,
+      }))
+      setDirty(true)
+      toast.success('Translations applied')
+    }
   }
 
   const filledCount = Object.values(report).filter((v) => {
@@ -854,6 +897,16 @@ export default function RcReport() {
                     </Button>
                   )}
                   <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleTranslate}
+                    loading={translating}
+                    disabled={!tournament || !report.general_notes?.trim()}
+                    title="Translate all notes to English"
+                  >
+                    <Languages size={14} /> Translate
+                  </Button>
+                  <Button
                     variant="outline"
                     size="md"
                     onClick={handleDownload}
@@ -886,6 +939,15 @@ export default function RcReport() {
           </Card>
         )}
       </div>
+
+      {showPreview && (
+        <TranslationPreview
+          translations={translations}
+          isLoading={translating}
+          onApprove={handleApproveTranslations}
+          onReject={cancelTranslations}
+        />
+      )}
     </div>
   )
 }

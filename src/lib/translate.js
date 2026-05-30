@@ -9,9 +9,10 @@ import { supabase } from './supabase'
  *
  * @param {string} text - The text to translate
  * @param {string} targetLanguage - Target language: 'english', 'french', or 'dutch' (default: 'english')
+ * @param {string} contextType - Context for terminology: 'briefing', 'rc_report', 'evaluation', 'general' (default: 'general')
  * @returns {Promise<string>} - The translated text, or the original if translation fails
  */
-export async function translateTextToEnglish(text, targetLanguage = 'english') {
+export async function translateTextToEnglish(text, targetLanguage = 'english', contextType = 'general') {
   if (!text || text.trim().length < 5) return text
 
   try {
@@ -19,7 +20,7 @@ export async function translateTextToEnglish(text, targetLanguage = 'english') {
     const timeout = setTimeout(() => controller.abort(), 15000) // 15s timeout
 
     const { data, error } = await supabase.functions.invoke('translate-with-claude', {
-      body: { text, targetLanguage },
+      body: { text, targetLanguage, contextType },
       signal: controller.signal,
     })
 

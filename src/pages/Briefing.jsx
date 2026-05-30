@@ -10,6 +10,7 @@ import {
   StickyNote,
   Download,
   Trash2,
+  Languages,
 } from 'lucide-react'
 
 import { Header } from '../components/layout/Header'
@@ -18,8 +19,10 @@ import { Card, CardHeader, CardBody, CardTitle } from '../components/ui/Card'
 import { Select, Textarea } from '../components/ui/Input'
 import { Badge } from '../components/ui/Badge'
 import { toast } from '../components/ui/Toast'
+import { TranslationPreview } from '../components/TranslationPreview'
 
 import { useTournaments } from '../hooks/useTournaments'
+import { useAutoTranslate } from '../hooks/useAutoTranslate'
 import { briefingService } from '../lib/supabase'
 import { formatDate, formatDateTime } from '../lib/utils'
 
@@ -82,6 +85,15 @@ export default function Briefing() {
   const [saving, setSaving] = useState(false)
   const [dirty, setDirty] = useState(false)
   const [lastSavedAt, setLastSavedAt] = useState(null)
+
+  const {
+    translations,
+    translating,
+    showPreview,
+    requestTranslations,
+    applyTranslations,
+    cancelTranslations,
+  } = useAutoTranslate('briefing')
 
   const tournament = tournaments.find((t) => t.id === tournamentId)
 
@@ -169,6 +181,26 @@ export default function Briefing() {
     toast('Briefing cleared', 'info')
   }
 
+  async function handleTranslate() {
+    const fieldsToTranslate = {
+      key_points: briefing.key_points,
+      common_faults: briefing.common_faults,
+      technical_focus: briefing.technical_focus,
+      captain_communication: briefing.captain_communication,
+      general_notes: briefing.general_notes,
+    }
+    await requestTranslations(fieldsToTranslate)
+  }
+
+  function handleApproveTranslations(approvals) {
+    const translated = applyTranslations(approvals)
+    if (translated) {
+      setBriefing(translated)
+      setDirty(true)
+      toast.success('Translations applied')
+    }
+  }
+
   function handleExport() {
     if (!tournament) return
     const lines = [
@@ -234,6 +266,16 @@ export default function Briefing() {
               ))}
             </Select>
             <div className="flex gap-2">
+              <Button
+                variant="ghost"
+                size="md"
+                onClick={handleTranslate}
+                loading={translating}
+                disabled={!tournament || Object.values(briefing).every((v) => !v.trim())}
+                title="Translate all sections to English"
+              >
+                <Languages size={14} /> Translate
+              </Button>
               <Button variant="ghost" size="md" onClick={handleExport} disabled={!tournament}>
                 <Download size={14} /> Export
               </Button>
@@ -337,6 +379,15 @@ export default function Briefing() {
           </Card>
         )}
       </div>
+
+      {showPreview && (
+        <TranslationPreview
+          translations={translations}
+          isLoading={translating}
+          onApprove={handleApproveTranslations}
+          onReject={cancelTranslations}
+        />
+      )}
     </div>
   )
 }

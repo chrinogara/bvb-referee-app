@@ -543,7 +543,10 @@ export default function RcReport() {
       equipment_quality_note: report.equipment_quality_note,
       scheduling_note: report.scheduling_note,
       hospitality_note: report.hospitality_note,
-      general_notes: report.general_notes,
+      recs_referees: report.recs_referees,
+      recs_organizers: report.recs_organizers,
+      recs_rc_commission: report.recs_rc_commission,
+      final_remarks: report.final_remarks,
     }
     // Filter to only non-empty fields
     const filtered = Object.fromEntries(
@@ -907,7 +910,10 @@ export default function RcReport() {
                         !report.equipment_quality_note?.trim() &&
                         !report.scheduling_note?.trim() &&
                         !report.hospitality_note?.trim() &&
-                        !report.general_notes?.trim())
+                        !report.recs_referees?.trim() &&
+                        !report.recs_organizers?.trim() &&
+                        !report.recs_rc_commission?.trim() &&
+                        !report.final_remarks?.trim())
                     }
                     title="Translate all notes to English"
                   >

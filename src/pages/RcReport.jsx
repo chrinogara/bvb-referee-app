@@ -901,7 +901,14 @@ export default function RcReport() {
                     size="sm"
                     onClick={handleTranslate}
                     loading={translating}
-                    disabled={!tournament || !report.general_notes?.trim()}
+                    disabled={
+                      !tournament ||
+                      (!report.court_conditions_note?.trim() &&
+                        !report.equipment_quality_note?.trim() &&
+                        !report.scheduling_note?.trim() &&
+                        !report.hospitality_note?.trim() &&
+                        !report.general_notes?.trim())
+                    }
                     title="Translate all notes to English"
                   >
                     <Languages size={14} /> Translate

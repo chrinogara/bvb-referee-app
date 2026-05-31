@@ -1,0 +1,16 @@
+project_id = "kvlbarhxeoogpwamczll"
+
+# ── Edge Functions ───────────────────────────────────────────────────────────
+# This is a single-user internal app with no auth/login: the browser calls
+# functions with the publishable anon key (not a JWT). JWT verification must be
+# OFF on every public function, otherwise the gateway rejects calls with a 401
+# "Invalid JWT" before the function even runs.
+
+[functions.analyze-tournament-report]
+verify_jwt = false
+
+[functions.translate-with-claude]
+verify_jwt = false
+
+[functions.rules-assistant]
+verify_jwt = false

@@ -1044,6 +1044,104 @@ export async function generateDesignationPDF({
   return blob
 }
 
+// ─── Tournament Briefing PDF ──────────────────────────────────────────────────
+
+const briefingStyles = StyleSheet.create({
+  page: {
+    fontFamily: 'Helvetica',
+    fontSize: 10,
+    color: DARK_GRAY,
+    paddingTop: 30,
+    paddingBottom: 40,
+    paddingHorizontal: 35,
+  },
+  header: {
+    backgroundColor: NAVY,
+    marginHorizontal: -35,
+    marginTop: -30,
+    paddingHorizontal: 35,
+    paddingVertical: 18,
+    marginBottom: 18,
+  },
+  headerTitle: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontFamily: 'Helvetica-Bold',
+    letterSpacing: 1,
+  },
+  headerSubtitle: { color: '#CBD5E1', fontSize: 10, marginTop: 3 },
+  headerAccent: { width: 40, height: 3, backgroundColor: ORANGE, marginTop: 10 },
+  sectionTitle: {
+    fontSize: 10,
+    fontFamily: 'Helvetica-Bold',
+    color: NAVY,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+    borderBottomWidth: 1,
+    borderBottomColor: NAVY,
+    paddingBottom: 4,
+    marginTop: 14,
+    marginBottom: 8,
+  },
+  bulletRow: { flexDirection: 'row', marginBottom: 4, paddingRight: 6 },
+  bullet: { width: 12, fontSize: 10, color: ORANGE },
+  bulletText: { flex: 1, fontSize: 10, lineHeight: 1.5, color: DARK_GRAY },
+  emptyNote: { fontSize: 9, fontStyle: 'italic', color: MED_GRAY },
+})
+
+function BriefingDocument({ tournament, briefing, sections }) {
+  return (
+    <Document>
+      <Page size="A4" style={briefingStyles.page}>
+        <View style={briefingStyles.header}>
+          <Text style={briefingStyles.headerTitle}>BVB REFEREE BRIEFING</Text>
+          <Text style={briefingStyles.headerSubtitle}>
+            {tournament?.name || 'Tournament'}
+            {tournament?.start_date ? ` · ${formatDate(tournament.start_date)}` : ''}
+            {tournament?.end_date ? ` → ${formatDate(tournament.end_date)}` : ''}
+          </Text>
+          <View style={briefingStyles.headerAccent} />
+        </View>
+
+        {sections.map((s) => {
+          const content = (briefing[s.key] || '').trim()
+          if (!content) return null
+          const lines = content
+            .split('\n')
+            .map((l) => l.trim())
+            .filter(Boolean)
+          return (
+            <View key={s.key} wrap={false}>
+              <Text style={briefingStyles.sectionTitle}>{s.label}</Text>
+              {lines.map((line, i) => (
+                <View key={i} style={briefingStyles.bulletRow}>
+                  <Text style={briefingStyles.bullet}>•</Text>
+                  <Text style={briefingStyles.bulletText}>{line}</Text>
+                </View>
+              ))}
+            </View>
+          )
+        })}
+
+        <View style={styles.footer} fixed>
+          <View>
+            <Text style={[styles.footerText, styles.footerBold]}>RC Nogara Christian</Text>
+            <Text style={styles.footerText}>CEV Referee Coach</Text>
+          </View>
+          <Text style={styles.footerText}>Generated {formatDate(new Date())}</Text>
+        </View>
+      </Page>
+    </Document>
+  )
+}
+
+export async function generateBriefingPDF({ tournament, briefing, sections }) {
+  const blob = await pdf(
+    <BriefingDocument tournament={tournament} briefing={briefing} sections={sections} />
+  ).toBlob()
+  return blob
+}
+
 // ─── Evaluation PDF (existing) ────────────────────────────────────────────────
 
 export async function generateEvaluationPDF(evaluation, referee, match, tournament) {

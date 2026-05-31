@@ -27,6 +27,7 @@ import { useTournaments } from '../hooks/useTournaments'
 import { useAutoTranslate } from '../hooks/useAutoTranslate'
 import { useTournamentReports } from '../hooks/useTournamentReports'
 import { briefingService } from '../lib/supabase'
+import { generateBriefingPDF, downloadPDF } from '../lib/pdf'
 import { formatDate, formatDateTime } from '../lib/utils'
 
 // 5 sections of the briefing, in order
@@ -86,6 +87,7 @@ export default function Briefing() {
   })
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [exporting, setExporting] = useState(false)
   const [dirty, setDirty] = useState(false)
   const [lastSavedAt, setLastSavedAt] = useState(null)
 
@@ -225,32 +227,24 @@ export default function Briefing() {
     }
   }
 
-  function handleExport() {
+  async function handleExport() {
     if (!tournament) return
-    const lines = [
-      `BVB Referee Briefing`,
-      `${tournament.name} — ${formatDate(tournament.start_date)} → ${formatDate(tournament.end_date)}`,
-      '='.repeat(60),
-      '',
-    ]
-    for (const s of SECTIONS) {
-      const content = briefing[s.key]?.trim()
-      if (!content) continue
-      lines.push(`### ${s.label} ###`)
-      lines.push(content)
-      lines.push('')
+    if (SECTIONS.every((s) => !briefing[s.key]?.trim())) {
+      toast.error('Nothing to export — fill in at least one section first')
+      return
     }
-    lines.push('')
-    lines.push(`— RC Nogara Christian, CEV Referee Coach · Generated ${formatDate(new Date())}`)
-
-    const blob = new Blob([lines.join('\n')], { type: 'text/plain' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `BVB_Briefing_${tournament.name.replace(/\s+/g, '_')}_${formatDate(tournament.start_date).replace(/\s+/g, '_')}.txt`
-    a.click()
-    URL.revokeObjectURL(url)
-    toast.success('Briefing exported')
+    setExporting(true)
+    try {
+      const blob = await generateBriefingPDF({ tournament, briefing, sections: SECTIONS })
+      const safeName = tournament.name.replace(/\s+/g, '_')
+      const safeDate = formatDate(tournament.start_date).replace(/\s+/g, '_')
+      downloadPDF(blob, `BVB_Briefing_${safeName}_${safeDate}.pdf`)
+      toast.success('Briefing PDF exported')
+    } catch (err) {
+      toast.error(err.message || 'PDF export failed')
+    } finally {
+      setExporting(false)
+    }
   }
 
   const filledCount = SECTIONS.filter((s) => briefing[s.key]?.trim()).length
@@ -300,8 +294,14 @@ export default function Briefing() {
               >
                 <Languages size={14} /> Translate
               </Button>
-              <Button variant="ghost" size="md" onClick={handleExport} disabled={!tournament}>
-                <Download size={14} /> Export
+              <Button
+                variant="ghost"
+                size="md"
+                onClick={handleExport}
+                loading={exporting}
+                disabled={!tournament || exporting}
+              >
+                <Download size={14} /> Export PDF
               </Button>
               {lastSavedAt && (
                 <Button variant="ghost" size="md" onClick={handleClear} disabled={!tournament}>

@@ -544,14 +544,27 @@ export default function Designations() {
         .eq('tournament_id', tournamentId)
         .eq('day_number', dayNumber)
         .eq('section_number', sectionNumber)
-      const tokens = rotationPattern.split('-').map((t) => t.trim().toUpperCase())
-      const workSessions = tokens.filter((t) => t !== 'PAUSE').length
-      const assignmentsPerSection = workSessions * courts.length
+      // ── Rotation across sections (Part 1, Part 2, …) ─────────────────────
+      // A referee at global slot N always lands on court `N % courts`. A slot
+      // gets referee refs[(offset + N) % refs]. So to push every referee onto a
+      // DIFFERENT court in the next section, the per-section offset must be a
+      // multiple of NEITHER courts.length (else the court repeats) NOR
+      // refs.length (else the exact same referee returns). We start from
+      // (sectionNumber - 1) and nudge it until it satisfies both conditions.
+      const refsCount = presentRefs.length
+      let sectionOffset = 0
+      if (sectionNumber > 1) {
+        let candidate = sectionNumber - 1
+        while (candidate % courts.length === 0 || candidate % refsCount === 0) {
+          candidate++
+        }
+        sectionOffset = candidate
+      }
       const { assignments: newAssign, warnings } = autoAssign({
         presentReferees: presentRefs,
         courts,
         pattern: rotationPattern,
-        sectionOffset: (sectionNumber - 1) * assignmentsPerSection,
+        sectionOffset,
       })
       const rows = newAssign.map((a) => ({
         tournament_id: tournamentId,

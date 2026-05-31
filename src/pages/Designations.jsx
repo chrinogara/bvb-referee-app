@@ -518,14 +518,14 @@ export default function Designations() {
       const key = `${r.referee_id}|${tournamentId}`
       if (seen.has(key)) continue
       seen.add(key)
-      alertService
-        .create({
+      Promise.resolve(
+        alertService.create({
           referee_id: r.referee_id,
           tournament_id: tournamentId,
           triggered_avg: r.ranking.avg_score,
           notes: `Designated to ${r.court} M${r.session_order} despite avg ${r.ranking.avg_score.toFixed(1)}`,
         })
-        .catch(() => {})
+      ).catch(() => {})
     }
   }, [riskyAssigned.length, tournamentId]) // eslint-disable-line
 

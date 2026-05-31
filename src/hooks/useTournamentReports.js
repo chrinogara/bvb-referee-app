@@ -75,7 +75,7 @@ export function useTournamentReports() {
     } catch (err) {
       // Mark the row as errored if it was created
       if (created?.id) {
-        await tournamentReportService
+        tournamentReportService
           .update(created.id, { status: 'error', error_message: err.message })
           .catch(() => {})
         await refetch()

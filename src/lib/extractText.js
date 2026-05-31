@@ -4,15 +4,29 @@
 // PDF  → pdfjs-dist
 // DOCX → mammoth
 //
-// Extraction runs in the browser so the Edge Function only ever receives plain
-// text (keeps the Deno runtime light and avoids shipping binary parsers there).
+// The heavy parser libraries are loaded LAZILY (dynamic import) the first time a
+// file is actually extracted, so they are code-split out of the main bundle and
+// only downloaded when the user uploads a report. This keeps the initial app
+// load fast and the main chunk small.
 // ════════════════════════════════════════════════════════════════════════════
 
-import * as pdfjsLib from 'pdfjs-dist'
-import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
-import mammoth from 'mammoth'
+let _pdfjs = null
+let _mammoth = null
 
-pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl
+async function loadPdfjs() {
+  if (_pdfjs) return _pdfjs
+  const pdfjsLib = await import('pdfjs-dist')
+  const workerUrl = (await import('pdfjs-dist/build/pdf.worker.min.mjs?url')).default
+  pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl
+  _pdfjs = pdfjsLib
+  return pdfjsLib
+}
+
+async function loadMammoth() {
+  if (_mammoth) return _mammoth
+  _mammoth = (await import('mammoth')).default
+  return _mammoth
+}
 
 /**
  * Detect the file type from name / MIME.
@@ -33,6 +47,7 @@ export function detectFileType(file) {
 
 /** Extract text from a PDF File/Blob. */
 async function extractPdf(file) {
+  const pdfjsLib = await loadPdfjs()
   const arrayBuffer = await file.arrayBuffer()
   const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise
   const pages = []
@@ -47,6 +62,7 @@ async function extractPdf(file) {
 
 /** Extract text from a DOCX File/Blob. */
 async function extractDocx(file) {
+  const mammoth = await loadMammoth()
   const arrayBuffer = await file.arrayBuffer()
   const result = await mammoth.extractRawText({ arrayBuffer })
   return (result?.value || '').replace(/[ \t]+/g, ' ').trim()

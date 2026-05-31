@@ -544,11 +544,14 @@ export default function Designations() {
         .eq('tournament_id', tournamentId)
         .eq('day_number', dayNumber)
         .eq('section_number', sectionNumber)
+      const tokens = rotationPattern.split('-').map((t) => t.trim().toUpperCase())
+      const workSessions = tokens.filter((t) => t !== 'PAUSE').length
+      const assignmentsPerSection = workSessions * courts.length
       const { assignments: newAssign, warnings } = autoAssign({
         presentReferees: presentRefs,
         courts,
         pattern: rotationPattern,
-        sectionOffset: (sectionNumber - 1) * courts.length,
+        sectionOffset: (sectionNumber - 1) * assignmentsPerSection,
       })
       const rows = newAssign.map((a) => ({
         tournament_id: tournamentId,

@@ -38,8 +38,22 @@ export async function analyzeReportText(text, meta = {}) {
     clearTimeout(timeout)
 
     if (error) {
-      console.error('Analyze function error:', error.message)
-      throw new Error(error.message)
+      // FunctionsHttpError exposes the raw Response on `error.context`.
+      // Surface the real HTTP status + body so the failure is diagnosable
+      // instead of the opaque "non-2xx status code" message.
+      let detail = error.message || 'Edge Function error'
+      const res = error.context
+      if (res && typeof res.status === 'number') {
+        let bodyText = ''
+        try {
+          bodyText = await res.clone().text()
+        } catch {
+          /* body may already be consumed */
+        }
+        detail = `HTTP ${res.status}${bodyText ? ` — ${bodyText.slice(0, 300)}` : ''}`
+      }
+      console.error('Analyze function error:', detail)
+      throw new Error(detail)
     }
 
     const suggestions = data?.suggestions

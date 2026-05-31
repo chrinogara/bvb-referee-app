@@ -20,9 +20,12 @@ import { Select, Textarea } from '../components/ui/Input'
 import { Badge } from '../components/ui/Badge'
 import { toast } from '../components/ui/Toast'
 import { TranslationPreview } from '../components/TranslationPreview'
+import { BriefingReportsPanel } from '../components/BriefingReportsPanel'
+import { SuggestionChips } from '../components/SuggestionChips'
 
 import { useTournaments } from '../hooks/useTournaments'
 import { useAutoTranslate } from '../hooks/useAutoTranslate'
+import { useTournamentReports } from '../hooks/useTournamentReports'
 import { briefingService } from '../lib/supabase'
 import { formatDate, formatDateTime } from '../lib/utils'
 
@@ -95,7 +98,28 @@ export default function Briefing() {
     cancelTranslations,
   } = useAutoTranslate('briefing')
 
+  const {
+    reports,
+    uploading,
+    uploadAndAnalyze,
+    reanalyze,
+    deleteReport,
+    suggestionsBySection,
+    totalSuggestions,
+  } = useTournamentReports()
+
   const tournament = tournaments.find((t) => t.id === tournamentId)
+
+  // Insert (append) a suggestion into a briefing section; field stays editable.
+  function insertSuggestion(key, text) {
+    setBriefing((prev) => {
+      const current = prev[key]?.trim()
+      const next = current ? `${current}\n${text}` : text
+      return { ...prev, [key]: next }
+    })
+    setDirty(true)
+    toast.success('Suggestion added')
+  }
 
   // Auto-select closest tournament
   useEffect(() => {
@@ -318,6 +342,16 @@ export default function Briefing() {
               </CardBody>
             </Card>
 
+            {/* Smart suggestions from previous reports */}
+            <BriefingReportsPanel
+              reports={reports}
+              uploading={uploading}
+              totalSuggestions={totalSuggestions}
+              onUpload={uploadAndAnalyze}
+              onDelete={deleteReport}
+              onReanalyze={reanalyze}
+            />
+
             {/* Sections */}
             {SECTIONS.map((s) => {
               const Icon = s.icon
@@ -341,6 +375,10 @@ export default function Briefing() {
                       onChange={(e) => setField(s.key, e.target.value)}
                       placeholder={s.placeholder}
                       rows={5}
+                    />
+                    <SuggestionChips
+                      suggestions={suggestionsBySection[s.key]}
+                      onInsert={(text) => insertSuggestion(s.key, text)}
                     />
                   </CardBody>
                 </Card>

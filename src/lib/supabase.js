@@ -191,6 +191,33 @@ export const briefingService = {
     supabase.from('briefings').delete().eq('tournament_id', tournamentId),
 }
 
+// ─── Tournament Reports (uploaded docs + AI briefing suggestions) ───────────
+export const tournamentReportService = {
+  // All reports, newest first. Used to aggregate suggestions for the briefing.
+  getAll: () =>
+    supabase
+      .from('tournament_reports')
+      .select('*')
+      .order('created_at', { ascending: false }),
+
+  getById: (id) =>
+    supabase.from('tournament_reports').select('*').eq('id', id).single(),
+
+  create: (data) =>
+    supabase.from('tournament_reports').insert(data).select().single(),
+
+  update: (id, data) =>
+    supabase
+      .from('tournament_reports')
+      .update(data)
+      .eq('id', id)
+      .select()
+      .single(),
+
+  delete: (id) =>
+    supabase.from('tournament_reports').delete().eq('id', id),
+}
+
 // ─── Live Matches (real-time court state) ───────────────────────────────────
 export const liveMatchService = {
   getActive: (tournamentId, dayNumber) =>

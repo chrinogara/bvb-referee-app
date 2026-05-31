@@ -204,6 +204,25 @@ CREATE TABLE IF NOT EXISTS rc_reports (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- ─── TOURNAMENT REPORTS (uploaded docs + AI briefing suggestions) ──────────────
+-- See migrations/20260531_tournament_reports.sql for the canonical definition.
+CREATE TABLE IF NOT EXISTS tournament_reports (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tournament_id   UUID REFERENCES tournaments(id) ON DELETE SET NULL,
+  file_name       TEXT NOT NULL,
+  file_type       TEXT,
+  storage_path    TEXT,
+  tournament_name TEXT,
+  report_date     DATE,
+  content_text    TEXT,
+  suggestions     JSONB DEFAULT '{}'::JSONB,
+  status          TEXT DEFAULT 'pending',
+  error_message   TEXT,
+  analyzed_at     TIMESTAMPTZ,
+  created_at      TIMESTAMPTZ DEFAULT NOW()
+);
+ALTER TABLE tournament_reports DISABLE ROW LEVEL SECURITY;
+
 -- ─── TOURNAMENTS ADDITIONAL COLUMNS ────────────────────────────────────────────
 ALTER TABLE tournaments ADD COLUMN IF NOT EXISTS courts TEXT[] DEFAULT ARRAY['Court 1', 'Court 2', 'Court 3', 'Court 4'];
 ALTER TABLE tournaments ADD COLUMN IF NOT EXISTS rotation_pattern TEXT DEFAULT 'M1-M2-PAUSE-M3';

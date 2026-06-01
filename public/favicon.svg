@@ -1,20 +1,41 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <!-- Sand-coloured beach volleyball with FIVB navy + orange swirls -->
+  <!-- Referee whistle with FIVB navy + orange colors -->
   <defs>
-    <radialGradient id="ball" cx="38%" cy="35%" r="65%">
-      <stop offset="0%" stop-color="#FFFFFF"/>
-      <stop offset="70%" stop-color="#FFFFFF"/>
-      <stop offset="100%" stop-color="#F1E9DA"/>
-    </radialGradient>
+    <linearGradient id="whistleGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#3D4288"/>
+      <stop offset="100%" stop-color="#2D3270"/>
+    </linearGradient>
+    <linearGradient id="ballGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FF6B35"/>
+      <stop offset="100%" stop-color="#E85D26"/>
+    </linearGradient>
+    <filter id="shadow" x="-50%" y="-50%" width="200%" height="200%">
+      <feDropShadow dx="0" dy="1" stdDeviation="1" flood-opacity="0.3"/>
+    </filter>
   </defs>
-  <!-- Ball circle -->
-  <circle cx="32" cy="32" r="29" fill="url(#ball)" stroke="#2D3270" stroke-width="2.5"/>
-  <!-- Three curved seams (typical beach-volley swirl pattern) -->
-  <path d="M 6 24 C 18 16, 28 22, 38 16 S 56 12, 58 22" stroke="#2D3270" stroke-width="2.2" fill="none" stroke-linecap="round"/>
-  <path d="M 6 40 C 18 48, 28 42, 38 48 S 56 52, 58 42" stroke="#2D3270" stroke-width="2.2" fill="none" stroke-linecap="round"/>
-  <path d="M 18 6 C 22 22, 16 32, 22 42 S 26 58, 24 62" stroke="#E85D26" stroke-width="2.2" fill="none" stroke-linecap="round"/>
-  <path d="M 46 6 C 42 22, 48 32, 42 42 S 38 58, 40 62" stroke="#E85D26" stroke-width="2.2" fill="none" stroke-linecap="round"/>
-  <!-- Highlight (matte beach surface) -->
-  <ellipse cx="24" cy="22" rx="8" ry="4" fill="#FFFFFF" opacity="0.45"/>
+
+  <!-- Ball (the sphere at the top) -->
+  <circle cx="32" cy="16" r="10" fill="url(#ballGrad)" filter="url(#shadow)"/>
+  <!-- Highlight on ball -->
+  <ellipse cx="28" cy="12" rx="4" ry="3" fill="#FF8C42" opacity="0.6"/>
+
+  <!-- Main whistle body (tube) -->
+  <path d="M 18 22 Q 16 28, 16 36 Q 16 42, 20 46 L 44 46 Q 48 42, 48 36 Q 48 28, 46 22 Z"
+        fill="url(#whistleGrad)" stroke="#1F2556" stroke-width="1.5"/>
+
+  <!-- Whistle mouth opening (top part) -->
+  <ellipse cx="32" cy="22" rx="14" ry="5" fill="#1F2556" opacity="0.3"/>
+  <path d="M 20 22 Q 22 20, 32 19 Q 42 20, 44 22"
+        stroke="#3D4288" stroke-width="2" fill="none" stroke-linecap="round"/>
+
+  <!-- Bottom rim of whistle -->
+  <ellipse cx="32" cy="46" rx="12" ry="4" fill="#1F2556" opacity="0.2"/>
+
+  <!-- Decorative band (orange stripe) -->
+  <rect x="20" y="38" width="24" height="3" rx="1.5" fill="#E85D26" opacity="0.9"/>
+
+  <!-- Small air hole details -->
+  <circle cx="26" cy="32" r="2" fill="#1F2556" opacity="0.5"/>
+  <circle cx="38" cy="34" r="1.5" fill="#1F2556" opacity="0.5"/>
 </svg>

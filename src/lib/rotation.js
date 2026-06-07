@@ -4,22 +4,21 @@
  * Pattern grammar (each token = one session per court):
  *   M1, M2, M3...   → referee works that session
  *   PAUSE           → referee rests this session
- *   Pattern length = total sessions in the day
  *
- * Default pattern: "M1-M2-PAUSE-M3" (4 sessions: work, work, rest, work)
- *
- * Algorithm:
- * 1. For each court: figure out how many referees are needed concurrently.
- * 2. Distribute present referees round-robin per session, skipping refs marked PAUSE.
- * 3. Returns an array of { court, session_order, referee_id, role } rows.
+ * Sections of the same day (Part 1, Part 2, Part 3...) are mixed: from the
+ * second section onward the algorithm receives the previous sections via
+ * `history` and avoids (a) putting a referee back on a court already worked,
+ * and (b) re-forming the same court "pair" of referees.
  *
  * Inputs:
  *   - presentReferees: array of referee objects (already filtered by attendance)
- *   - courts: array of court labels e.g. ["Court 1", "Court 2", "Court 3"]
- *   - pattern: string e.g. "M1-M2-PAUSE-M3"
- *   - sessionsPerCourt: optional override of pattern length
+ *   - courts: array of court labels e.g. ["Court 1", "Court 2", ...]
+ *   - pattern: string e.g. "M1-M2-M3-M4"
+ *   - sectionOffset: legacy rotation offset (used only for the first section)
+ *   - history: array of previous assignments for the day
+ *              [{ referee_id, court, section_number }, ...]
  *
- * Returns: { assignments: [...], warnings: [...] }
+ * Returns: { assignments, warnings, totalSessions, pattern }
  */
 export function autoAssign({
   presentReferees,
@@ -27,6 +26,7 @@ export function autoAssign({
   pattern = 'M1-M2-PAUSE-M3',
   defaultRole = 'R1',
   sectionOffset = 0,
+  history = [],
 }) {
   if (!presentReferees?.length) {
     return { assignments: [], warnings: ['No referees marked as present.'] }
@@ -38,78 +38,146 @@ export function autoAssign({
   const tokens = pattern.split('-').map((t) => t.trim().toUpperCase())
   const totalSessions = tokens.length
   const workSessions = tokens.filter((t) => t !== 'PAUSE').length
-
-  // Each court needs 1 referee per session (R1 only for regular matches).
-  // Finals would need more but that's edge case — handled manually.
-  const slotsPerSession = courts.length
-  const totalWorkSlots = workSessions * slotsPerSession
+  const C = courts.length
 
   const warnings = []
-
-  if (presentReferees.length < courts.length) {
+  if (presentReferees.length < C) {
     warnings.push(
-      `Only ${presentReferees.length} referees present for ${courts.length} courts — some sessions will be unassigned.`
+      `Only ${presentReferees.length} referees present for ${C} courts — some sessions will be unassigned.`
     )
   }
 
-  // Sort referees by ranking_level (A > B > C) then by name for stability
-  const refs = [...presentReferees].sort((a, b) => {
+  const maxSessionsPerRef = workSessions > C ? workSessions - 1 : workSessions
+
+  // Stable base ordering: ranking_level (A > B > C) then last name.
+  const sorted = [...presentReferees].sort((a, b) => {
     const order = { A: 0, B: 1, C: 2 }
     const da = (order[a.ranking_level] ?? 9) - (order[b.ranking_level] ?? 9)
     if (da !== 0) return da
-    return a.last_name.localeCompare(b.last_name)
+    return (a.last_name || '').localeCompare(b.last_name || '')
   })
 
-  const assignments = []
-  // Pointer into the rotated referee list — advances every assignment.
-  // sectionOffset shifts the starting position so different sections of the
-  // same day produce different rotations.
-  let refIdx = refs.length > 0 ? sectionOffset % refs.length : 0
-
-  // If pattern has no explicit PAUSE (e.g. "M1-M2-M3-M4"), limit each ref to max 3 sessions
-  // so the 4th becomes an automatic break. Otherwise use all work sessions.
-  const maxSessionsPerRef = workSessions > courts.length ? workSessions - 1 : workSessions
-  const refSessionCount = {}
-  refs.forEach((r) => (refSessionCount[r.id] = 0))
-
-  // For each session, fill all courts
-  for (let s = 0; s < totalSessions; s++) {
-    const token = tokens[s]
-    if (token === 'PAUSE') continue // Whole day pauses — skip (but we still increment)
-
-    for (let c = 0; c < courts.length; c++) {
-      // Find a referee who hasn't reached max sessions
-      let assigned = false
-      let attempts = 0
-      while (!assigned && attempts < refs.length * 2) {
-        const ref = refs[refIdx % refs.length]
-        if (refSessionCount[ref.id] < maxSessionsPerRef) {
-          assignments.push({
-            court: courts[c],
-            session_order: s + 1,
-            referee_id: ref.id,
-            role: defaultRole,
-            _refereeObj: ref, // hint for UI rendering
-          })
-          refSessionCount[ref.id]++
-          assigned = true
-        }
-        refIdx++
-        attempts++
+  // ── Memory of previous sections (from `history`) ───────────────────────────
+  // courtsByRef: which courts a referee already worked today
+  // partnersByRef: which referees already shared a court with a given referee
+  const courtsByRef = {}
+  const partnersByRef = {}
+  const prevGroups = {} // `${section}|${court}` -> array of referee_id
+  for (const h of history || []) {
+    if (!h || h.referee_id == null || h.court == null) continue
+    if (!courtsByRef[h.referee_id]) courtsByRef[h.referee_id] = new Set()
+    courtsByRef[h.referee_id].add(h.court)
+    const k = `${h.section_number}|${h.court}`
+    if (!prevGroups[k]) prevGroups[k] = new Set()
+    prevGroups[k].add(h.referee_id)
+  }
+  for (const k in prevGroups) {
+    const arr = [...prevGroups[k]]
+    for (let i = 0; i < arr.length; i++) {
+      for (let j = 0; j < arr.length; j++) {
+        if (i === j) continue
+        if (!partnersByRef[arr[i]]) partnersByRef[arr[i]] = new Set()
+        partnersByRef[arr[i]].add(arr[j])
       }
     }
   }
 
-  // Compute pause assignments: a referee who has < workSessions actual work assignments
-  // gets a virtual PAUSE entry so the UI can show their full day timeline.
-  const workCountByRef = {}
-  for (const a of assignments) workCountByRef[a.referee_id] = (workCountByRef[a.referee_id] || 0) + 1
+  // Build assignments from a given referee ordering (original round-robin).
+  function buildFromOrder(order) {
+    const refSessionCount = {}
+    order.forEach((r) => {
+      refSessionCount[r.id] = 0
+    })
+    const asg = []
+    let idx = 0
+    for (let s = 0; s < totalSessions; s++) {
+      if (tokens[s] === 'PAUSE') continue
+      for (let c = 0; c < C; c++) {
+        let assigned = false
+        let attempts = 0
+        while (!assigned && attempts < order.length * 2) {
+          const ref = order[idx % order.length]
+          if (refSessionCount[ref.id] < maxSessionsPerRef) {
+            asg.push({
+              court: courts[c],
+              session_order: s + 1,
+              referee_id: ref.id,
+              role: defaultRole,
+              _refereeObj: ref,
+            })
+            refSessionCount[ref.id]++
+            assigned = true
+          }
+          idx++
+          attempts++
+        }
+      }
+    }
+    return asg
+  }
 
-  const pauseAssignments = []
-  for (const ref of refs) {
-    const worked = workCountByRef[ref.id] || 0
-    // The "ideal" is workSessions per ref if refs == courts; otherwise prorated
-    // We don't add fake pause sessions to DB; UI computes them.
+  // Count how many history constraints an arrangement breaks.
+  function countViolations(asg) {
+    let v = 0
+    for (const a of asg) {
+      if (courtsByRef[a.referee_id] && courtsByRef[a.referee_id].has(a.court)) v++
+    }
+    const g = {}
+    for (const a of asg) {
+      if (!g[a.court]) g[a.court] = new Set()
+      g[a.court].add(a.referee_id)
+    }
+    for (const court in g) {
+      const arr = [...g[court]]
+      for (let i = 0; i < arr.length; i++) {
+        for (let j = i + 1; j < arr.length; j++) {
+          if (partnersByRef[arr[i]] && partnersByRef[arr[i]].has(arr[j])) v++
+        }
+      }
+    }
+    return v
+  }
+
+  function shuffled(arr) {
+    const a = arr.slice()
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1))
+      const tmp = a[i]
+      a[i] = a[j]
+      a[j] = tmp
+    }
+    return a
+  }
+
+  let assignments
+  const hasHistory = (history || []).length > 0
+
+  if (!hasHistory) {
+    // First section of the day → keep the original deterministic layout.
+    const off = sorted.length ? sectionOffset % sorted.length : 0
+    const order = sorted.slice(off).concat(sorted.slice(0, off))
+    assignments = buildFromOrder(order)
+  } else {
+    // Later sections → search for an ordering that avoids reusing courts and
+    // pairs from earlier sections. Try sorted first, then random shuffles,
+    // keeping the arrangement with the fewest repeats (0 = perfect mix).
+    let best = buildFromOrder(sorted)
+    let bestV = countViolations(best)
+    const MAX_TRIES = 5000
+    for (let t = 0; t < MAX_TRIES && bestV > 0; t++) {
+      const cand = buildFromOrder(shuffled(sorted))
+      const v = countViolations(cand)
+      if (v < bestV) {
+        best = cand
+        bestV = v
+      }
+    }
+    assignments = best
+    if (bestV > 0) {
+      warnings.push(
+        `Couldn't fully avoid repeats: ${bestV} court/pair overlap(s) with earlier sections (too few referees or courts to keep every section unique). Used the arrangement with the fewest repeats.`
+      )
+    }
   }
 
   return { assignments, warnings, totalSessions, pattern: tokens }

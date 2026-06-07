@@ -555,11 +555,17 @@ export default function Designations() {
         .eq('tournament_id', tournamentId)
         .eq('day_number', dayNumber)
         .eq('section_number', sectionNumber)
+      const history = dayAssignments.filter(
+        (a) =>
+          a.section_number !== sectionNumber &&
+          a.session_order !== FINALS_SESSION_ORDER
+      )
       const { assignments: newAssign, warnings } = autoAssign({
         presentReferees: presentRefs,
         courts,
         pattern: rotationPattern,
         sectionOffset: (sectionNumber - 1) * courts.length,
+        history,
       })
       const rows = newAssign.map((a) => ({
         tournament_id: tournamentId,

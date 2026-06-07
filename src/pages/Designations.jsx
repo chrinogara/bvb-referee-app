@@ -74,7 +74,7 @@ function RefereeChip({ referee, present, onToggle, riskScore }) {
       className={cn(
         'relative flex items-center gap-2 px-3 py-2 rounded-xl border text-sm transition-all duration-150 cursor-pointer select-none',
         present
-          ? 'bg-emerald-500/15 border-emerald-500/40 text-white'
+          ? 'bg-emerald-500/15 border-emerald-500/40 text-gray-900'
           : 'bg-gray-50 border-gray-200 text-gray-500 hover:border-gray-400'
       )}
     >
@@ -116,7 +116,7 @@ function RefereeChip({ referee, present, onToggle, riskScore }) {
           }}
           title="Deselect referee"
           aria-label="Deselect referee"
-          className="ml-auto shrink-0 w-5 h-5 rounded-full bg-emerald-500/30 hover:bg-red-500/40 text-emerald-300 hover:text-red-200 flex items-center justify-center transition-colors"
+          className="ml-auto shrink-0 w-5 h-5 rounded-full bg-red-800 hover:bg-red-900 text-white flex items-center justify-center transition-colors"
         >
           <X size={12} />
         </button>

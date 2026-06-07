@@ -446,7 +446,6 @@ const designationStyles = StyleSheet.create({
     color: NAVY,
   },
   refName: { flex: 1, fontSize: 10 },
-  refLevel: { width: 35, fontSize: 8, color: MED_GRAY, textAlign: 'right' },
   refRole: { width: 50, fontSize: 9, color: ORANGE, fontFamily: 'Helvetica-Bold', textAlign: 'right' },
   pauseText: { color: MED_GRAY, fontStyle: 'italic', flex: 1 },
 })

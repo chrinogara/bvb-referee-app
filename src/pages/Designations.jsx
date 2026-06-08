@@ -6,7 +6,7 @@ import { Header } from '../components/layout/Header'
 import { toast } from '../components/ui/Toast'
 
 import { useTournaments, useTournamentReferees } from '../hooks/useTournaments'
-import { useTournamentRanking } from '../hooks/useRanking'
+import { useRanking, useTournamentRanking } from '../hooks/useRanking'
 import { supabase, courtAssignmentService, attendanceService } from '../lib/supabase'
 import {
   buildDesignationMessage,
@@ -31,6 +31,14 @@ const FINALS_SECTION_NUMBER = 1
 const FINALS_ROLES = ['R1', 'R2']
 
 const MAX_CONSEC = 3 // tetto massimo giri consecutivi (decisione concordata)
+
+// Colore del piccolo badge valutazione (verde/ambra/rosso)
+function scoreColorHex(s) {
+  if (s == null) return '#9CA3AF'
+  if (s >= 4) return '#059669'
+  if (s >= 3) return '#D97706'
+  return '#DC2626'
+}
 
 // ─── Algoritmo rotazione GIRONI (2 ON / 2 OFF sfalsato + rimescolato) ────────
 // Decisione concordata: ogni arbitro lavora 2 giri di fila, poi riposa
@@ -107,6 +115,14 @@ export default function Designations() {
   const tournament = tournaments.find((t) => t.id === tournamentId)
   const { referees: assignedReferees } = useTournamentReferees(tournamentId)
   const { ranking: tournamentRanking } = useTournamentRanking(tournamentId)
+  const { ranking: globalRanking } = useRanking()
+
+  // Classifica generale (media voti su tutti i tornei) per badge accanto al nome
+  const globalScoreById = useMemo(() => {
+    const m = {}
+    for (const r of globalRanking || []) m[r.id] = r
+    return m
+  }, [globalRanking])
 
   const courts = useMemo(() => {
     if (Array.isArray(tournament?.courts) && tournament.courts.length > 0) return tournament.courts
@@ -545,6 +561,15 @@ export default function Designations() {
                         className="rounded-xl border-2 border-emerald-300 bg-emerald-50 active:bg-emerald-100 px-2 py-3 text-center min-h-[70px] flex flex-col items-center justify-center">
                         <span className="text-[11px] font-bold uppercase text-emerald-700 tracking-wide">{courts[ci]}</span>
                         <span className="text-lg font-bold leading-tight mt-0.5">{nameOf(id)}</span>
+                        {id && (
+                          globalScoreById[id]?.avg_score != null ? (
+                            <span className="text-[11px] font-bold leading-none mt-1" style={{ color: scoreColorHex(globalScoreById[id].avg_score) }}>
+                              ★ {globalScoreById[id].avg_score.toFixed(1)}{globalScoreById[id].total_evaluations ? ` · ${globalScoreById[id].total_evaluations}` : ''}
+                            </span>
+                          ) : (
+                            <span className="text-[10px] text-gray-400 leading-none mt-1">n/d</span>
+                          )
+                        )}
                       </button>
                     ))}
                   </div>
@@ -698,7 +723,7 @@ export default function Designations() {
                     return (
                       <button key={id} onClick={() => swapCourt(picker.giro, picker.court, id)}
                         className={`rounded-xl py-3 px-3 text-base font-bold border-2 text-left ${onC ? 'border-emerald-300 bg-emerald-50' : 'border-gray-200 bg-gray-50'}`}>
-                        {nameOf(id)}<div className="text-xs font-medium text-gray-500">{onC ? 'già in campo' : 'in pausa'}</div>
+                        {nameOf(id)}<div className="text-xs font-medium text-gray-500">{onC ? 'già in campo' : 'in pausa'}{globalScoreById[id]?.avg_score != null ? ` · ★ ${globalScoreById[id].avg_score.toFixed(1)}` : ''}</div>
                       </button>
                     )
                   })}

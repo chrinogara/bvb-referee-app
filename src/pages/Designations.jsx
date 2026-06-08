@@ -41,6 +41,7 @@ import {
   shareToWhatsApp,
   copyDesignationMessage,
 } from '../lib/whatsapp'
+import { useDocLanguage } from '../context/LanguageGate'
 import { generateDesignationPDF, downloadPDF } from '../lib/pdf'
 import { cn, refereeName, refereeInitials, formatDate } from '../lib/utils'
 import { checkConsecutiveMatches, getAssignmentSummary } from '../lib/validationPause'
@@ -370,6 +371,7 @@ function ManualAssignModal({
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function Designations() {
+  const { requestLanguage } = useDocLanguage()
   const [searchParams] = useSearchParams()
   const { tournaments, update: updateTournament } = useTournaments()
 
@@ -792,17 +794,20 @@ export default function Designations() {
   // Share actions
   const [hasSentBefore, setHasSentBefore] = useState(false)
 
-  function handleWhatsApp() {
+  async function handleWhatsApp() {
     if (assignments.length === 0) {
       toast.error('No assignments to share')
       return
     }
+    const lang = await requestLanguage()
+    if (!lang) return
     const msg = buildDesignationMessage({
       tournament,
       dayNumber,
       assignments,
       isUpdate: hasSentBefore,
       rotationPattern,
+      lang,
     })
     shareToWhatsApp(msg)
     setHasSentBefore(true)
@@ -811,12 +816,15 @@ export default function Designations() {
 
   async function handleCopy() {
     if (assignments.length === 0) return
+    const lang = await requestLanguage()
+    if (!lang) return
     const msg = buildDesignationMessage({
       tournament,
       dayNumber,
       assignments,
       isUpdate: hasSentBefore,
       rotationPattern,
+      lang,
     })
     const ok = await copyDesignationMessage(msg)
     if (ok) toast.success('Copied to clipboard')
@@ -824,12 +832,15 @@ export default function Designations() {
   }
 
   // Personal DM per referee
-  function handlePersonalDM(referee) {
+  async function handlePersonalDM(referee) {
+    const lang = await requestLanguage()
+    if (!lang) return
     const msg = buildPersonalMessage({
       referee,
       tournament,
       dayNumber,
       assignments,
+      lang,
     })
     if (referee.phone) {
       // Open with specific phone number

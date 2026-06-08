@@ -30,8 +30,14 @@ html, body {
 
 body {
   margin: 0;
-  font-family: system-ui, -apple-system, sans-serif;
+  font-family: 'Barlow', system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
+}
+
+/* Display font for headings / big numbers */
+.font-display {
+  font-family: 'Barlow Condensed', system-ui, sans-serif;
+  letter-spacing: 0.01em;
 }
 
 #root {

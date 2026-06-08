@@ -164,3 +164,14 @@ export function buildPersonalMessage({ referee, tournament, dayNumber, assignmen
   lines.push(d.signature)
   return lines.join('\n')
 }
+
+/** Open WhatsApp with a referee's personal assignments, addressed to their phone. */
+export function sharePersonalToReferee({ referee, tournament, dayNumber, assignments, lang = 'en' }) {
+  const msg = buildPersonalMessage({ referee, tournament, dayNumber, assignments, lang })
+  const phone = normalizePhone(referee?.phone)
+  if (phone) {
+    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, '_blank', 'noopener,noreferrer')
+  } else {
+    shareToWhatsApp(msg)
+  }
+}

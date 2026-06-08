@@ -40,6 +40,7 @@ import {
 } from '../lib/utils'
 import { CRITERIA, getGrade, getGradeColor, getGradeBg } from '../lib/scoring'
 import { shareEvaluationToReferee } from '../lib/whatsapp'
+import { useDocLanguage } from '../context/LanguageGate'
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
@@ -264,6 +265,7 @@ export default function RefereeProfile() {
   const { id } = useParams()
   const navigate = useNavigate()
 
+  const { requestLanguage } = useDocLanguage()
   const { referee, loading: refLoading } = useReferee(id)
   const { update } = useReferees()
   const { evaluations, loading: evalLoading, remove, resetForReferee, refetch } = useEvaluations({ refereeId: id })
@@ -658,13 +660,16 @@ export default function RefereeProfile() {
                         </div>
                         <button
                           type="button"
-                          onClick={() =>
+                          onClick={async () => {
+                            const lang = await requestLanguage()
+                            if (!lang) return
                             shareEvaluationToReferee({
                               referee,
                               evaluation: ev,
                               tournament: ev.tournaments,
+                              lang,
                             })
-                          }
+                          }}
                           className="p-1.5 rounded-lg hover:bg-emerald-100 text-gray-500 hover:text-emerald-700 transition-colors"
                           aria-label="Send via WhatsApp"
                           title={

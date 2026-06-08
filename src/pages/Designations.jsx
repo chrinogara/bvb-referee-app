@@ -446,16 +446,11 @@ export default function Designations() {
     } catch (err) { toast.error(`PDF non riuscito: ${err.message}`) }
   }
 
-  // ─── Invio designazioni personali (1 messaggio WhatsApp per arbitro) ───────
-  const [personalLang, setPersonalLang] = useState(null)
-  async function startPersonalSend() {
-    const lang = await requestLanguage(); if (!lang) return
-    setPersonalLang(lang)
-  }
-  function sendPersonal(refId) {
+  // ─── Invio designazioni personali (WhatsApp, lingua scelta per arbitro) ────
+  function sendPersonal(refId, lang) {
     const referee = refById[refId]
     if (!referee) return
-    sharePersonalToReferee({ referee, tournament, dayNumber, assignments: flatAssignments, lang: personalLang || 'en' })
+    sharePersonalToReferee({ referee, tournament, dayNumber, assignments: flatAssignments, lang })
   }
 
   // ─── Render ──────────────────────────────────────────────────────────────
@@ -616,40 +611,34 @@ export default function Designations() {
             </div>
           )}
 
-          {/* Designazioni personali — un messaggio WhatsApp per arbitro */}
+          {/* Designazioni personali — un messaggio WhatsApp per arbitro, lingua a scelta */}
           {giri.length > 0 && (
             <div className="px-4 mt-4">
-              <div className="flex items-center justify-between mb-2">
-                <div className="text-sm font-bold uppercase tracking-wide text-gray-600">Designazioni personali</div>
-                {personalLang && (
-                  <button onClick={() => setPersonalLang(null)} className="text-xs font-semibold text-gray-400">cambia lingua ({personalLang.toUpperCase()})</button>
-                )}
-              </div>
-              {!personalLang ? (
-                <button onClick={startPersonalSend} className="w-full rounded-xl bg-green-600 text-white text-sm font-bold py-3 flex items-center justify-center gap-2">
-                  <MessageCircle size={16} /> Invia a ogni arbitro su WhatsApp
-                </button>
-              ) : (
-                <div className="rounded-2xl bg-white border border-gray-200 divide-y divide-gray-100 overflow-hidden">
-                  {rosterIds.map((id) => {
-                    const r = refById[id]
-                    const n = load[id] || 0
-                    const hasPhone = Boolean(r?.phone)
-                    return (
-                      <div key={id} className="flex items-center justify-between px-4 py-2.5 gap-2">
-                        <div className="min-w-0">
-                          <div className="text-base font-semibold truncate">{nameOf(id)}</div>
-                          <div className="text-xs text-gray-400">{n} {n === 1 ? 'partita' : 'partite'}{hasPhone ? '' : ' · nessun numero'}</div>
-                        </div>
-                        <button onClick={() => sendPersonal(id)}
-                          className="rounded-lg bg-green-600 text-white text-sm font-bold px-3 py-2 flex items-center gap-1 shrink-0">
-                          <MessageCircle size={14} /> Invia
-                        </button>
+              <div className="text-sm font-bold uppercase tracking-wide text-gray-600 mb-1">Designazioni personali</div>
+              <div className="text-xs text-gray-400 mb-2">Tocca la lingua per inviare a quell'arbitro su WhatsApp</div>
+              <div className="rounded-2xl bg-white border border-gray-200 divide-y divide-gray-100 overflow-hidden">
+                {rosterIds.map((id) => {
+                  const r = refById[id]
+                  const n = load[id] || 0
+                  const hasPhone = Boolean(r?.phone)
+                  return (
+                    <div key={id} className="flex items-center justify-between px-3 py-2.5 gap-2">
+                      <div className="min-w-0">
+                        <div className="text-base font-semibold truncate">{nameOf(id)}</div>
+                        <div className="text-xs text-gray-400">{n} {n === 1 ? 'partita' : 'partite'}{hasPhone ? '' : ' · nessun numero'}</div>
                       </div>
-                    )
-                  })}
-                </div>
-              )}
+                      <div className="flex gap-1 shrink-0">
+                        {['en', 'fr', 'nl'].map((lng) => (
+                          <button key={lng} onClick={() => sendPersonal(id, lng)}
+                            className="rounded-lg bg-green-600 text-white text-xs font-bold px-2.5 py-2 uppercase">
+                            {lng}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
             </div>
           )}
         </div>

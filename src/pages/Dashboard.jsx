@@ -8,19 +8,18 @@ import {
   ChevronRight,
   CalendarDays,
   Star,
-  AlertCircle,
-  Plus,
-  BarChart3,
   AlertTriangle,
   X,
+  Plus,
+  BarChart3,
+  ClipboardCheck,
+  BookOpen,
+  Monitor,
 } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 
 import { Header } from '../components/layout/Header'
 import { alertService } from '../lib/supabase'
-import { Card, CardHeader, CardBody, CardTitle } from '../components/ui/Card'
-import { Badge } from '../components/ui/Badge'
-import { Button } from '../components/ui/Button'
 
 import { useReferees } from '../hooks/useReferees'
 import { useEvaluations } from '../hooks/useEvaluations'
@@ -40,29 +39,26 @@ import { getGrade } from '../lib/scoring'
 
 function tournamentStatus(t) {
   const now = new Date()
-  const start = new Date(t.start_date)
-  const end = new Date(t.end_date)
-  if (now < start) return 'UPCOMING'
-  if (now > end) return 'PAST'
-  return 'ONGOING'
+  const s = new Date(t.start_date)
+  const e = new Date(t.end_date || t.start_date)
+  if (s <= now && e >= now) return 'ONGOING'
+  if (e < now) return 'PAST'
+  return 'UPCOMING'
 }
 
-function statusBadge(status) {
-  switch (status) {
-    case 'UPCOMING': return <Badge variant="navy">{status}</Badge>
-    case 'ONGOING':  return <Badge variant="orange">{status}</Badge>
-    case 'PAST':     return <Badge variant="default">{status}</Badge>
-    default:         return null
+function statusChip(status) {
+  const map = {
+    UPCOMING: { bg: 'bg-[#2D3270]/10', text: 'text-[#2D3270]' },
+    ONGOING:  { bg: 'bg-[#E85D26]/15', text: 'text-[#E85D26]' },
+    PAST:     { bg: 'bg-gray-100',     text: 'text-gray-500' },
   }
+  const c = map[status] || map.PAST
+  return <span className={cn('text-[10px] font-bold rounded-full px-2 py-1', c.bg, c.text)}>{status}</span>
 }
 
-function starRating(count = 0) {
+function starRating(count) {
   return Array.from({ length: 5 }, (_, i) => (
-    <Star
-      key={i}
-      size={12}
-      className={i < count ? 'text-amber-400 fill-amber-400' : 'text-gray-700'}
-    />
+    <Star key={i} size={12} className={i < count ? 'text-amber-400 fill-amber-400' : 'text-gray-300'} />
   ))
 }
 
@@ -70,21 +66,34 @@ function starRating(count = 0) {
 
 function StatCard({ icon: Icon, label, value, sub, accent }) {
   return (
-    <Card className="p-4 flex items-start gap-3">
-      <div
-        className={cn(
-          'w-10 h-10 rounded-xl flex items-center justify-center shrink-0',
-          accent || 'bg-[#2D3270]/10'
-        )}
-      >
-        <Icon size={20} className="text-[#2D3270]" />
+    <div className="rounded-2xl bg-white border border-gray-200 shadow-sm p-3">
+      <div className="flex items-center gap-2">
+        <div className={cn('w-9 h-9 rounded-xl flex items-center justify-center shrink-0', accent || 'bg-[#2D3270]/10')}>
+          <Icon size={18} className="text-[#2D3270]" />
+        </div>
+        <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-400 leading-tight">{label}</span>
       </div>
-      <div className="min-w-0">
-        <p className="text-xs text-gray-500 font-medium uppercase tracking-wide">{label}</p>
-        <p className="text-xl font-bold text-gray-900 mt-0.5 truncate">{value}</p>
-        {sub && <p className="text-xs text-gray-500 mt-0.5 truncate">{sub}</p>}
+      <div className="font-display text-2xl font-bold mt-1.5 leading-none truncate text-gray-900">{value}</div>
+      {sub && <p className="text-xs text-gray-400 mt-0.5 truncate">{sub}</p>}
+    </div>
+  )
+}
+
+// ─── Big action button ─────────────────────────────────────────────────────────
+
+function BigButton({ to, icon: Icon, title, sub, gradient }) {
+  return (
+    <Link
+      to={to}
+      className="rounded-2xl p-4 text-white shadow-md active:scale-[.98] transition flex flex-col aspect-[5/4]"
+      style={{ background: gradient }}
+    >
+      <Icon size={30} strokeWidth={2} />
+      <div className="mt-auto">
+        <div className="font-display text-2xl font-bold uppercase leading-none">{title}</div>
+        <div className="text-white/80 text-sm font-medium mt-1">{sub}</div>
       </div>
-    </Card>
+    </Link>
   )
 }
 
@@ -97,7 +106,6 @@ export default function Dashboard() {
   const { ranking } = useRanking()
   const { tournaments } = useTournaments()
 
-  // Nearest upcoming tournament
   const upcomingTournament = useMemo(() => {
     const now = new Date()
     return tournaments
@@ -105,7 +113,6 @@ export default function Dashboard() {
       .sort((a, b) => new Date(a.start_date) - new Date(b.start_date))[0] || null
   }, [tournaments])
 
-  // Season avg score from ranking
   const seasonAvg = useMemo(() => {
     const valid = ranking.filter((r) => r.avg_score != null)
     if (!valid.length) return null
@@ -113,7 +120,6 @@ export default function Dashboard() {
     return (sum / valid.length).toFixed(2)
   }, [ranking])
 
-  // Last 5 evaluations (sorted newest first)
   const recentEvals = useMemo(
     () =>
       [...evaluations]
@@ -122,13 +128,11 @@ export default function Dashboard() {
     [evaluations]
   )
 
-  // Tournaments sorted chronologically
   const sortedTournaments = useMemo(
     () => [...tournaments].sort((a, b) => new Date(a.start_date) - new Date(b.start_date)),
     [tournaments]
   )
 
-  // ── Risk Alerts ─────────────────────────────────────────────────────────────
   const [alerts, setAlerts] = useState([])
   useEffect(() => {
     alertService.getActive().then(({ data }) => setAlerts(data || []))
@@ -143,63 +147,59 @@ export default function Dashboard() {
     <div className="flex flex-col h-full">
       <Header title="Dashboard" subtitle="Belgian Beach Tour 2026" />
 
-      <div className="flex-1 overflow-y-auto p-4 space-y-6">
+      <div className="flex-1 overflow-y-auto p-4 space-y-5 pb-24 lg:pb-6">
 
-        {/* ── Risk Alerts Banner ── */}
+        {/* ── Risk Alerts ── */}
         {alerts.length > 0 && (
-          <Card className="bg-red-500/10 border-red-500/30">
-            <CardHeader className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <AlertTriangle size={16} className="text-red-400" />
-                <CardTitle className="text-red-400">
-                  Referee Risk Alerts ({alerts.length})
-                </CardTitle>
-              </div>
-            </CardHeader>
-            <CardBody className="space-y-1.5">
+          <div className="rounded-2xl bg-red-50 border border-red-200 p-3">
+            <div className="flex items-center gap-2 mb-2">
+              <AlertTriangle size={16} className="text-red-500" />
+              <span className="font-display text-base font-bold uppercase tracking-wide text-red-600">
+                Referee Risk Alerts ({alerts.length})
+              </span>
+            </div>
+            <div className="space-y-1.5">
               {alerts.slice(0, 5).map((a) => (
-                <div
-                  key={a.id}
-                  className="flex items-center justify-between px-3 py-2 rounded-lg bg-red-500/5 border border-red-500/20"
-                >
+                <div key={a.id} className="flex items-center justify-between px-3 py-2 rounded-lg bg-white border border-red-200">
                   <div className="flex-1 min-w-0">
                     <div className="text-sm font-semibold text-gray-900 truncate">
                       {a.referees ? refereeName(a.referees) : 'Unknown'}
-                      <span className="text-red-300/80 font-normal ml-2 text-xs">
+                      <span className="text-red-500/80 font-normal ml-2 text-xs">
                         avg {a.triggered_avg?.toFixed(1)} · {a.tournaments?.name}
                       </span>
                     </div>
-                    {a.notes && (
-                      <p className="text-xs text-red-300/60 mt-0.5 truncate">{a.notes}</p>
-                    )}
+                    {a.notes && <p className="text-xs text-red-400 mt-0.5 truncate">{a.notes}</p>}
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => acknowledgeAlert(a.id)}
-                    className="p-1.5 rounded hover:bg-red-500/20 text-red-400"
-                    aria-label="Acknowledge"
-                  >
+                  <button type="button" onClick={() => acknowledgeAlert(a.id)} className="p-1.5 rounded hover:bg-red-100 text-red-500" aria-label="Acknowledge">
                     <X size={14} />
                   </button>
                 </div>
               ))}
-              {alerts.length > 5 && (
-                <p className="text-xs text-red-300/60 text-center pt-1">
-                  + {alerts.length - 5} more
-                </p>
-              )}
-            </CardBody>
-          </Card>
+            </div>
+          </div>
         )}
 
-        {/* ── Stats Row ── */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          <StatCard
-            icon={Users}
-            label="Total Referees"
-            value={referees.length}
-            sub="registered this season"
+        {/* ── Two big buttons ── */}
+        <div className="grid grid-cols-2 gap-3">
+          <BigButton
+            to="/tournaments"
+            icon={Trophy}
+            title="Tornei"
+            sub={`${tournaments.length || 0} in stagione →`}
+            gradient="linear-gradient(135deg, #2D3270, #3D4490)"
           />
+          <BigButton
+            to="/evaluate"
+            icon={ClipboardCheck}
+            title="Valutazioni"
+            sub="Nuova / storico →"
+            gradient="linear-gradient(135deg, #E85D26, #C44D1E)"
+          />
+        </div>
+
+        {/* ── Stats ── */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <StatCard icon={Users} label="Total Referees" value={referees.length} sub="registered this season" />
           <StatCard
             icon={CalendarDays}
             label="Next Tournament"
@@ -207,82 +207,37 @@ export default function Dashboard() {
             sub={upcomingTournament ? formatDate(upcomingTournament.start_date) : 'No upcoming events'}
             accent="bg-[#E85D26]/15"
           />
-          <StatCard
-            icon={ClipboardList}
-            label="Total Evaluations"
-            value={evaluations.length}
-            sub="across all tournaments"
-          />
-          <StatCard
-            icon={TrendingUp}
-            label="Season Avg Score"
-            value={seasonAvg != null ? seasonAvg : '—'}
-            sub="weighted overall score"
-            accent="bg-emerald-500/10"
-          />
+          <StatCard icon={ClipboardList} label="Total Evaluations" value={evaluations.length} sub="across all tournaments" />
+          <StatCard icon={TrendingUp} label="Season Avg Score" value={seasonAvg != null ? seasonAvg : '—'} sub="weighted overall score" accent="bg-emerald-500/10" />
         </div>
 
-        {/* ── Quick Actions ── */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Quick Actions</CardTitle>
-          </CardHeader>
-          <CardBody className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-            <Link
-              to="/briefing"
-              className="flex flex-col items-center justify-center gap-1.5 p-3 rounded-xl border border-gray-200 hover:border-[#E85D26]/40 hover:bg-orange-50 transition-colors group"
-            >
-              <div className="w-10 h-10 rounded-xl bg-[#E85D26]/10 flex items-center justify-center group-hover:bg-[#E85D26]/15 transition-colors">
-                <BarChart3 size={18} className="text-[#E85D26]" />
-              </div>
-              <span className="text-xs font-semibold text-gray-700">Briefing</span>
-            </Link>
-            <Link
-              to="/assignments"
-              className="flex flex-col items-center justify-center gap-1.5 p-3 rounded-xl border border-gray-200 hover:border-[#2D3270]/40 hover:bg-blue-50 transition-colors group"
-            >
-              <div className="w-10 h-10 rounded-xl bg-[#2D3270]/10 flex items-center justify-center">
-                <CalendarDays size={18} className="text-[#2D3270]" />
-              </div>
-              <span className="text-xs font-semibold text-gray-700">Assignments</span>
-            </Link>
-            <Link
-              to="/live-courts"
-              className="flex flex-col items-center justify-center gap-1.5 p-3 rounded-xl border border-gray-200 hover:border-emerald-400 hover:bg-emerald-50 transition-colors group"
-            >
-              <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center">
-                <AlertCircle size={18} className="text-emerald-600" />
-              </div>
-              <span className="text-xs font-semibold text-gray-700">Live Courts</span>
-            </Link>
-            <Link
-              to="/evaluate"
-              className="flex flex-col items-center justify-center gap-1.5 p-3 rounded-xl border border-gray-200 hover:border-purple-400 hover:bg-purple-50 transition-colors group"
-            >
-              <div className="w-10 h-10 rounded-xl bg-purple-50 flex items-center justify-center">
-                <Plus size={18} className="text-purple-600" />
-              </div>
-              <span className="text-xs font-semibold text-gray-700">New Evaluation</span>
-            </Link>
-          </CardBody>
-        </Card>
+        {/* ── Quick actions ── */}
+        <div>
+          <h2 className="font-display text-lg font-bold uppercase tracking-wide text-gray-600 mb-2">Azioni rapide</h2>
+          <div className="grid grid-cols-4 gap-2">
+            {[
+              { to: '/briefing',    icon: BookOpen,    label: 'Briefing' },
+              { to: '/assignments', icon: CalendarDays, label: 'Assignments' },
+              { to: '/live-courts', icon: Monitor,     label: 'Live Courts' },
+              { to: '/assistant',   icon: BarChart3,   label: 'Rules AI' },
+            ].map(({ to, icon: Icon, label }) => (
+              <Link key={to} to={to} className="rounded-2xl bg-white border border-gray-200 shadow-sm py-3 flex flex-col items-center gap-1 active:bg-gray-50">
+                <Icon size={22} className="text-[#2D3270]" />
+                <span className="text-[11px] font-semibold text-gray-600 text-center leading-tight">{label}</span>
+              </Link>
+            ))}
+          </div>
+        </div>
 
-        {/* ── Recent Evaluations ── */}
-        <Card>
-          <CardHeader className="flex items-center justify-between">
-            <CardTitle>Recent Evaluations</CardTitle>
-            <Link
-              to="/evaluate"
-              className="text-xs text-[#E85D26] hover:text-[#C44D1E] font-medium transition-colors flex items-center gap-1"
-            >
-              + New <ChevronRight size={12} />
-            </Link>
-          </CardHeader>
-          <CardBody className="p-0">
+        {/* ── Recent evaluations ── */}
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <h2 className="font-display text-lg font-bold uppercase tracking-wide text-gray-600">Valutazioni recenti</h2>
+            <Link to="/evaluate" className="text-sm font-semibold text-[#E85D26] flex items-center gap-1">+ Nuova <ChevronRight size={14} /></Link>
+          </div>
+          <div className="rounded-2xl bg-white border border-gray-200 shadow-sm overflow-hidden">
             {recentEvals.length === 0 ? (
-              <div className="py-10 text-center text-gray-500 text-sm">
-                No evaluations yet.
-              </div>
+              <div className="py-10 text-center text-gray-400 text-sm">No evaluations yet.</div>
             ) : (
               <ul className="divide-y divide-gray-100">
                 {recentEvals.map((ev) => {
@@ -291,179 +246,62 @@ export default function Dashboard() {
                   const dateStr = ev.created_at
                     ? formatDistanceToNow(new Date(ev.created_at), { addSuffix: true })
                     : formatDate(ev.match_date)
-
                   return (
-                    <li
-                      key={ev.id}
-                      className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors cursor-pointer"
-                      onClick={() => navigate(`/referees/${ref?.id}`)}
-                    >
-                      {/* Avatar */}
-                      <div className="w-8 h-8 rounded-full bg-[#2D3270]/10 flex items-center justify-center shrink-0">
+                    <li key={ev.id} className="flex items-center gap-3 px-4 py-3 active:bg-gray-50 cursor-pointer" onClick={() => navigate(`/referees/${ref?.id}`)}>
+                      <div className="w-10 h-10 rounded-xl bg-[#2D3270]/10 flex items-center justify-center shrink-0">
                         <span className="text-xs font-bold text-[#2D3270]">
-                          {ref
-                            ? `${ref.first_name?.[0] || ''}${ref.last_name?.[0] || ''}`
-                            : '??'}
+                          {ref ? `${ref.first_name?.[0] || ''}${ref.last_name?.[0] || ''}` : '??'}
                         </span>
                       </div>
-
-                      {/* Info */}
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-900 truncate">
-                          {ref ? refereeName(ref) : 'Unknown Referee'}
-                        </p>
-                        <p className="text-xs text-gray-500 truncate">
-                          {ev.tournaments?.name || '—'} · {dateStr}
-                        </p>
+                        <p className="text-base font-semibold text-gray-900 truncate">{ref ? refereeName(ref) : 'Unknown Referee'}</p>
+                        <p className="text-xs text-gray-400 truncate">{ev.tournaments?.name || '—'} · {dateStr}</p>
                       </div>
-
-                      {/* Role badge */}
                       {ev.role && (
-                        <span
-                          className={cn(
-                            'text-xs px-2 py-0.5 rounded-full font-medium shrink-0',
-                            roleColor(ev.role)
-                          )}
-                        >
-                          {ev.role}
-                        </span>
+                        <span className={cn('text-xs px-2 py-0.5 rounded-full font-medium shrink-0', roleColor(ev.role))}>{ev.role}</span>
                       )}
-
-                      {/* Score */}
                       <div className="text-right shrink-0">
-                        <span
-                          className={cn(
-                            'text-base font-bold',
-                            scoreColor(ev.overall_score)
-                          )}
-                        >
-                          {ev.overall_score?.toFixed(1) ?? '—'}
-                        </span>
-                        <p className={cn('text-[10px] font-semibold', grade.color)}>
-                          {grade.grade}
-                        </p>
+                        <span className={cn('font-display text-xl font-bold', scoreColor(ev.overall_score))}>{ev.overall_score?.toFixed(1) ?? '—'}</span>
+                        <p className={cn('text-[10px] font-semibold', grade.color)}>{grade.grade}</p>
                       </div>
                     </li>
                   )
                 })}
               </ul>
             )}
-          </CardBody>
-        </Card>
+          </div>
+        </div>
 
-        {/* ── Tournament Timeline ── */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Tournament Timeline</CardTitle>
-          </CardHeader>
-          <CardBody className="space-y-3">
+        {/* ── Tournament timeline ── */}
+        <div>
+          <h2 className="font-display text-lg font-bold uppercase tracking-wide text-gray-600 mb-2">Calendario tornei</h2>
+          <div className="rounded-2xl bg-white border border-gray-200 shadow-sm p-3">
             {sortedTournaments.length === 0 ? (
-              <p className="text-sm text-gray-500 text-center py-4">No tournaments configured.</p>
+              <p className="text-sm text-gray-400 text-center py-4">No tournaments configured.</p>
             ) : (
               sortedTournaments.map((t, idx) => {
                 const status = tournamentStatus(t)
-                const isOngoing = status === 'ONGOING'
-
                 return (
-                  <div
-                    key={t.id}
-                    className={cn(
-                      'flex items-start gap-3 p-3 rounded-xl border transition-colors',
-                      isOngoing
-                        ? 'border-[#E85D26]/30 bg-[#E85D26]/5'
-                        : 'border-white/8 bg-white/3 hover:bg-gray-50'
-                    )}
-                  >
-                    {/* Timeline dot */}
-                    <div className="flex flex-col items-center pt-1 gap-1 shrink-0">
-                      <div
-                        className={cn(
-                          'w-3 h-3 rounded-full border-2',
-                          isOngoing
-                            ? 'bg-[#E85D26] border-[#E85D26]'
-                            : status === 'PAST'
-                            ? 'bg-gray-600 border-gray-600'
-                            : 'bg-[#2D3270] border-[#7B85C9]'
-                        )}
-                      />
-                      {idx < sortedTournaments.length - 1 && (
-                        <div className="w-px h-6 bg-gray-100" />
-                      )}
+                  <Link key={t.id} to={`/tournaments/${t.id}`} className="flex items-center gap-3 py-2 active:bg-gray-50 rounded-lg -mx-1 px-1">
+                    <div className="flex flex-col items-center shrink-0">
+                      <span className={cn('w-3 h-3 rounded-full', status === 'ONGOING' ? 'bg-[#E85D26]' : status === 'PAST' ? 'bg-gray-300' : 'bg-[#2D3270]')} />
+                      {idx < sortedTournaments.length - 1 && <span className="w-0.5 h-6 bg-gray-200" />}
                     </div>
-
-                    {/* Content */}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <p className="text-sm font-semibold text-gray-900 truncate">{t.name}</p>
-                        {statusBadge(status)}
-                        {t.is_finals && (
-                          <Badge variant="amber" size="xs">Finals</Badge>
-                        )}
+                        <p className="text-base font-semibold text-gray-900 truncate">{t.name}</p>
+                        {t.is_finals && <span className="text-[10px] font-bold rounded-full px-2 py-0.5 bg-amber-100 text-amber-700">Finals</span>}
                       </div>
-                      <p className="text-xs text-gray-500 mt-0.5">
-                        {formatDate(t.start_date)}
-                        {t.end_date && t.end_date !== t.start_date
-                          ? ` – ${formatDate(t.end_date)}`
-                          : ''}
+                      <p className="text-xs text-gray-400 mt-0.5">
+                        {formatDate(t.start_date)}{t.end_date && t.end_date !== t.start_date ? ` – ${formatDate(t.end_date)}` : ''}
                       </p>
-                      {/* Star rating */}
-                      {t.star_rating != null && (
-                        <div className="flex items-center gap-0.5 mt-1">
-                          {starRating(t.star_rating)}
-                        </div>
-                      )}
+                      {t.star_rating != null && <div className="flex items-center gap-0.5 mt-1">{starRating(t.star_rating)}</div>}
                     </div>
-                  </div>
+                    {statusChip(status)}
+                  </Link>
                 )
               })
             )}
-          </CardBody>
-        </Card>
-
-        {/* ── Quick Actions ── */}
-        <div>
-          <h2 className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-3 px-1">
-            Quick Actions
-          </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <button
-              onClick={() => navigate('/evaluate')}
-              className="flex items-center gap-4 p-4 rounded-xl bg-[#E85D26]/10 border border-[#E85D26]/20 hover:bg-[#E85D26]/20 transition-colors text-left group"
-            >
-              <div className="w-11 h-11 rounded-xl bg-[#E85D26]/20 flex items-center justify-center shrink-0 group-hover:bg-[#E85D26]/30 transition-colors">
-                <Plus size={22} className="text-[#E85D26]" />
-              </div>
-              <div>
-                <p className="text-sm font-semibold text-gray-900">New Evaluation</p>
-                <p className="text-xs text-gray-500 mt-0.5">Score a referee match</p>
-              </div>
-            </button>
-
-            <button
-              onClick={() => navigate('/referees')}
-              className="flex items-center gap-4 p-4 rounded-xl bg-[#2D3270]/20 border border-[#2D3270]/40 hover:bg-[#2D3270]/30 transition-colors text-left group"
-            >
-              <div className="w-11 h-11 rounded-xl bg-[#2D3270]/30 flex items-center justify-center shrink-0 group-hover:bg-[#2D3270]/50 transition-colors">
-                <Users size={22} className="text-[#2D3270]" />
-              </div>
-              <div>
-                <p className="text-sm font-semibold text-gray-900">View Rankings</p>
-                <p className="text-xs text-gray-500 mt-0.5">Season leaderboard</p>
-              </div>
-            </button>
-
-            <button
-              onClick={() => navigate('/reports')}
-              className="flex items-center gap-4 p-4 rounded-xl bg-gray-50 border border-gray-200 hover:bg-gray-100 transition-colors text-left group"
-            >
-              <div className="w-11 h-11 rounded-xl bg-gray-100 flex items-center justify-center shrink-0 group-hover:bg-white/12 transition-colors">
-                <BarChart3 size={22} className="text-gray-500" />
-              </div>
-              <div>
-                <p className="text-sm font-semibold text-gray-900">Reports</p>
-                <p className="text-xs text-gray-500 mt-0.5">Analytics &amp; exports</p>
-              </div>
-            </button>
           </div>
         </div>
 

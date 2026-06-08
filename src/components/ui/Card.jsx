@@ -4,8 +4,8 @@ export function Card({ children, className, onClick, ...props }) {
   return (
     <div
       className={cn(
-        'bg-white border border-gray-200 rounded-xl shadow-sm',
-        onClick && 'cursor-pointer hover:border-gray-300 hover:shadow transition-all',
+        'bg-white border border-gray-200 rounded-2xl shadow-sm',
+        onClick && 'cursor-pointer hover:border-gray-300 hover:shadow transition-all active:scale-[.995]',
         className
       )}
       onClick={onClick}
@@ -34,7 +34,7 @@ export function CardBody({ children, className }) {
 
 export function CardTitle({ children, className }) {
   return (
-    <h3 className={cn('text-sm font-semibold text-gray-900', className)}>
+    <h3 className={cn('font-display text-base font-bold tracking-wide text-gray-900', className)}>
       {children}
     </h3>
   )

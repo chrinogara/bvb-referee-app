@@ -133,14 +133,27 @@ export function shareEvaluationToReferee({ referee, evaluation, tournament, lang
 }
 
 /** Build a per-referee personalized assignments message (DM). */
-export function buildPersonalMessage({ referee, tournament, dayNumber, assignments, lang = 'en' }) {
+export function buildPersonalMessage({ referee, tournament, dayNumber, assignments, lang = 'en', rounds = null }) {
   const d = dict(lang)
   const name = referee.first_name || ''
-  const mine = assignments
-    .filter((a) => a.referee_id === referee.id)
-    .sort((a, b) => a.session_order - b.session_order)
+  const mineAll = assignments.filter((a) => a.referee_id === referee.id)
 
-  if (mine.length === 0) {
+  // Slot da mostrare: o i round del blocco (con riposo esplicito) o tutte le sue gare
+  let slots
+  if (rounds && rounds.length) {
+    slots = rounds.map((r) => {
+      const a = mineAll.find((x) => x.session_order === r)
+      return { session_order: r, court: a ? a.court : null }
+    })
+  } else {
+    slots = mineAll
+      .slice()
+      .sort((a, b) => a.session_order - b.session_order)
+      .map((a) => ({ session_order: a.session_order, court: a.court }))
+  }
+
+  const hasWork = slots.some((s) => s.court != null)
+  if (!hasWork && !(rounds && rounds.length)) {
     return [
       `${d.hi} ${name},`.trim(),
       '',
@@ -150,14 +163,22 @@ export function buildPersonalMessage({ referee, tournament, dayNumber, assignmen
     ].join('\n')
   }
 
-  const lines = [
-    `${d.hi} ${name}, ${d.assignmentsIntroPre} *${tournament.name}* ${d.day} ${dayNumber}:`,
-    '',
-  ]
-  for (const a of mine) {
-    const roleLabel = a.role === 'PAUSE' ? d.pause : a.role
-    const courtLabel = /^\d+$/.test(String(a.court)) ? `${d.court} ${a.court}` : a.court
-    lines.push(`• ${d.round} ${a.session_order} → ${courtLabel} (${roleLabel})`)
+  let header = `${d.hi} ${name}, ${d.assignmentsIntroPre} *${tournament.name}* ${d.day} ${dayNumber}`
+  if (rounds && rounds.length) {
+    const from = rounds[0]
+    const to = rounds[rounds.length - 1]
+    header += ` — ${d.round} ${from}${to !== from ? `-${to}` : ''}`
+  }
+  header += ':'
+
+  const lines = [header, '']
+  for (const s of slots) {
+    if (s.court == null) {
+      lines.push(`• ${d.round} ${s.session_order} → *${d.rest}*`)
+    } else {
+      const courtLabel = /^\d+$/.test(String(s.court)) ? `${d.court} ${s.court}` : s.court
+      lines.push(`• ${d.round} ${s.session_order} → ${courtLabel}`)
+    }
   }
   lines.push('')
   lines.push(d.seeYou)
@@ -166,8 +187,8 @@ export function buildPersonalMessage({ referee, tournament, dayNumber, assignmen
 }
 
 /** Open WhatsApp with a referee's personal assignments, addressed to their phone. */
-export function sharePersonalToReferee({ referee, tournament, dayNumber, assignments, lang = 'en' }) {
-  const msg = buildPersonalMessage({ referee, tournament, dayNumber, assignments, lang })
+export function sharePersonalToReferee({ referee, tournament, dayNumber, assignments, lang = 'en', rounds = null }) {
+  const msg = buildPersonalMessage({ referee, tournament, dayNumber, assignments, lang, rounds })
   const phone = normalizePhone(referee?.phone)
   if (phone) {
     window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, '_blank', 'noopener,noreferrer')

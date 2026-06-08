@@ -55,8 +55,8 @@ export function Sidebar() {
               <Volleyball size={20} className="text-white" strokeWidth={2.2} />
             </div>
             <div>
-              <div className="text-sm font-bold text-gray-900 leading-tight">BVB RC</div>
-              <div className="text-[10px] text-gray-500 leading-tight">Beach Volley Tour</div>
+              <div className="font-display text-lg font-bold uppercase text-gray-900 leading-none">BVB RC</div>
+              <div className="text-[10px] text-gray-500 leading-tight mt-0.5">Beach Volley Tour</div>
             </div>
           </div>
           <button

@@ -31,37 +31,46 @@ const FINALS_ROLES = ['R1', 'R2']
 
 const MAX_CONSEC = 3 // tetto massimo giri consecutivi (decisione concordata)
 
-// ─── Algoritmo rotazione GIRONI ─────────────────────────────────────────────
-// 1 arbitro per campo, 4 lavorano / 4 riposano (se >= 8 presenti),
-// tetto max 3 consecutivi, carico bilanciato (meno match prima), rotazione campi.
-// Fedele alla simulazione validata.
+// ─── Algoritmo rotazione GIRONI (2 ON / 2 OFF sfalsato + rimescolato) ────────
+// Decisione concordata: ogni arbitro lavora 2 giri di fila, poi riposa
+// (stile Heraklion), 1 arbitro per campo, 4 lavorano / 4 riposano (se >= 8),
+// tetto MAX_CONSEC=3 solo come sicurezza, rotazione campi, bench rimescolato/
+// bilanciato (chi ha riposato di più / ha meno match entra prima).
+const STINT = 2 // giri consecutivi prima della pausa (2 ON / 2 OFF)
 function generateGiri(refIds, nCourts, nGiri) {
-  const ids = [...refIds]
-  const NC = Math.min(nCourts, ids.length)
-  const total = {}, consec = {}, lastCourt = {}
-  ids.forEach((id) => { total[id] = 0; consec[id] = 0; lastCourt[id] = null })
+  const REFS = [...refIds]
+  const NC = Math.min(nCourts, REFS.length)
+  const consec = {}, rested = {}, total = {}, lastCourt = {}
+  REFS.forEach((r) => { consec[r] = 0; rested[r] = 99; total[r] = 0; lastCourt[r] = null })
+  // sfalsamento iniziale: i primi due partono "a metà ciclo", così i cambi
+  // non avvengono tutti nello stesso giro
+  if (REFS[0]) consec[REFS[0]] = 1
+  if (REFS[1]) consec[REFS[1]] = 1
+  let prevWorking = []
 
   const giri = []
   for (let g = 0; g < nGiri; g++) {
-    const forcedRest = ids.filter((id) => consec[id] >= MAX_CONSEC)
-    let eligible = ids.filter((id) => !forcedRest.includes(id))
-    if (eligible.length < NC) eligible = [...ids] // fallback: pochi arbitri
-    eligible.sort((a, b) => (total[a] - total[b]) || (consec[a] - consec[b]) || (Math.random() - 0.5))
-    const working = eligible.slice(0, NC)
-    const resting = ids.filter((id) => !working.includes(id))
+    const stay = prevWorking.filter((r) => consec[r] < STINT && consec[r] < MAX_CONSEC)
+    const free = Math.max(0, NC - stay.length)
+    const bench = REFS.filter((r) => !stay.includes(r))
+    bench.sort((a, b) => (rested[b] - rested[a]) || (total[a] - total[b]) || (Math.random() - 0.5))
+    const working = [...stay, ...bench.slice(0, free)]
+    const resting = REFS.filter((r) => !working.includes(r))
 
     const courtsArr = new Array(NC).fill(null)
     const avail = Array.from({ length: NC }, (_, i) => i)
-    const order = [...working].sort(() => Math.random() - 0.5)
-    for (const id of order) {
-      const prefer = avail.filter((c) => c !== lastCourt[id])
+    for (const r of [...working].sort(() => Math.random() - 0.5)) {
+      const prefer = avail.filter((c) => c !== lastCourt[r])
       const c = (prefer.length ? prefer : avail)[0]
-      courtsArr[c] = id
+      courtsArr[c] = r
       avail.splice(avail.indexOf(c), 1)
     }
-    courtsArr.forEach((id, c) => { total[id]++; consec[id]++; lastCourt[id] = c })
-    resting.forEach((id) => { consec[id] = 0 })
+    courtsArr.forEach((r, c) => {
+      if (r != null) { consec[r] = (consec[r] || 0) + 1; rested[r] = 0; total[r] = (total[r] || 0) + 1; lastCourt[r] = c }
+    })
+    resting.forEach((r) => { consec[r] = 0; rested[r] = (rested[r] || 0) + 1 })
     giri.push({ courts: courtsArr, rest: resting })
+    prevWorking = working
   }
   return giri
 }

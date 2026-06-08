@@ -33,6 +33,7 @@ export const DICT = {
     pause: 'PAUSE',
     court: 'Court',
     round: 'Round',
+    rest: 'Rest',
     criteria: {
       positioning: 'Positioning & Court Coverage',
       signals: 'Official Signals & 3-Step',
@@ -63,6 +64,7 @@ export const DICT = {
     pause: 'PAUSE',
     court: 'Terrain',
     round: 'Tour',
+    rest: 'Repos',
     criteria: {
       positioning: 'Placement & couverture du terrain',
       signals: 'Gestes officiels & 3 temps',
@@ -93,6 +95,7 @@ export const DICT = {
     pause: 'PAUZE',
     court: 'Terrein',
     round: 'Ronde',
+    rest: 'Rust',
     criteria: {
       positioning: 'Positionering & terreindekking',
       signals: 'Officiële tekens & 3-stappen',

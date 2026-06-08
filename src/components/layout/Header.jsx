@@ -45,10 +45,10 @@ export function Header({ title, subtitle, actions }) {
 
         <div className="flex-1 min-w-0">
           {title && (
-            <h1 className="text-base font-semibold text-gray-900 truncate">{title}</h1>
+            <h1 className="font-display text-xl font-bold uppercase tracking-wide text-gray-900 truncate leading-none">{title}</h1>
           )}
           {subtitle && (
-            <p className="text-xs text-gray-500 truncate">{subtitle}</p>
+            <p className="text-xs text-gray-500 truncate mt-0.5">{subtitle}</p>
           )}
         </div>
 

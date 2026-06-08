@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { Shuffle, Plus, Minus, MessageCircle, Copy, Download, Coffee, Trophy, Star } from 'lucide-react'
+import { Shuffle, Plus, Minus, MessageCircle, Copy, Download, Coffee, Trophy, Star, RotateCcw } from 'lucide-react'
 
 import { Header } from '../components/layout/Header'
 import { toast } from '../components/ui/Toast'
@@ -126,6 +126,12 @@ export default function Designations() {
 
   const nameOf = useCallback((id) => (id && refById[id] ? refereeName(refById[id]) : '—'), [refById])
 
+  // Arbitri ordinati alfabeticamente (per la lista presenti con interruttori)
+  const sortedReferees = useMemo(
+    () => [...assignedReferees].sort((a, b) => refereeName(a).localeCompare(refereeName(b))),
+    [assignedReferees]
+  )
+
   // ─── Presenze (check-in) — sezione unica: section_number = 1 ───────────────
   const SECTION = 1
   const [attendanceMap, setAttendanceMap] = useState({})
@@ -155,6 +161,28 @@ export default function Designations() {
       else refAtt[attendanceKey] = new Date().toISOString()
       return { ...prev, [refId]: refAtt }
     })
+  }
+
+  // Tutti / Nessuno presenti (bulk)
+  async function setAllPresence(present) {
+    if (!tournamentId) return
+    try {
+      await Promise.all(
+        assignedReferees
+          .filter((r) => isPresent(r.id) !== present)
+          .map((r) => attendanceService.setPresent(tournamentId, r.id, dayNumber, SECTION, present))
+      )
+      setAttendanceMap((prev) => {
+        const next = { ...prev }
+        for (const r of assignedReferees) {
+          const refAtt = { ...(next[r.id] || {}) }
+          if (present) refAtt[attendanceKey] = new Date().toISOString()
+          else delete refAtt[attendanceKey]
+          next[r.id] = refAtt
+        }
+        return next
+      })
+    } catch (err) { toast.error(`Errore: ${err.message}`) }
   }
 
   // ─── Giri (rotazione) ──────────────────────────────────────────────────────
@@ -249,6 +277,40 @@ export default function Designations() {
   async function changeGiriCount(delta) {
     const n = Math.max(1, nGiri + delta)
     await regenerate(n)
+  }
+
+  // Azzera rotazione + presenze del giorno (le finali restano)
+  async function resetDay() {
+    if (!tournamentId) return
+    if (!window.confirm(`Azzerare rotazione e presenze del Day ${dayNumber}?\nLe finali NON vengono toccate.`)) return
+    setBusy(true)
+    try {
+      await supabase
+        .from('court_assignments')
+        .delete()
+        .eq('tournament_id', tournamentId)
+        .eq('day_number', dayNumber)
+        .neq('session_order', FINALS_SESSION_ORDER)
+      await Promise.all(
+        assignedReferees
+          .filter((r) => isPresent(r.id))
+          .map((r) => attendanceService.setPresent(tournamentId, r.id, dayNumber, SECTION, false))
+      )
+      setGiri([])
+      setNGiri(8)
+      setAttendanceMap((prev) => {
+        const next = { ...prev }
+        for (const id of Object.keys(next)) {
+          const refAtt = { ...next[id] }
+          delete refAtt[attendanceKey]
+          next[id] = refAtt
+        }
+        return next
+      })
+      toast.success('Rotazione e presenze azzerate')
+    } catch (err) {
+      console.error(err); toast.error(`Errore reset: ${err.message}`)
+    } finally { setBusy(false) }
   }
 
   // Cambio manuale arbitro su un campo
@@ -397,19 +459,34 @@ export default function Designations() {
 
       {tab === 'gironi' && (
         <div className="pb-24">
-          {/* Check-in presenti */}
+          {/* Check-in presenti — lista con interruttori */}
           <div className="px-4 py-3">
-            <div className="text-xs font-bold uppercase tracking-wide text-gray-500 mb-2">
-              Presenti · {presentRefs.length}/{assignedReferees.length}
+            <div className="flex items-center justify-between mb-2">
+              <div className="text-xs font-bold uppercase tracking-wide text-gray-500">
+                Presenti · {presentRefs.length}/{assignedReferees.length}
+              </div>
+              <div className="flex gap-2">
+                <button onClick={() => setAllPresence(true)} style={{ background: NAVY }}
+                  className="text-xs font-bold px-3 py-1 rounded-lg text-white">Tutti</button>
+                <button onClick={() => setAllPresence(false)}
+                  className="text-xs font-bold px-3 py-1 rounded-lg bg-white border border-gray-300 text-gray-600">Nessuno</button>
+              </div>
             </div>
-            <div className="flex flex-wrap gap-2">
-              {assignedReferees.map((r) => {
+            <div className="rounded-2xl bg-white border border-gray-200 divide-y divide-gray-100 overflow-auto max-h-[55vh]">
+              {assignedReferees.length === 0 && (
+                <div className="px-4 py-4 text-sm text-gray-500">Nessun arbitro assegnato a questo torneo.</div>
+              )}
+              {sortedReferees.map((r) => {
                 const on = isPresent(r.id)
                 return (
                   <button key={r.id} onClick={() => togglePresence(r.id)}
-                    style={on ? { background: NAVY, color: '#fff', borderColor: NAVY } : {}}
-                    className={`rounded-full px-3 py-1.5 text-sm font-semibold border ${on ? '' : 'bg-white border-gray-300 text-gray-600'}`}>
-                    {refereeName(r)}
+                    className="w-full flex items-center justify-between px-4 py-2.5 text-left active:bg-gray-50">
+                    <span className={`text-base font-semibold ${on ? 'text-gray-900' : 'text-gray-400'}`}>{refereeName(r)}</span>
+                    <span className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors shrink-0"
+                      style={{ background: on ? NAVY : '#D1D5DB' }}>
+                      <span className="inline-block h-5 w-5 rounded-full bg-white shadow transition-transform"
+                        style={{ transform: on ? 'translateX(22px)' : 'translateX(2px)' }} />
+                    </span>
                   </button>
                 )
               })}
@@ -424,6 +501,14 @@ export default function Designations() {
             </button>
             <button onClick={() => changeGiriCount(-1)} className="rounded-xl bg-white border border-gray-300 text-gray-600 w-12 h-12 flex items-center justify-center"><Minus size={20} /></button>
             <button onClick={() => changeGiriCount(1)} style={{ background: NAVY }} className="rounded-xl text-white w-12 h-12 flex items-center justify-center"><Plus size={20} /></button>
+          </div>
+
+          {/* Azzera giorno */}
+          <div className="px-4 mt-2 flex justify-end">
+            <button onClick={resetDay} disabled={busy}
+              className="text-sm font-semibold text-red-600 flex items-center gap-1 disabled:opacity-50">
+              <RotateCcw size={14} /> Azzera giorno (rotazione + presenze)
+            </button>
           </div>
 
           {/* Giri */}

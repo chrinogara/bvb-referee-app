@@ -41,47 +41,66 @@ function scoreColorHex(s) {
 }
 
 // ─── Algoritmo rotazione GIRONI (2 ON / 2 OFF sfalsato + rimescolato) ────────
-// Decisione concordata: ogni arbitro lavora 2 giri di fila, poi riposa
-// (stile Heraklion), 1 arbitro per campo, 4 lavorano / 4 riposano (se >= 8),
-// tetto MAX_CONSEC=3 solo come sicurezza, rotazione campi, bench rimescolato/
-// bilanciato (chi ha riposato di più / ha meno match entra prima).
-const STINT = 2 // giri consecutivi prima della pausa (2 ON / 2 OFF)
-function generateGiri(refIds, nCourts, nGiri) {
+// Ogni arbitro lavora 2 round di fila, poi riposa; 1 arbitro per campo; bench
+// rimescolato/bilanciato (chi ha riposato di più / ha meno match entra prima);
+// tetto MAX_CONSEC=3 di sicurezza; rotazione campi. La generazione avviene a
+// blocchi di 2 round e PROSEGUE dalla situazione esistente (replay dei round
+// già creati), così rigenerando si continua senza ripartire da capo.
+const STINT = 2
+
+function makeState(refIds, nCourts) {
   const REFS = [...refIds]
   const NC = Math.min(nCourts, REFS.length)
   const consec = {}, rested = {}, total = {}, lastCourt = {}
   REFS.forEach((r) => { consec[r] = 0; rested[r] = 99; total[r] = 0; lastCourt[r] = null })
-  // sfalsamento iniziale: i primi due partono "a metà ciclo", così i cambi
-  // non avvengono tutti nello stesso giro
-  if (REFS[0]) consec[REFS[0]] = 1
-  if (REFS[1]) consec[REFS[1]] = 1
-  let prevWorking = []
+  return { REFS, NC, consec, rested, total, lastCourt, prevWorking: [] }
+}
 
-  const giri = []
-  for (let g = 0; g < nGiri; g++) {
-    const stay = prevWorking.filter((r) => consec[r] < STINT && consec[r] < MAX_CONSEC)
-    const free = Math.max(0, NC - stay.length)
-    const bench = REFS.filter((r) => !stay.includes(r))
-    bench.sort((a, b) => (rested[b] - rested[a]) || (total[a] - total[b]) || (Math.random() - 0.5))
-    const working = [...stay, ...bench.slice(0, free)]
-    const resting = REFS.filter((r) => !working.includes(r))
+// Applica un round già noto (per il replay dello storico)
+function applyRound(state, courtsArr) {
+  const { REFS, consec, rested, total, lastCourt } = state
+  const working = courtsArr.filter((r) => r != null)
+  courtsArr.forEach((r, c) => {
+    if (r != null) { consec[r] = (consec[r] || 0) + 1; rested[r] = 0; total[r] = (total[r] || 0) + 1; lastCourt[r] = c }
+  })
+  REFS.forEach((r) => { if (!working.includes(r)) { consec[r] = 0; rested[r] = (rested[r] || 0) + 1 } })
+  state.prevWorking = working
+}
 
-    const courtsArr = new Array(NC).fill(null)
-    const avail = Array.from({ length: NC }, (_, i) => i)
-    for (const r of [...working].sort(() => Math.random() - 0.5)) {
-      const prefer = avail.filter((c) => c !== lastCourt[r])
-      const c = (prefer.length ? prefer : avail)[0]
-      courtsArr[c] = r
-      avail.splice(avail.indexOf(c), 1)
-    }
-    courtsArr.forEach((r, c) => {
-      if (r != null) { consec[r] = (consec[r] || 0) + 1; rested[r] = 0; total[r] = (total[r] || 0) + 1; lastCourt[r] = c }
-    })
-    resting.forEach((r) => { consec[r] = 0; rested[r] = (rested[r] || 0) + 1 })
-    giri.push({ courts: courtsArr, rest: resting })
-    prevWorking = working
+// Calcola il round successivo dalla situazione corrente
+function nextRound(state) {
+  const { REFS, NC, consec, rested, total, lastCourt, prevWorking } = state
+  const stay = prevWorking.filter((r) => consec[r] < STINT && consec[r] < MAX_CONSEC)
+  const free = Math.max(0, NC - stay.length)
+  const bench = REFS.filter((r) => !stay.includes(r))
+  bench.sort((a, b) => (rested[b] - rested[a]) || (total[a] - total[b]) || (Math.random() - 0.5))
+  const working = [...stay, ...bench.slice(0, free)]
+
+  const courtsArr = new Array(NC).fill(null)
+  const avail = Array.from({ length: NC }, (_, i) => i)
+  for (const r of [...working].sort(() => Math.random() - 0.5)) {
+    const prefer = avail.filter((c) => c !== lastCourt[r])
+    const c = (prefer.length ? prefer : avail)[0]
+    courtsArr[c] = r
+    avail.splice(avail.indexOf(c), 1)
   }
-  return giri
+  applyRound(state, courtsArr)
+  return { courts: courtsArr, rest: REFS.filter((r) => !courtsArr.includes(r)) }
+}
+
+// Genera `count` round; se `existing` ha già dei round, prosegue da lì.
+function genGiri(refIds, nCourts, count, existing = []) {
+  const state = makeState(refIds, nCourts)
+  if (existing.length === 0) {
+    // sfalsamento iniziale: i primi due partono "a metà ciclo"
+    if (state.REFS[0]) state.consec[state.REFS[0]] = 1
+    if (state.REFS[1]) state.consec[state.REFS[1]] = 1
+  } else {
+    for (const g of existing) applyRound(state, g.courts)
+  }
+  const out = []
+  for (let i = 0; i < count; i++) out.push(nextRound(state))
+  return out
 }
 
 // ─── Finali snake bilanciato (#1+#4 maschile, #2+#3 femminile, più alto = R1) ─
@@ -277,23 +296,35 @@ export default function Designations() {
     }
   }
 
-  async function regenerate(n = nGiri) {
+  // Genera/continua 2 round alla volta (prosegue dalla situazione esistente)
+  async function genNext() {
     if (rosterIds.length === 0) { toast.error('Segna prima gli arbitri presenti'); return }
     setBusy(true)
     try {
-      const next = generateGiri(rosterIds, courts.length, n)
+      const add = genGiri(rosterIds, courts.length, 2, giri)
+      const next = [...giri, ...add]
       setGiri(next)
-      setNGiri(n)
+      setNGiri(next.length)
       await persistGiri(next)
-      toast.success('Rotazione generata e salvata')
+      toast.success('2 round generati')
     } catch (err) {
       console.error(err); toast.error(`Errore salvataggio: ${err.message}`)
     } finally { setBusy(false) }
   }
 
-  async function changeGiriCount(delta) {
-    const n = Math.max(1, nGiri + delta)
-    await regenerate(n)
+  // Rimuove gli ultimi 2 round
+  async function removeLastTwo() {
+    if (giri.length === 0) return
+    setBusy(true)
+    try {
+      const next = giri.slice(0, Math.max(0, giri.length - 2))
+      setGiri(next)
+      setNGiri(next.length)
+      await persistGiri(next)
+      toast.success('Ultimi 2 round rimossi')
+    } catch (err) {
+      console.error(err); toast.error(`Errore: ${err.message}`)
+    } finally { setBusy(false) }
   }
 
   // Azzera rotazione + presenze del giorno (le finali restano)
@@ -314,7 +345,7 @@ export default function Designations() {
           .map((r) => attendanceService.setPresent(tournamentId, r.id, dayNumber, SECTION, false))
       )
       setGiri([])
-      setNGiri(8)
+      setNGiri(0)
       setAttendanceMap((prev) => {
         const next = { ...prev }
         for (const id of Object.keys(next)) {
@@ -446,11 +477,33 @@ export default function Designations() {
     } catch (err) { toast.error(`PDF non riuscito: ${err.message}`) }
   }
 
-  // ─── Invio designazioni personali (WhatsApp, lingua scelta per arbitro) ────
+  // ─── Invio designazioni personali (WhatsApp, 2 round alla volta, lingua per arbitro) ──
+  const [blockIdx, setBlockIdx] = useState(0)
+  const blocks = useMemo(() => {
+    const out = []
+    for (let i = 0; i < giri.length; i += 2) {
+      out.push(Array.from({ length: Math.min(2, giri.length - i) }, (_, k) => i + k + 1))
+    }
+    return out
+  }, [giri.length])
+  useEffect(() => {
+    if (blockIdx > blocks.length - 1) setBlockIdx(Math.max(0, blocks.length - 1))
+  }, [blocks.length, blockIdx])
+  const currentRounds = blocks[blockIdx] || []
+
+  // Anteprima (per il coach) di cosa farà l'arbitro nei round del blocco
+  function blockPreview(refId) {
+    if (currentRounds.length === 0) return '—'
+    return currentRounds.map((r) => {
+      const ci = giri[r - 1]?.courts.findIndex((x) => x === refId)
+      return ci != null && ci >= 0 ? `R${r} ${courts[ci]}` : `R${r} riposo`
+    }).join(' · ')
+  }
+
   function sendPersonal(refId, lang) {
     const referee = refById[refId]
     if (!referee) return
-    sharePersonalToReferee({ referee, tournament, dayNumber, assignments: flatAssignments, lang })
+    sharePersonalToReferee({ referee, tournament, dayNumber, assignments: flatAssignments, lang, rounds: currentRounds })
   }
 
   // ─── Render ──────────────────────────────────────────────────────────────
@@ -519,12 +572,12 @@ export default function Designations() {
 
           {/* Azioni rotazione */}
           <div className="px-4 flex gap-2 items-center">
-            <button onClick={() => regenerate()} disabled={busy}
+            <button onClick={genNext} disabled={busy}
               style={{ background: ORANGE }} className="flex-1 rounded-xl text-white text-base font-bold py-3 shadow flex items-center justify-center gap-2 disabled:opacity-60">
-              <Shuffle size={18} /> {busy ? 'Genero…' : 'Rigenera rotazione'}
+              <Shuffle size={18} /> {busy ? 'Genero…' : (giri.length === 0 ? 'Genera primi 2 round' : 'Genera prossimi 2 round')}
             </button>
-            <button onClick={() => changeGiriCount(-1)} className="rounded-xl bg-white border border-gray-300 text-gray-600 w-12 h-12 flex items-center justify-center"><Minus size={20} /></button>
-            <button onClick={() => changeGiriCount(1)} style={{ background: NAVY }} className="rounded-xl text-white w-12 h-12 flex items-center justify-center"><Plus size={20} /></button>
+            <button onClick={removeLastTwo} disabled={busy || giri.length === 0} title="Rimuovi ultimi 2 round"
+              className="rounded-xl bg-white border border-gray-300 text-gray-600 w-12 h-12 flex items-center justify-center disabled:opacity-40"><Minus size={20} /></button>
           </div>
 
           {/* Azzera giorno */}
@@ -539,7 +592,7 @@ export default function Designations() {
           <div className="px-4 pt-3 space-y-3">
             {giri.length === 0 && (
               <div className="rounded-2xl bg-white border border-gray-200 p-6 text-center text-gray-500 text-sm">
-                Nessuna rotazione. Segna i presenti e tocca <b>Rigenera rotazione</b>.
+                Nessuna rotazione. Segna i presenti e tocca <b>Genera primi 2 round</b>.
               </div>
             )}
             {giri.map((g, gi) => {
@@ -611,21 +664,29 @@ export default function Designations() {
             </div>
           )}
 
-          {/* Designazioni personali — un messaggio WhatsApp per arbitro, lingua a scelta */}
+          {/* Designazioni personali — 2 round alla volta, lingua a scelta per arbitro */}
           {giri.length > 0 && (
             <div className="px-4 mt-4">
               <div className="text-sm font-bold uppercase tracking-wide text-gray-600 mb-1">Designazioni personali</div>
-              <div className="text-xs text-gray-400 mb-2">Tocca la lingua per inviare a quell'arbitro su WhatsApp</div>
+              <div className="text-xs text-gray-400 mb-2">Si inviano 2 round alla volta. Scegli il blocco, poi la lingua per ogni arbitro.</div>
+              <div className="flex flex-wrap gap-2 mb-3">
+                {blocks.map((b, i) => (
+                  <button key={i} onClick={() => setBlockIdx(i)}
+                    style={i === blockIdx ? { background: NAVY, color: '#fff' } : {}}
+                    className={`rounded-lg px-3 py-1.5 text-sm font-bold border ${i === blockIdx ? '' : 'bg-white border-gray-300 text-gray-600'}`}>
+                    Round {b[0]}{b.length > 1 ? `–${b[b.length - 1]}` : ''}
+                  </button>
+                ))}
+              </div>
               <div className="rounded-2xl bg-white border border-gray-200 divide-y divide-gray-100 overflow-hidden">
                 {rosterIds.map((id) => {
                   const r = refById[id]
-                  const n = load[id] || 0
                   const hasPhone = Boolean(r?.phone)
                   return (
                     <div key={id} className="flex items-center justify-between px-3 py-2.5 gap-2">
                       <div className="min-w-0">
                         <div className="text-base font-semibold truncate">{nameOf(id)}</div>
-                        <div className="text-xs text-gray-400">{n} {n === 1 ? 'partita' : 'partite'}{hasPhone ? '' : ' · nessun numero'}</div>
+                        <div className="text-xs text-gray-400 truncate">{blockPreview(id)}{hasPhone ? '' : ' · nessun numero'}</div>
                       </div>
                       <div className="flex gap-1 shrink-0">
                         {['en', 'fr', 'nl'].map((lng) => (

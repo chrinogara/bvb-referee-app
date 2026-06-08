@@ -305,11 +305,11 @@ function CriterionCard({ criterion, score, repeat, note, onScore, onRepeat, onNo
           className={cn(
             'w-full flex items-center gap-2 px-3 py-2.5 rounded-xl border text-sm font-medium transition-all duration-150',
             repeat
-              ? 'bg-amber-500/20 border-amber-500/40 text-amber-400'
+              ? 'bg-amber-500/20 border-amber-500/40 text-amber-700'
               : 'bg-gray-50 border-gray-200 text-gray-500 hover:border-gray-300 hover:text-gray-700'
           )}
         >
-          <AlertTriangle size={14} className={repeat ? 'text-amber-400' : 'text-gray-600'} />
+          <AlertTriangle size={14} className={repeat ? 'text-amber-600' : 'text-gray-600'} />
           <span>Repeated Fault</span>
           {repeat && (
             <span className="ml-auto text-xs text-amber-500 font-normal">
@@ -368,7 +368,7 @@ function LiveScoreBar({ scores, repeats }) {
   const grade = result.overall > 0 ? getGrade(result.overall) : null
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-40 bg-gray-50/95 backdrop-blur-md border-t border-gray-200 px-4 py-3 safe-area-pb">
+    <div className="fixed bottom-16 lg:bottom-0 left-0 right-0 z-30 bg-white/95 backdrop-blur-md border-t border-gray-200 px-4 py-3 safe-area-pb shadow-[0_-4px_20px_rgba(0,0,0,0.06)]">
       <div className="max-w-lg mx-auto flex items-center gap-3">
         {/* Progress dots */}
         <div className="flex gap-1 shrink-0">
@@ -377,7 +377,7 @@ function LiveScoreBar({ scores, repeats }) {
               key={i}
               className={cn(
                 'w-1.5 h-1.5 rounded-full transition-colors',
-                i <= filledCount ? 'bg-[#E85D26]' : 'bg-white/15'
+                i <= filledCount ? 'bg-[#E85D26]' : 'bg-gray-200'
               )}
             />
           ))}
@@ -389,7 +389,7 @@ function LiveScoreBar({ scores, repeats }) {
             {filledCount === 5 ? 'All criteria scored' : `${filledCount}/5 scored`}
           </p>
           {result.penalty > 0 && (
-            <p className="text-[10px] text-amber-400 font-medium">
+            <p className="text-[10px] text-amber-600 font-medium">
               ⚠ −{result.penalty.toFixed(1)} repeat penalty
             </p>
           )}
@@ -399,7 +399,7 @@ function LiveScoreBar({ scores, repeats }) {
         {result.overall > 0 && grade ? (
           <div className="flex items-center gap-2 shrink-0">
             <div className="text-right">
-              <p className={cn('text-xl font-black', grade.color)}>
+              <p className={cn('font-display text-2xl font-black', grade.color)}>
                 {result.overall.toFixed(1)}
               </p>
               <p className={cn('text-[10px] font-bold leading-none', grade.color)}>
@@ -409,7 +409,7 @@ function LiveScoreBar({ scores, repeats }) {
           </div>
         ) : (
           <div className="text-right shrink-0">
-            <p className="text-xl font-black text-gray-600">—</p>
+            <p className="font-display text-2xl font-black text-gray-300">—</p>
             <p className="text-[10px] text-gray-600">No score</p>
           </div>
         )}
@@ -609,13 +609,13 @@ export default function Evaluate() {
       />
 
       {/* Scrollable content — padded for sticky bottom bar */}
-      <div className="flex-1 overflow-y-auto pb-24">
+      <div className="flex-1 overflow-y-auto pb-40 lg:pb-28">
         <div className="max-w-lg mx-auto px-4 py-5 space-y-4">
 
           {/* ── Section 1: Match Context ──────────────────────────────────── */}
           <Card>
             <CardHeader className="py-3">
-              <h2 className="text-xs font-bold uppercase tracking-widest text-gray-500">
+              <h2 className="font-display text-base font-bold uppercase tracking-wide text-[#2D3270]">
                 Match Context
               </h2>
             </CardHeader>
@@ -645,9 +645,7 @@ export default function Evaluate() {
                       className={cn(
                         'py-3 rounded-xl text-base font-bold transition-all duration-150',
                         role === r
-                          ? r === 'R1'
-                            ? 'bg-purple-500/25 text-purple-300 border border-purple-500/50 ring-2 ring-purple-500/30 scale-[1.02]'
-                            : 'bg-blue-500/25 text-blue-300 border border-blue-500/50 ring-2 ring-blue-500/30 scale-[1.02]'
+                          ? 'bg-[#2D3270] text-white border border-[#2D3270] ring-2 ring-[#2D3270]/30 scale-[1.02]'
                           : 'bg-gray-50 text-gray-500 border border-gray-200 hover:border-gray-300 hover:text-gray-700'
                       )}
                     >
@@ -720,7 +718,7 @@ export default function Evaluate() {
 
           {/* ── Section 2: The 5 Criteria ─────────────────────────────────── */}
           <div>
-            <h2 className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-3 px-1">
+            <h2 className="font-display text-base font-bold uppercase tracking-wide text-[#2D3270] mb-3 px-1">
               Evaluation Criteria
             </h2>
             <div className="space-y-3">
@@ -743,7 +741,7 @@ export default function Evaluate() {
           {/* ── Section 4: General Notes ──────────────────────────────────── */}
           <Card>
             <CardHeader className="py-3">
-              <h2 className="text-xs font-bold uppercase tracking-widest text-gray-500">
+              <h2 className="font-display text-base font-bold uppercase tracking-wide text-[#2D3270]">
                 General Feedback
               </h2>
             </CardHeader>
@@ -791,7 +789,7 @@ export default function Evaluate() {
                 <div className="flex items-center gap-3 p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/25">
                   <CheckCircle size={22} className="text-emerald-400 shrink-0" />
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-emerald-400">Saved successfully</p>
+                    <p className="text-sm font-semibold text-emerald-700">Saved successfully</p>
                     {savedEval.overall_score != null && (
                       <p className="text-xs text-emerald-600 mt-0.5">
                         Score: {savedEval.overall_score.toFixed(1)} · {savedEval.grade}

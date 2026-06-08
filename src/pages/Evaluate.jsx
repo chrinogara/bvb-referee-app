@@ -6,6 +6,7 @@ import { useEvaluations } from '../hooks/useEvaluations'
 import { useAppStore } from '../store/appStore'
 import { CRITERIA, computeScore, SCORE_LABELS, getGrade } from '../lib/scoring'
 import { generateEvaluationPDF, downloadPDF, sharePDFWhatsApp } from '../lib/pdf'
+import { useDocLanguage } from '../context/LanguageGate'
 import { cn, refereeName, roleColor, scoreColor } from '../lib/utils'
 import { Header } from '../components/layout/Header'
 import { Button } from '../components/ui/Button'
@@ -423,6 +424,7 @@ function LiveScoreBar({ scores, repeats }) {
 export default function Evaluate() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
+  const { requestLanguage } = useDocLanguage()
 
   const { referees, loading: refLoading } = useReferees()
   const { tournaments } = useTournaments()
@@ -592,6 +594,28 @@ export default function Evaluate() {
     const date = new Date().toISOString().slice(0, 10)
     return `BVB_Eval_${name}_${date}.pdf`
   }, [referees, refereeId])
+
+  // ── Export PDF in scelta lingua (popup EN/FR/NL prima di scaricare/condividere) ─
+  async function exportPdf(kind) {
+    const lang = await requestLanguage()
+    if (!lang) return
+    try {
+      const referee = referees.find((r) => r.id === refereeId)
+      const tournament = tournaments.find((t) => t.id === tournamentId)
+      const blob = await generateEvaluationPDF(
+        savedEval,
+        referee,
+        { match_description: courtNumber ? `Court ${courtNumber}` : null },
+        tournament,
+        lang
+      )
+      if (kind === 'share') sharePDFWhatsApp(blob, pdfFilename)
+      else downloadPDF(blob, pdfFilename)
+    } catch (err) {
+      console.error('PDF export failed:', err)
+      toast.error('PDF generation failed')
+    }
+  }
 
   // ── Sorted tournaments ────────────────────────────────────────────────────────
   const sortedTournaments = useMemo(
@@ -810,7 +834,7 @@ export default function Evaluate() {
                       variant="navy"
                       size="md"
                       className="w-full py-3"
-                      onClick={() => downloadPDF(pdfBlob, pdfFilename)}
+                      onClick={() => exportPdf('download')}
                     >
                       <Download size={16} />
                       Download PDF
@@ -819,7 +843,7 @@ export default function Evaluate() {
                       variant="success"
                       size="md"
                       className="w-full py-3"
-                      onClick={() => sharePDFWhatsApp(pdfBlob, pdfFilename)}
+                      onClick={() => exportPdf('share')}
                     >
                       <Share2 size={16} />
                       Share via WhatsApp

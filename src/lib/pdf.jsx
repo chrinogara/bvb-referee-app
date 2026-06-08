@@ -183,7 +183,41 @@ const styles = StyleSheet.create({
   },
 })
 
-function EvaluationDocument({ evaluation, referee, match, tournament }) {
+// ─── PDF i18n: etichette fisse EN/FR/NL ──────────────────────────────────────
+// NB: i nomi dei 5 criteri (FIVB) e i grade (EXCELLENT…) restano in inglese:
+// sono terminologia ufficiale che gli arbitri riconoscono.
+const PDF_T = {
+  en: {
+    evalTitle: 'BVB REFEREE EVALUATION REPORT', referee: 'Referee', role: 'Role',
+    tournament: 'Tournament', date: 'Date', court: 'Court', day: 'Day',
+    criteriaScores: 'Criteria Scores', repeatedFault: '⚠ Repeated Fault',
+    repeatPenalty: 'Repeat fault penalty', observations: 'Observations per Criterion',
+    generalFeedback: 'General Feedback', generated: 'Generated',
+    desigTitle: 'BVB REFEREE DESIGNATIONS', pattern: 'Pattern', sessions: 'sessions',
+    pause: '⏸ Pause',
+  },
+  fr: {
+    evalTitle: "RAPPORT D'ÉVALUATION ARBITRE BVB", referee: 'Arbitre', role: 'Rôle',
+    tournament: 'Tournoi', date: 'Date', court: 'Terrain', day: 'Jour',
+    criteriaScores: 'Scores par critère', repeatedFault: '⚠ Faute répétée',
+    repeatPenalty: 'Pénalité faute répétée', observations: 'Observations par critère',
+    generalFeedback: 'Commentaire général', generated: 'Généré le',
+    desigTitle: 'DÉSIGNATIONS ARBITRES BVB', pattern: 'Rotation', sessions: 'sessions',
+    pause: '⏸ Pause',
+  },
+  nl: {
+    evalTitle: 'BVB SCHEIDSRECHTER EVALUATIERAPPORT', referee: 'Scheidsrechter', role: 'Rol',
+    tournament: 'Toernooi', date: 'Datum', court: 'Veld', day: 'Dag',
+    criteriaScores: 'Scores per criterium', repeatedFault: '⚠ Herhaalde fout',
+    repeatPenalty: 'Strafpunt herhaalde fout', observations: 'Observaties per criterium',
+    generalFeedback: 'Algemene feedback', generated: 'Gegenereerd',
+    desigTitle: 'BVB SCHEIDSRECHTER AANSTELLINGEN', pattern: 'Rotatie', sessions: 'sessies',
+    pause: '⏸ Pauze',
+  },
+}
+
+function EvaluationDocument({ evaluation, referee, match, tournament, lang = 'en' }) {
+  const t = PDF_T[lang] || PDF_T.en
   const grade = getGrade(evaluation.overall_score)
 
   const scoreForKey = (key) => {
@@ -226,39 +260,39 @@ function EvaluationDocument({ evaluation, referee, match, tournament }) {
       <Page size="A4" style={styles.page}>
         {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>BVB REFEREE EVALUATION REPORT</Text>
+          <Text style={styles.headerTitle}>{t.evalTitle}</Text>
           <Text style={styles.headerSubtitle}>Belgian Beach Tour 2026</Text>
           <View style={styles.headerAccent} />
         </View>
 
         {/* Match Info */}
         <View style={styles.infoRow}>
-          <Text style={styles.infoLabel}>Referee</Text>
+          <Text style={styles.infoLabel}>{t.referee}</Text>
           <Text style={styles.infoValue}>{refereeName(referee)}</Text>
-          <Text style={styles.infoLabel}>Role</Text>
+          <Text style={styles.infoLabel}>{t.role}</Text>
           <Text style={styles.infoValue}>{evaluation.role}</Text>
         </View>
         <View style={styles.infoRow}>
-          <Text style={styles.infoLabel}>Tournament</Text>
+          <Text style={styles.infoLabel}>{t.tournament}</Text>
           <Text style={styles.infoValue}>{tournament?.name || '—'}</Text>
-          <Text style={styles.infoLabel}>Date</Text>
+          <Text style={styles.infoLabel}>{t.date}</Text>
           <Text style={styles.infoValue}>
             {formatDateTime(evaluation.evaluated_at)}
           </Text>
         </View>
         <View style={styles.infoRow}>
-          <Text style={styles.infoLabel}>Court</Text>
+          <Text style={styles.infoLabel}>{t.court}</Text>
           <Text style={styles.infoValue}>
             {match?.match_description || '—'}
           </Text>
-          <Text style={styles.infoLabel}>Day</Text>
+          <Text style={styles.infoLabel}>{t.day}</Text>
           <Text style={styles.infoValue}>
-            {evaluation.day_number ? `Day ${evaluation.day_number}` : '—'}
+            {evaluation.day_number ? `${t.day} ${evaluation.day_number}` : '—'}
           </Text>
         </View>
 
         {/* Criteria Scores */}
-        <Text style={styles.sectionTitle}>Criteria Scores</Text>
+        <Text style={styles.sectionTitle}>{t.criteriaScores}</Text>
         {CRITERIA.map((c, i) => (
           <View
             key={c.key}
@@ -283,7 +317,7 @@ function EvaluationDocument({ evaluation, referee, match, tournament }) {
               {scoreForKey(c.key) ?? '—'}/5
             </Text>
             {repeatForKey(c.key) && (
-              <Text style={styles.criteriaRepeat}>⚠ Repeated Fault</Text>
+              <Text style={styles.criteriaRepeat}>{t.repeatedFault}</Text>
             )}
           </View>
         ))}
@@ -297,7 +331,7 @@ function EvaluationDocument({ evaluation, referee, match, tournament }) {
             <Text style={styles.summaryGrade}>{grade.grade}</Text>
             {evaluation.repeat_penalty > 0 && (
               <Text style={styles.summaryPenalty}>
-                Repeat fault penalty: -{evaluation.repeat_penalty?.toFixed(1)}
+                {t.repeatPenalty}: -{evaluation.repeat_penalty?.toFixed(1)}
               </Text>
             )}
           </View>
@@ -306,7 +340,7 @@ function EvaluationDocument({ evaluation, referee, match, tournament }) {
         {/* Observations */}
         {hasNotes && (
           <>
-            <Text style={styles.sectionTitle}>Observations per Criterion</Text>
+            <Text style={styles.sectionTitle}>{t.observations}</Text>
             {CRITERIA.map((c) => {
               const note = noteForKey(c.key)
               if (!note) return null
@@ -323,7 +357,7 @@ function EvaluationDocument({ evaluation, referee, match, tournament }) {
         {/* General Feedback */}
         {evaluation.general_notes && (
           <>
-            <Text style={styles.sectionTitle}>General Feedback</Text>
+            <Text style={styles.sectionTitle}>{t.generalFeedback}</Text>
             <Text style={styles.noteText}>{evaluation.general_notes}</Text>
           </>
         )}
@@ -339,7 +373,7 @@ function EvaluationDocument({ evaluation, referee, match, tournament }) {
             </Text>
           </View>
           <Text style={styles.footerText}>
-            Generated {formatDate(new Date())}
+            {t.generated} {formatDate(new Date())}
           </Text>
         </View>
       </Page>
@@ -450,35 +484,36 @@ const designationStyles = StyleSheet.create({
   pauseText: { color: MED_GRAY, fontStyle: 'italic', flex: 1 },
 })
 
-function DesignationDocument({ tournament, dayNumber, assignmentsByCourt, rotationPattern }) {
+function DesignationDocument({ tournament, dayNumber, assignmentsByCourt, rotationPattern, lang = 'en' }) {
+  const t = PDF_T[lang] || PDF_T.en
   return (
     <Document>
       <Page size="A4" style={designationStyles.page}>
         <View style={designationStyles.header}>
-          <Text style={designationStyles.headerTitle}>BVB REFEREE DESIGNATIONS</Text>
+          <Text style={designationStyles.headerTitle}>{t.desigTitle}</Text>
           <Text style={designationStyles.headerSubtitle}>
-            {tournament?.name || 'Tournament'} — Day {dayNumber}
+            {tournament?.name || 'Tournament'} — {t.day} {dayNumber}
           </Text>
           <View style={designationStyles.headerAccent} />
         </View>
 
         <View style={designationStyles.meta}>
           <View style={designationStyles.metaItem}>
-            <Text style={designationStyles.metaLabel}>Tournament</Text>
+            <Text style={designationStyles.metaLabel}>{t.tournament}</Text>
             <Text style={designationStyles.metaValue}>{tournament?.name || '—'}</Text>
           </View>
           <View style={designationStyles.metaItem}>
-            <Text style={designationStyles.metaLabel}>Date</Text>
+            <Text style={designationStyles.metaLabel}>{t.date}</Text>
             <Text style={designationStyles.metaValue}>
               {tournament?.start_date ? formatDate(tournament.start_date) : '—'}
             </Text>
           </View>
           <View style={designationStyles.metaItem}>
-            <Text style={designationStyles.metaLabel}>Day</Text>
-            <Text style={designationStyles.metaValue}>Day {dayNumber}</Text>
+            <Text style={designationStyles.metaLabel}>{t.day}</Text>
+            <Text style={designationStyles.metaValue}>{t.day} {dayNumber}</Text>
           </View>
           <View style={designationStyles.metaItem}>
-            <Text style={designationStyles.metaLabel}>Pattern</Text>
+            <Text style={designationStyles.metaLabel}>{t.pattern}</Text>
             <Text style={designationStyles.metaValue}>{rotationPattern || '—'}</Text>
           </View>
         </View>
@@ -487,7 +522,7 @@ function DesignationDocument({ tournament, dayNumber, assignmentsByCourt, rotati
           <View key={court} style={designationStyles.courtBlock} wrap={false}>
             <View style={designationStyles.courtHeader}>
               <Text style={designationStyles.courtTitle}>{court}</Text>
-              <Text style={designationStyles.courtAccent}>{sessions.length} sessions</Text>
+              <Text style={designationStyles.courtAccent}>{sessions.length} {t.sessions}</Text>
             </View>
             {sessions
               .sort((a, b) => a.session_order - b.session_order)
@@ -501,7 +536,7 @@ function DesignationDocument({ tournament, dayNumber, assignmentsByCourt, rotati
                 >
                   <Text style={designationStyles.sessionLabel}>M{s.session_order}</Text>
                   {s.role === 'PAUSE' ? (
-                    <Text style={designationStyles.pauseText}>⏸ Pause</Text>
+                    <Text style={designationStyles.pauseText}>{t.pause}</Text>
                   ) : (
                     <>
                       <Text style={designationStyles.refName}>
@@ -524,7 +559,7 @@ function DesignationDocument({ tournament, dayNumber, assignmentsByCourt, rotati
               CEV Referee Coach
             </Text>
           </View>
-          <Text style={styles.footerText}>Generated {formatDate(new Date())}</Text>
+          <Text style={styles.footerText}>{t.generated} {formatDate(new Date())}</Text>
         </View>
       </Page>
     </Document>
@@ -992,6 +1027,7 @@ export async function generateDesignationPDF({
   dayNumber,
   assignments,
   rotationPattern,
+  lang = 'en',
 }) {
   // Group by court
   const byCourt = {}
@@ -1019,6 +1055,7 @@ export async function generateDesignationPDF({
       dayNumber={dayNumber}
       assignmentsByCourt={sorted}
       rotationPattern={rotationPattern}
+      lang={lang}
     />
   ).toBlob()
   return blob
@@ -1026,13 +1063,14 @@ export async function generateDesignationPDF({
 
 // ─── Evaluation PDF (existing) ────────────────────────────────────────────────
 
-export async function generateEvaluationPDF(evaluation, referee, match, tournament) {
+export async function generateEvaluationPDF(evaluation, referee, match, tournament, lang = 'en') {
   const blob = await pdf(
     <EvaluationDocument
       evaluation={evaluation}
       referee={referee}
       match={match}
       tournament={tournament}
+      lang={lang}
     />
   ).toBlob()
   return blob

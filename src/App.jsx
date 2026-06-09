@@ -3,6 +3,8 @@ import { Sidebar } from './components/layout/Sidebar'
 import { BottomNav } from './components/layout/BottomNav'
 import { ToastContainer } from './components/ui/Toast'
 import { LanguageGateProvider } from './context/LanguageGate'
+import { OfflineBanner } from './components/OfflineBanner'
+import { useOfflineSync } from './hooks/useOfflineSync'
 
 import Dashboard from './pages/Dashboard'
 import Referees from './pages/Referees'
@@ -18,9 +20,15 @@ import RcReport from './pages/RcReport'
 import Assistant from './pages/Assistant'
 
 export default function App() {
+  // Sincronizzazione automatica draft offline al ritorno online
+  useOfflineSync()
+
   return (
     <BrowserRouter>
       <LanguageGateProvider>
+        {/* Banner offline fisso in cima */}
+        <OfflineBanner />
+
         <div className="flex h-screen bg-white text-gray-900 overflow-hidden">
           <Sidebar />
 

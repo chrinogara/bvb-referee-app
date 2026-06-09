@@ -6,6 +6,7 @@ import { useEvaluations } from '../hooks/useEvaluations'
 import { useAppStore } from '../store/appStore'
 import { CRITERIA, computeScore, SCORE_LABELS, getGrade } from '../lib/scoring'
 import { generateEvaluationPDF, downloadPDF, sharePDFWhatsApp } from '../lib/pdf'
+import { shareEvaluationToReferee } from '../lib/whatsapp'
 import { useDocLanguage } from '../context/LanguageGate'
 import { cn, refereeName, roleColor, scoreColor } from '../lib/utils'
 import { Header } from '../components/layout/Header'
@@ -617,6 +618,18 @@ export default function Evaluate() {
     }
   }
 
+  // Arbitro selezionato (per invio valutazione al suo numero)
+  const selectedReferee = referees.find((r) => r.id === refereeId)
+
+  // ── Invia il riepilogo valutazione su WhatsApp AL NUMERO dell'arbitro valutato ──
+  async function sendEvalToReferee() {
+    const lang = await requestLanguage()
+    if (!lang) return
+    const tournament = tournaments.find((t) => t.id === tournamentId)
+    if (!selectedReferee) { toast.error('Referee not found'); return }
+    shareEvaluationToReferee({ referee: selectedReferee, evaluation: savedEval, tournament, lang })
+  }
+
   // ── Sorted tournaments ────────────────────────────────────────────────────────
   const sortedTournaments = useMemo(
     () => [...tournaments].sort((a, b) => new Date(b.start_date) - new Date(a.start_date)),
@@ -829,25 +842,41 @@ export default function Evaluate() {
                     Generating PDF…
                   </div>
                 ) : pdfBlob ? (
-                  <div className="grid grid-cols-2 gap-2">
-                    <Button
-                      variant="navy"
-                      size="md"
-                      className="w-full py-3"
-                      onClick={() => exportPdf('download')}
-                    >
-                      <Download size={16} />
-                      Download PDF
-                    </Button>
+                  <div className="space-y-2">
+                    <div className="grid grid-cols-2 gap-2">
+                      <Button
+                        variant="navy"
+                        size="md"
+                        className="w-full py-3"
+                        onClick={() => exportPdf('download')}
+                      >
+                        <Download size={16} />
+                        Download PDF
+                      </Button>
+                      <Button
+                        variant="success"
+                        size="md"
+                        className="w-full py-3"
+                        onClick={() => exportPdf('share')}
+                      >
+                        <Share2 size={16} />
+                        Condividi PDF
+                      </Button>
+                    </div>
                     <Button
                       variant="success"
                       size="md"
                       className="w-full py-3"
-                      onClick={() => exportPdf('share')}
+                      onClick={sendEvalToReferee}
                     >
                       <Share2 size={16} />
-                      Share via WhatsApp
+                      Invia valutazione all'arbitro
                     </Button>
+                    {selectedReferee && !selectedReferee.phone && (
+                      <p className="text-xs text-gray-400 text-center">
+                        Nessun numero salvato per {refereeName(selectedReferee)}: si aprirà WhatsApp per scegliere il contatto.
+                      </p>
+                    )}
                   </div>
                 ) : null}
 

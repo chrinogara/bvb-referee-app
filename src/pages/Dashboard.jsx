@@ -192,7 +192,7 @@ export default function Dashboard() {
             to="/evaluate"
             icon={ClipboardCheck}
             title="Valutazioni"
-            sub="Nuova / storico →"
+            sub="New / history →"
             gradient="linear-gradient(135deg, #E85D26, #C44D1E)"
           />
         </div>

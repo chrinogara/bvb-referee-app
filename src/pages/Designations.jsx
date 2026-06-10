@@ -298,7 +298,7 @@ export default function Designations() {
 
   // Genera/continua 2 round alla volta (prosegue dalla situazione esistente)
   async function genNext() {
-    if (rosterIds.length === 0) { toast.error('Segna prima gli arbitri presenti'); return }
+    if (rosterIds.length === 0) { toast.error('Mark present referees first'); return }
     setBusy(true)
     try {
       const add = genGiri(rosterIds, courts.length, 2, giri)
@@ -540,18 +540,18 @@ export default function Designations() {
           <div className="px-4 py-3">
             <div className="flex items-center justify-between mb-2">
               <div className="text-xs font-bold uppercase tracking-wide text-gray-500">
-                Presenti · {presentRefs.length}/{assignedReferees.length}
+                Attendance · {presentRefs.length}/{assignedReferees.length}
               </div>
               <div className="flex gap-2">
                 <button onClick={() => setAllPresence(true)} style={{ background: NAVY }}
-                  className="text-xs font-bold px-3 py-1 rounded-lg text-white">Tutti</button>
+                  className="text-xs font-bold px-3 py-1 rounded-lg text-white">All</button>
                 <button onClick={() => setAllPresence(false)}
-                  className="text-xs font-bold px-3 py-1 rounded-lg bg-white border border-gray-300 text-gray-600">Nessuno</button>
+                  className="text-xs font-bold px-3 py-1 rounded-lg bg-white border border-gray-300 text-gray-600">None</button>
               </div>
             </div>
             <div className="rounded-2xl bg-white border border-gray-200 divide-y divide-gray-100 overflow-auto max-h-[55vh]">
               {assignedReferees.length === 0 && (
-                <div className="px-4 py-4 text-sm text-gray-500">Nessun arbitro assegnato a questo torneo.</div>
+                <div className="px-4 py-4 text-sm text-gray-500">No referees assigned to this tournament.</div>
               )}
               {sortedReferees.map((r) => {
                 const on = isPresent(r.id)
@@ -574,9 +574,9 @@ export default function Designations() {
           <div className="px-4 flex gap-2 items-center">
             <button onClick={genNext} disabled={busy}
               style={{ background: ORANGE }} className="flex-1 rounded-xl text-white text-base font-bold py-3 shadow flex items-center justify-center gap-2 disabled:opacity-60">
-              <Shuffle size={18} /> {busy ? 'Genero…' : (giri.length === 0 ? 'Genera primi 2 round' : 'Genera prossimi 2 round')}
+              <Shuffle size={18} /> {busy ? 'Generating…' : (giri.length === 0 ? 'Generate first 2 rounds' : 'Generate next 2 rounds')}
             </button>
-            <button onClick={removeLastTwo} disabled={busy || giri.length === 0} title="Rimuovi ultimi 2 round"
+            <button onClick={removeLastTwo} disabled={busy || giri.length === 0} title="Remove last 2 rounds"
               className="rounded-xl bg-white border border-gray-300 text-gray-600 w-12 h-12 flex items-center justify-center disabled:opacity-40"><Minus size={20} /></button>
           </div>
 
@@ -584,7 +584,7 @@ export default function Designations() {
           <div className="px-4 mt-2 flex justify-end">
             <button onClick={resetDay} disabled={busy}
               className="text-sm font-semibold text-red-600 flex items-center gap-1 disabled:opacity-50">
-              <RotateCcw size={14} /> Azzera giorno (rotazione + presenze)
+              <RotateCcw size={14} /> Reset day (rotation + attendance)
             </button>
           </div>
 
@@ -592,7 +592,7 @@ export default function Designations() {
           <div className="px-4 pt-3 space-y-3">
             {giri.length === 0 && (
               <div className="rounded-2xl bg-white border border-gray-200 p-6 text-center text-gray-500 text-sm">
-                Nessuna rotazione. Segna i presenti e tocca <b>Genera primi 2 round</b>.
+                Mark present referees and tap <b>Generate first 2 rounds</b>.
               </div>
             )}
             {giri.map((g, gi) => {
@@ -668,7 +668,7 @@ export default function Designations() {
           {giri.length > 0 && (
             <div className="px-4 mt-4">
               <div className="text-sm font-bold uppercase tracking-wide text-gray-600 mb-1">Designazioni personali</div>
-              <div className="text-xs text-gray-400 mb-2">Si inviano 2 round alla volta. Scegli il blocco, poi la lingua per ogni arbitro.</div>
+              <div className="text-xs text-gray-400 mb-2">Rounds are sent in blocks of 2. Choose the block, then the language for each referee.</div>
               <div className="flex flex-wrap gap-2 mb-3">
                 {blocks.map((b, i) => (
                   <button key={i} onClick={() => setBlockIdx(i)}
@@ -766,14 +766,14 @@ export default function Designations() {
             {picker.mode === 'court' ? (
               <>
                 <div className="text-lg font-bold uppercase mb-1">Round {picker.giro + 1} · {courts[picker.court]}</div>
-                <div className="text-sm text-gray-500 mb-3">Scegli l'arbitro per questo campo</div>
+                <div className="text-sm text-gray-500 mb-3">Select the referee for this court</div>
                 <div className="grid grid-cols-2 gap-2">
                   {rosterIds.map((id) => {
                     const onC = giri[picker.giro].courts.includes(id)
                     return (
                       <button key={id} onClick={() => swapCourt(picker.giro, picker.court, id)}
                         className={`rounded-xl py-3 px-3 text-base font-bold border-2 text-left ${onC ? 'border-emerald-300 bg-emerald-50' : 'border-gray-200 bg-gray-50'}`}>
-                        {nameOf(id)}<div className="text-xs font-medium text-gray-500">{onC ? 'già in campo' : 'in pausa'}{globalScoreById[id]?.avg_score != null ? ` · ★ ${globalScoreById[id].avg_score.toFixed(1)}` : ''}</div>
+                        {nameOf(id)}<div className="text-xs font-medium text-gray-500">{onC ? 'on court' : 'resting'}{globalScoreById[id]?.avg_score != null ? ` · ★ ${globalScoreById[id].avg_score.toFixed(1)}` : ''}</div>
                       </button>
                     )
                   })}
@@ -782,7 +782,7 @@ export default function Designations() {
             ) : (
               <>
                 <div className="text-lg font-bold uppercase mb-1">{picker.court} · {picker.role}</div>
-                <div className="text-sm text-gray-500 mb-3">Scegli l'arbitro (ordinati per valutazione)</div>
+                <div className="text-sm text-gray-500 mb-3">Select referee (ranked by score)</div>
                 <div className="grid grid-cols-2 gap-2">
                   {rankedList.map((r, i) => (
                     <button key={r.id} onClick={() => setFinalsSlot(picker.court, picker.role, r.id)}
@@ -793,7 +793,7 @@ export default function Designations() {
                   ))}
                   <button onClick={() => setFinalsSlot(picker.court, picker.role, '')}
                     className="rounded-xl py-3 px-3 text-base font-bold border-2 border-red-200 bg-red-50 text-red-600 col-span-2">
-                    ✕ Libera lo slot
+                    ✕ Clear slot
                   </button>
                 </div>
               </>

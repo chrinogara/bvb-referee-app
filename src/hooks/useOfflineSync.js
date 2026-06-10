@@ -4,15 +4,15 @@ import { useEvaluations } from './useEvaluations'
 import { toast } from '../components/ui/Toast'
 
 /**
- * Monitora lo stato di connessione e sincronizza automaticamente i draft offline
- * quando la rete ritorna (navigator.onLine → true).
- * 
- * Logica:
- * - Ascolta l'evento 'online' del browser
- * - Al ritorno online: itera evaluationDrafts e tenta di sincronizzare ognuno
- * - Se successo: rimuove il draft
- * - Se fallisce: lascia il draft e mostra errore
- * - Toast di stato: "Syncing..." → "X evaluations synced" o "Sync failed"
+ * Monitors connection state and automatically syncs offline evaluation drafts
+ * when the network returns (navigator.onLine → true).
+ *
+ * Logic:
+ * - Listens for the browser 'online' event
+ * - On reconnect: iterates evaluationDrafts and attempts to sync each one
+ * - Success: removes the draft from local store
+ * - Failure: keeps the draft and shows an error toast
+ * - Status toasts: "Syncing…" → "N evaluations synced" or "Sync failed"
  */
 export function useOfflineSync() {
   const { evaluationDrafts, removeDraft } = useAppStore()
@@ -21,60 +21,40 @@ export function useOfflineSync() {
 
   useEffect(() => {
     async function syncDrafts() {
-      if (isSyncingRef.current) return // Evita sync concorrenti
-      if (navigator.onLine === false) return // Non sincronizzare se offline
-
+      if (isSyncingRef.current) return          // prevent concurrent syncs
+      if (!navigator.onLine) return             // guard: still offline
       const drafts = Object.entries(evaluationDrafts)
-      if (drafts.length === 0) return // Niente da sincronizzare
+      if (drafts.length === 0) return           // nothing to sync
 
       isSyncingRef.current = true
-      const toastId = toast.info('Syncing evaluations...', 5000)
+      toast('Syncing evaluations…', 'info', 5000)
 
-      let syncedCount = 0
-      let failedCount = 0
-      const failedDrafts = []
+      let synced = 0
+      let failed = 0
 
       for (const [key, payload] of drafts) {
         try {
           await create(payload)
           removeDraft(key)
-          syncedCount++
+          synced++
         } catch (err) {
-          console.error(`[Offline Sync] Failed to sync draft ${key}:`, err)
-          failedCount++
-          failedDrafts.push(key)
+          console.error('[OfflineSync] Failed to sync draft', key, err)
+          failed++
         }
       }
 
       isSyncingRef.current = false
 
-      // Mostra risultato
-      if (failedCount === 0) {
-        toast.success(
-          syncedCount === 1
-            ? '1 evaluation synced'
-            : `${syncedCount} evaluations synced`,
-          4000
-        )
-      } else if (syncedCount === 0) {
-        toast.error(
-          `Sync failed: ${failedCount} evaluation${failedCount > 1 ? 's' : ''} still offline`,
-          4000
-        )
+      if (failed === 0) {
+        toast.success(synced === 1 ? '1 evaluation synced' : `${synced} evaluations synced`, 4000)
+      } else if (synced === 0) {
+        toast.error(`Sync failed — ${failed} evaluation${failed > 1 ? 's' : ''} still offline`, 4000)
       } else {
-        toast.warning(
-          `Synced ${syncedCount}, failed ${failedCount} — retry later`,
-          4000
-        )
+        toast.warning(`Synced ${synced}, failed ${failed} — will retry when reconnected`, 4000)
       }
     }
 
-    // Listener per evento 'online'
-    const handleOnline = () => {
-      syncDrafts()
-    }
-
-    window.addEventListener('online', handleOnline)
-    return () => window.removeEventListener('online', handleOnline)
+    window.addEventListener('online', syncDrafts)
+    return () => window.removeEventListener('online', syncDrafts)
   }, [evaluationDrafts, removeDraft, create])
 }

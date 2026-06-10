@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { CheckCircle, XCircle, AlertCircle } from 'lucide-react'
+import { CheckCircle, XCircle, AlertCircle, AlertTriangle } from 'lucide-react'
 import { cn } from '../../lib/utils'
 
 let toastQueue = []
@@ -19,9 +19,10 @@ export function toast(message, type = 'success', duration = 3500) {
   }, duration)
 }
 
-toast.success = (msg) => toast(msg, 'success')
-toast.error = (msg) => toast(msg, 'error')
-toast.info = (msg) => toast(msg, 'info')
+toast.success = (msg, duration) => toast(msg, 'success', duration)
+toast.error   = (msg, duration) => toast(msg, 'error',   duration)
+toast.info    = (msg, duration) => toast(msg, 'info',    duration)
+toast.warning = (msg, duration) => toast(msg, 'warning', duration)
 
 export function ToastContainer() {
   const [toasts, setToasts] = useState([])
@@ -33,15 +34,17 @@ export function ToastContainer() {
   }, [])
 
   const icons = {
-    success: <CheckCircle size={16} className="text-emerald-600 shrink-0" />,
-    error:   <XCircle size={16} className="text-red-600 shrink-0" />,
-    info:    <AlertCircle size={16} className="text-blue-600 shrink-0" />,
+    success: <CheckCircle   size={16} className="text-emerald-600 shrink-0" />,
+    error:   <XCircle       size={16} className="text-red-600 shrink-0" />,
+    info:    <AlertCircle   size={16} className="text-blue-600 shrink-0" />,
+    warning: <AlertTriangle size={16} className="text-amber-600 shrink-0" />,
   }
 
   const colors = {
     success: 'border-emerald-300 bg-emerald-50',
-    error:   'border-red-300 bg-red-50',
-    info:    'border-blue-300 bg-blue-50',
+    error:   'border-red-300   bg-red-50',
+    info:    'border-blue-300  bg-blue-50',
+    warning: 'border-amber-300 bg-amber-50',
   }
 
   return (

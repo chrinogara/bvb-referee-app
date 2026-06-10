@@ -860,7 +860,7 @@ export default function Evaluate() {
                         onClick={() => exportPdf('share')}
                       >
                         <Share2 size={16} />
-                        Condividi PDF
+                        Share PDF
                       </Button>
                     </div>
                     <Button
@@ -870,11 +870,11 @@ export default function Evaluate() {
                       onClick={sendEvalToReferee}
                     >
                       <Share2 size={16} />
-                      Invia valutazione all'arbitro
+                      Send evaluation to referee
                     </Button>
                     {selectedReferee && !selectedReferee.phone && (
                       <p className="text-xs text-gray-400 text-center">
-                        Nessun numero salvato per {refereeName(selectedReferee)}: si aprirà WhatsApp per scegliere il contatto.
+                        No phone number saved for {refereeName(selectedReferee)} — WhatsApp will open so you can choose a contact manually.
                       </p>
                     )}
                   </div>

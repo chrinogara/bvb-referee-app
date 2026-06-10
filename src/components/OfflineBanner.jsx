@@ -1,38 +1,51 @@
 import { useState, useEffect } from 'react'
-import { WifiOff, AlertTriangle } from 'lucide-react'
+import { WifiOff } from 'lucide-react'
 
 /**
- * Banner offline mostrato fisso in alto quando navigator.onLine === false.
- * - Rosso/arancione con icona WifiOff
- * - Messaggio: "You are offline — local changes will sync when connected"
- * - Ascolta gli eventi 'online' e 'offline' del browser per aggiornare in tempo reale
+ * Fixed top banner shown when the device has no internet connection.
+ * - Red background with WifiOff icon
+ * - Respects iOS safe-area-inset-top (Dynamic Island / notch)
+ * - Pushes page content down via a spacer so nothing is hidden beneath
+ * - Listens to browser 'online'/'offline' events in real time
  */
 export function OfflineBanner() {
-  const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true)
+  const [isOnline, setIsOnline] = useState(
+    typeof navigator !== 'undefined' ? navigator.onLine : true
+  )
 
   useEffect(() => {
-    const handleOnline = () => setIsOnline(true)
-    const handleOffline = () => setIsOnline(false)
-
-    window.addEventListener('online', handleOnline)
-    window.addEventListener('offline', handleOffline)
-
+    const goOnline  = () => setIsOnline(true)
+    const goOffline = () => setIsOnline(false)
+    window.addEventListener('online',  goOnline)
+    window.addEventListener('offline', goOffline)
     return () => {
-      window.removeEventListener('online', handleOnline)
-      window.removeEventListener('offline', handleOffline)
+      window.removeEventListener('online',  goOnline)
+      window.removeEventListener('offline', goOffline)
     }
   }, [])
 
   if (isOnline) return null
 
   return (
-    <div className="fixed top-0 left-0 right-0 z-50 bg-red-500/95 text-white px-4 py-3 shadow-lg backdrop-blur-sm">
-      <div className="flex items-center justify-center gap-2 max-w-6xl mx-auto">
-        <WifiOff size={18} className="flex-shrink-0" />
-        <span className="text-sm font-medium">
-          You are offline — local changes will sync when connected
-        </span>
+    <>
+      {/* Fixed banner at top — respects iPhone notch / Dynamic Island */}
+      <div
+        className="fixed top-0 left-0 right-0 z-50 bg-red-500 text-white shadow-lg"
+        style={{ paddingTop: 'env(safe-area-inset-top)' }}
+      >
+        <div className="flex items-center justify-center gap-2 px-4 py-2.5 max-w-6xl mx-auto">
+          <WifiOff size={16} className="shrink-0" />
+          <span className="text-sm font-semibold">
+            Offline — changes will sync automatically when connected
+          </span>
+        </div>
       </div>
-    </div>
+      {/* Spacer that pushes content below the banner */}
+      <div
+        className="shrink-0 bg-red-500"
+        style={{ height: 'calc(2.5rem + env(safe-area-inset-top))' }}
+        aria-hidden="true"
+      />
+    </>
   )
 }

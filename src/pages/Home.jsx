@@ -10,7 +10,7 @@ function CircuitLogo({ src, wordmark, color }) {
   const [failed, setFailed] = useState(false)
   if (failed || !src) {
     return (
-      <div className="font-display font-bold leading-none" style={{ fontSize: 40, color, letterSpacing: '.04em' }}>
+      <div className="font-display font-bold leading-none" style={{ fontSize: 38, color, letterSpacing: '.04em' }}>
         {wordmark}
       </div>
     )
@@ -19,7 +19,7 @@ function CircuitLogo({ src, wordmark, color }) {
     <img
       src={src}
       alt={`${wordmark} logo`}
-      className="max-h-[64px] max-w-[130px] object-contain"
+      className="max-h-full max-w-full object-contain"
       onError={() => setFailed(true)}
     />
   )
@@ -59,31 +59,29 @@ export default function Home() {
       {/* Tiles */}
       <div className="w-full max-w-4xl grid grid-cols-1 sm:grid-cols-3 gap-3">
 
-        {/* CEV — coming soon */}
-        <div className="relative bg-white border border-gray-200 rounded-2xl px-4 py-4 flex flex-col items-center text-center min-h-[150px] sm:min-h-[210px] opacity-60">
-          <span className="absolute top-2.5 right-3 text-[9px] font-bold uppercase tracking-wider text-gray-300">logo slot</span>
-          <div className="h-12 sm:h-14 flex items-center justify-center grayscale">
-            <CircuitLogo src="/logos/cev.png" wordmark="CEV" color="#1F2A6B" />
+        {/* CEV — coming soon (black tile, colourful mark) */}
+        <div className="relative rounded-2xl px-4 py-4 flex flex-col items-center text-center min-h-[160px] sm:min-h-[215px]" style={{ background: '#000000', border: '1px solid #1d1d20' }}>
+          <div className="h-16 sm:h-20 flex items-center justify-center">
+            <CircuitLogo src="/logos/cev.png" wordmark="CEV" color="#ffffff" />
           </div>
-          <h2 className="font-display text-lg font-bold uppercase mt-1.5 text-gray-800">CEV</h2>
-          <div className="text-xs text-gray-500 mt-0.5">European circuit</div>
+          <div className="text-xs mt-2" style={{ color: 'rgba(255,255,255,.6)' }}>European circuit</div>
           <div className="mt-auto pt-3">
-            <span className="text-[11px] font-bold uppercase tracking-wide text-gray-500 bg-gray-50 border border-gray-200 px-4 py-1.5 rounded-full">
+            <span className="text-[11px] font-bold uppercase tracking-wide rounded-full px-4 py-1.5" style={{ color: 'rgba(255,255,255,.75)', background: 'rgba(255,255,255,.10)', border: '1px solid rgba(255,255,255,.2)' }}>
               Coming soon
             </span>
           </div>
         </div>
 
-        {/* Belgian Tour — active */}
+        {/* Belgian Tour — active (white tile, flag) */}
         <button
           onClick={() => navigate('/dashboard')}
-          className="relative bg-white rounded-2xl px-4 py-4 flex flex-col items-center text-center min-h-[170px] sm:min-h-[210px] transition-transform active:scale-[.99] hover:-translate-y-0.5"
+          className="relative bg-white rounded-2xl px-4 py-4 flex flex-col items-center text-center min-h-[180px] sm:min-h-[215px] transition-transform active:scale-[.99] hover:-translate-y-0.5"
           style={{ border: `2px solid ${NAVY}`, boxShadow: '0 6px 22px rgba(45,50,112,.10)' }}
         >
-          <div className="h-12 sm:h-14 flex items-center justify-center">
+          <div className="h-16 sm:h-20 flex items-center justify-center">
             <BelgianMark />
           </div>
-          <h2 className="font-display text-lg font-bold uppercase mt-1.5" style={{ color: NAVY }}>Belgian Tour</h2>
+          <h2 className="font-display text-lg font-bold uppercase mt-2" style={{ color: NAVY }}>Belgian Tour</h2>
           <div className="text-xs text-gray-500 mt-0.5">BBT 2026 · active</div>
           <div className="mt-auto pt-3">
             <span className="inline-flex items-center gap-2 text-sm font-bold uppercase tracking-wide text-white px-5 py-2.5 rounded-full" style={{ background: ORANGE }}>
@@ -92,16 +90,14 @@ export default function Home() {
           </div>
         </button>
 
-        {/* FIVB — coming soon */}
-        <div className="relative bg-white border border-gray-200 rounded-2xl px-4 py-4 flex flex-col items-center text-center min-h-[150px] sm:min-h-[210px] opacity-60">
-          <span className="absolute top-2.5 right-3 text-[9px] font-bold uppercase tracking-wider text-gray-300">logo slot</span>
-          <div className="h-12 sm:h-14 flex items-center justify-center grayscale">
-            <CircuitLogo src="/logos/fivb.png" wordmark="FIVB" color="#0A4DA2" />
+        {/* FIVB — coming soon (blue tile, white logo) */}
+        <div className="relative rounded-2xl px-4 py-4 flex flex-col items-center text-center min-h-[160px] sm:min-h-[215px]" style={{ background: '#2531D3', border: '1px solid #1c26a8' }}>
+          <div className="h-16 sm:h-20 flex items-center justify-center">
+            <CircuitLogo src="/logos/fivb.png" wordmark="FIVB" color="#ffffff" />
           </div>
-          <h2 className="font-display text-lg font-bold uppercase mt-1.5 text-gray-800">FIVB</h2>
-          <div className="text-xs text-gray-500 mt-0.5">World circuit</div>
+          <div className="text-xs mt-2" style={{ color: 'rgba(255,255,255,.7)' }}>World circuit</div>
           <div className="mt-auto pt-3">
-            <span className="text-[11px] font-bold uppercase tracking-wide text-gray-500 bg-gray-50 border border-gray-200 px-4 py-1.5 rounded-full">
+            <span className="text-[11px] font-bold uppercase tracking-wide rounded-full px-4 py-1.5" style={{ color: '#fff', background: 'rgba(255,255,255,.16)', border: '1px solid rgba(255,255,255,.3)' }}>
               Coming soon
             </span>
           </div>

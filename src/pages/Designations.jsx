@@ -1,13 +1,13 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { Shuffle, Minus, MessageCircle, Copy, Download, Coffee, Trophy, Star, RotateCcw, Clock, Settings2 } from 'lucide-react'
+import { Shuffle, Minus, MessageCircle, Copy, Download, Coffee, Trophy, Star, RotateCcw, Clock, Settings2, FileText, Flag } from 'lucide-react'
 
 import { Header } from '../components/layout/Header'
 import { toast } from '../components/ui/Toast'
 
 import { useTournaments, useTournamentReferees } from '../hooks/useTournaments'
 import { useRanking, useTournamentRanking } from '../hooks/useRanking'
-import { supabase, courtAssignmentService, attendanceService } from '../lib/supabase'
+import { supabase, courtAssignmentService, attendanceService, evaluationService } from '../lib/supabase'
 import {
   buildDesignationMessage,
   buildPersonalMessage,
@@ -16,7 +16,8 @@ import {
   sharePersonalToReferee,
 } from '../lib/whatsapp'
 import { useDocLanguage } from '../context/LanguageGate'
-import { generateDesignationPDF, downloadPDF } from '../lib/pdf'
+import { generateDesignationPDF, downloadPDF, generateDayReportPDF, generateTournamentReportPDF } from '../lib/pdf'
+import { computeDayStats, dayAdvice, computeTournamentStats, tournamentAdvice } from '../lib/report'
 import { refereeName } from '../lib/utils'
 
 // ─── Brand ──────────────────────────────────────────────────────────────────
@@ -29,6 +30,7 @@ const FINALS_COURT_NAMES = ["Women's Final", "Men's Final"]
 const FINALS_SESSION_ORDER = 99
 const FINALS_SECTION_NUMBER = 1
 const FINALS_ROLES = ['R1', 'R2']
+const FINALS_LINE_ROLES = ['LJ1', 'LJ2', 'LJ3', 'LJ4'] // up to 4 line judges per final
 
 const MAX_CONSEC = 3 // tetto massimo giri consecutivi (decisione concordata)
 
@@ -483,6 +485,77 @@ export default function Designations() {
     } catch (err) { toast.error(`Error: ${err.message}`) }
   }
 
+  // ─── Line judges (finals) ───────────────────────────────────────────────────
+  // Least-performing referees of THIS tournament, worst score first, with
+  // unevaluated referees at the bottom.
+  const lineJudge = useCallback((court, role) => {
+    const row = finalsRows.find((r) => r.court === court && r.role === role)
+    return row ? row.referee_id : ''
+  }, [finalsRows])
+
+  // Candidates for a final's line judges: all tournament referees EXCEPT that
+  // final's two referees (R1/R2), ordered worst-first.
+  const ljCandidates = useCallback((court) => {
+    const excluded = new Set([lineJudge(court, 'R1'), finalsSlot(court, 'R1'), finalsSlot(court, 'R2')].filter(Boolean))
+    return [...assignedReferees]
+      .filter((r) => !excluded.has(r.id))
+      .sort((a, b) => {
+        const sa = scoreById[a.id], sb = scoreById[b.id]
+        if (sa == null && sb == null) return refereeName(a).localeCompare(refereeName(b))
+        if (sa == null) return 1
+        if (sb == null) return -1
+        return sa - sb // worst first
+      })
+  }, [assignedReferees, scoreById, finalsSlot, lineJudge])
+
+  async function setLineJudge(court, role, refId) {
+    try {
+      const existing = finalsRows.find((r) => r.court === court && r.role === role)
+      if (!refId) {
+        if (existing) await supabase.from('court_assignments').delete().eq('id', existing.id)
+      } else if (existing) {
+        await supabase.from('court_assignments').update({ referee_id: refId }).eq('id', existing.id)
+      } else {
+        await supabase.from('court_assignments').insert({
+          tournament_id: tournamentId, referee_id: refId, day_number: dayNumber,
+          section_number: FINALS_SECTION_NUMBER, court, session_order: FINALS_SESSION_ORDER, role,
+        })
+      }
+      await loadFinals()
+    } catch (err) { toast.error(`Error: ${err.message}`) }
+  }
+
+  // Auto-propose the 4 least-performing referees as line judges for a final.
+  async function autoProposeLineJudges(court) {
+    const r1 = finalsSlot(court, 'R1'), r2 = finalsSlot(court, 'R2')
+    const excluded = new Set([r1, r2].filter(Boolean))
+    const picks = [...assignedReferees]
+      .filter((r) => !excluded.has(r.id))
+      .sort((a, b) => {
+        const sa = scoreById[a.id], sb = scoreById[b.id]
+        if (sa == null && sb == null) return refereeName(a).localeCompare(refereeName(b))
+        if (sa == null) return 1
+        if (sb == null) return -1
+        return sa - sb
+      })
+      .slice(0, 4)
+      .map((r) => r.id)
+    try {
+      // Replace any existing LJ rows for this final, then insert the new picks.
+      const existingLJ = finalsRows.filter((r) => r.court === court && FINALS_LINE_ROLES.includes(r.role))
+      for (const row of existingLJ) await supabase.from('court_assignments').delete().eq('id', row.id)
+      const rows = picks.map((id, i) => ({
+        tournament_id: tournamentId, referee_id: id, day_number: dayNumber,
+        section_number: FINALS_SECTION_NUMBER, court, session_order: FINALS_SESSION_ORDER, role: FINALS_LINE_ROLES[i],
+      }))
+      if (rows.length) await courtAssignmentService.bulkCreate(rows)
+      await loadFinals()
+      toast.success(`${picks.length} line judges proposed for ${court}`)
+    } catch (err) { toast.error(`Error: ${err.message}`) }
+  }
+
+  const isLastDay = dayNumber === totalDays
+
   // ─── Carico ────────────────────────────────────────────────────────────────
   const load = useMemo(() => {
     const t = {}; rosterIds.forEach((id) => { t[id] = 0 })
@@ -514,8 +587,79 @@ export default function Designations() {
     const lang = await requestLanguage(); if (!lang) return
     try {
       const blob = await generateDesignationPDF({ tournament, dayNumber, assignments: flatAssignments, lang })
-      downloadPDF(blob, `designazioni-${tournament?.name || 'torneo'}-day${dayNumber}.pdf`)
+      downloadPDF(blob, `designations-${tournament?.name || 'tournament'}-day${dayNumber}.pdf`)
     } catch (err) { toast.error(`PDF failed: ${err.message}`) }
+  }
+
+  // Build the finals + line-judges block for the day report (last day only)
+  function buildFinalsForReport() {
+    return FINALS_COURT_NAMES.map((court) => ({
+      court,
+      referees: FINALS_ROLES.map((role) => nameOf(finalsSlot(court, role))).filter((n) => n !== '—').join(' & '),
+      lineJudges: FINALS_LINE_ROLES.map((role) => nameOf(lineJudge(court, role))).filter((n) => n !== '—').join(', '),
+    }))
+  }
+
+  // ── Day report (PDF, English, rule-based advice) ──────────────────────────
+  async function handleDayReport() {
+    if (giri.length === 0) { toast.error('Generate the rotation before exporting a report'); return }
+    setBusy(true)
+    try {
+      const { data: evals } = await evaluationService.getByTournament(tournamentId)
+      const dayEvals = (evals || []).filter((e) => e.day_number === dayNumber)
+      const stats = computeDayStats({ giri, rosterIds, refById, courts, evaluations: dayEvals })
+      const tips = dayAdvice(stats)
+      const times = giri.length > 0 ? { start: roundTime(0), end: roundTime(giri.length) } : null
+      const finals = isLastDay ? buildFinalsForReport() : null
+      const blob = await generateDayReportPDF({ tournament, dayNumber, stats, tips, times, finals })
+      downloadPDF(blob, `day${dayNumber}-report-${tournament?.name || 'tournament'}.pdf`)
+      toast.success('Day report generated')
+    } catch (err) { console.error(err); toast.error(`Report failed: ${err.message}`) }
+    finally { setBusy(false) }
+  }
+
+  // ── Full tournament report (all days, for the commission) ─────────────────
+  async function handleTournamentReport() {
+    setBusy(true)
+    try {
+      const { data: all } = await supabase
+        .from('court_assignments')
+        .select('*, referees(*)')
+        .eq('tournament_id', tournamentId)
+        .neq('session_order', FINALS_SESSION_ORDER)
+        .order('day_number').order('session_order').order('court')
+      const { data: evals } = await evaluationService.getByTournament(tournamentId)
+
+      const byDay = {}
+      for (const row of all || []) { (byDay[row.day_number] = byDay[row.day_number] || []).push(row) }
+
+      const dayReports = []
+      for (const dn of Object.keys(byDay).map(Number).sort((a, b) => a - b)) {
+        const rows = byDay[dn]
+        const maxSO = Math.max(...rows.map((r) => r.session_order))
+        const dayGiri = []
+        for (let so = 1; so <= maxSO; so++) {
+          dayGiri.push({ courts: courts.map((cn) => {
+            const row = rows.find((r) => r.session_order === so && r.court === cn)
+            return row ? row.referee_id : null
+          }) })
+        }
+        const dayRoster = [...new Set(rows.map((r) => r.referee_id))]
+        const refMap = {}
+        rows.forEach((r) => { if (r.referees) refMap[r.referee_id] = r.referees })
+        const dayEvals = (evals || []).filter((e) => e.day_number === dn)
+        const stats = computeDayStats({ giri: dayGiri, rosterIds: dayRoster, refById: refMap, courts, evaluations: dayEvals })
+        dayReports.push({ dayNumber: dn, stats })
+      }
+
+      if (dayReports.length === 0) { toast.error('No assignment data to report yet'); return }
+      const tStats = computeTournamentStats(dayReports)
+      const tTips = tournamentAdvice(tStats)
+      const blob = await generateTournamentReportPDF({ tournament, tStats, tTips, dayReports })
+      downloadPDF(blob, `tournament-report-${tournament?.name || 'tournament'}.pdf`)
+      toast.success('Tournament report generated')
+    } catch (err) { console.error(err); toast.error(`Report failed: ${err.message}`) }
+    finally { setBusy(false) }
   }
 
   // ─── Invio designazioni personali (WhatsApp, 2 round alla volta, lingua per arbitro) ──
@@ -779,6 +923,24 @@ export default function Designations() {
               </div>
             </div>
           )}
+
+          {/* Reports (daily + full tournament) */}
+          {giri.length > 0 && (
+            <div className="px-4 mt-4">
+              <div className="text-sm font-bold uppercase tracking-wide text-gray-600 mb-1">Reports</div>
+              <div className="text-xs text-gray-400 mb-2">End-of-day analysis with workload metrics and coach suggestions. PDF, in English, for the commission.</div>
+              <div className="grid grid-cols-2 gap-2">
+                <button onClick={handleDayReport} disabled={busy} style={{ background: NAVY }}
+                  className="rounded-xl text-white text-sm font-bold py-3 flex items-center justify-center gap-1.5 disabled:opacity-60">
+                  <FileText size={16} /> Day {dayNumber} report
+                </button>
+                <button onClick={handleTournamentReport} disabled={busy}
+                  className="rounded-xl bg-gray-700 text-white text-sm font-bold py-3 flex items-center justify-center gap-1.5 disabled:opacity-60">
+                  <FileText size={16} /> Full tournament
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -796,7 +958,7 @@ export default function Designations() {
             <div key={court} className="rounded-2xl bg-white border border-gray-200 shadow-sm overflow-hidden mb-3">
               <div style={{ background: NAVY }} className="text-white px-4 py-2 flex items-center justify-between">
                 <span className="text-lg font-bold uppercase tracking-wide flex items-center gap-2"><Trophy size={16} /> {court}</span>
-                <span className="text-white/50 text-xs">2 arbitri</span>
+                <span className="text-white/50 text-xs">2 referees</span>
               </div>
               <div className="grid grid-cols-2 gap-2 p-3">
                 {FINALS_ROLES.map((role) => {
@@ -816,7 +978,57 @@ export default function Designations() {
             </div>
           ))}
 
-          {/* Classifica torneo */}
+          {/* Line judges — appear automatically on the last day */}
+          {isLastDay && (
+            <div className="mt-4">
+              <div className="flex items-center gap-2 mb-1">
+                <Flag size={16} style={{ color: ORANGE }} />
+                <span className="text-sm font-bold uppercase tracking-wide text-gray-700">Line judges</span>
+              </div>
+              <p className="text-xs text-gray-500 leading-relaxed mb-3">
+                Proposed from the lowest-ranked referees of this tournament (the two finalists are excluded automatically). Up to 4 per final — leave a slot empty if only 2 are needed. Adjust any dropdown manually.
+              </p>
+
+              {FINALS_COURT_NAMES.map((court) => {
+                const chosen = FINALS_LINE_ROLES.map((role) => lineJudge(court, role))
+                return (
+                  <div key={court} className="rounded-2xl bg-white border border-gray-200 shadow-sm overflow-hidden mb-3">
+                    <div className="bg-gray-100 px-4 py-2 flex items-center justify-between">
+                      <span className="text-sm font-bold uppercase tracking-wide text-gray-700 flex items-center gap-2"><Flag size={14} /> {court}</span>
+                      <button onClick={() => autoProposeLineJudges(court)}
+                        className="text-xs font-bold px-3 py-1.5 rounded-lg text-white" style={{ background: ORANGE }}>
+                        Auto-propose 4
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 p-3">
+                      {FINALS_LINE_ROLES.map((role, idx) => {
+                        const current = lineJudge(court, role)
+                        // Exclude referees already chosen as line judge on this court (other slots)
+                        const takenElsewhere = new Set(chosen.filter((c, i) => c && FINALS_LINE_ROLES[i] !== role))
+                        const options = ljCandidates(court).filter((r) => !takenElsewhere.has(r.id) || r.id === current)
+                        return (
+                          <div key={role} className="flex items-center gap-2">
+                            <span className="text-xs font-bold text-gray-400 w-8 shrink-0">L{idx + 1}</span>
+                            <select value={current} onChange={(e) => setLineJudge(court, role, e.target.value)}
+                              className="flex-1 rounded-lg border border-gray-300 px-2 py-2 text-sm font-semibold bg-white text-gray-900">
+                              <option value="">— empty —</option>
+                              {options.map((r) => (
+                                <option key={r.id} value={r.id}>
+                                  {refereeName(r)}{scoreById[r.id] != null ? ` · ${scoreById[r.id].toFixed(1)}` : ' · n/d'}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+
+          {/* Tournament rankings */}
           <div className="mt-3">
             <div className="text-sm font-bold uppercase tracking-wide text-gray-600 mb-2">Rankings (this tournament)</div>
             <div className="rounded-2xl bg-white border border-gray-200 divide-y divide-gray-100 overflow-hidden">

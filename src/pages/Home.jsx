@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ArrowRight } from 'lucide-react'
+import { CEV_LOGO, FIVB_LOGO } from '../assets/logos'
 
 const NAVY = '#2D3270'
 const ORANGE = '#E85D26'
@@ -62,7 +63,7 @@ export default function Home() {
         {/* CEV — coming soon (black tile, colourful mark) */}
         <div className="relative rounded-2xl px-4 py-4 flex flex-col items-center text-center min-h-[160px] sm:min-h-[215px]" style={{ background: '#000000', border: '1px solid #1d1d20' }}>
           <div className="h-16 sm:h-20 flex items-center justify-center">
-            <CircuitLogo src="/logos/cev.png" wordmark="CEV" color="#ffffff" />
+            <CircuitLogo src={CEV_LOGO} wordmark="CEV" color="#ffffff" />
           </div>
           <div className="text-xs mt-2" style={{ color: 'rgba(255,255,255,.6)' }}>European circuit</div>
           <div className="mt-auto pt-3">
@@ -93,7 +94,7 @@ export default function Home() {
         {/* FIVB — coming soon (blue tile, white logo) */}
         <div className="relative rounded-2xl px-4 py-4 flex flex-col items-center text-center min-h-[160px] sm:min-h-[215px]" style={{ background: '#2531D3', border: '1px solid #1c26a8' }}>
           <div className="h-16 sm:h-20 flex items-center justify-center">
-            <CircuitLogo src="/logos/fivb.png" wordmark="FIVB" color="#ffffff" />
+            <CircuitLogo src={FIVB_LOGO} wordmark="FIVB" color="#ffffff" />
           </div>
           <div className="text-xs mt-2" style={{ color: 'rgba(255,255,255,.7)' }}>World circuit</div>
           <div className="mt-auto pt-3">

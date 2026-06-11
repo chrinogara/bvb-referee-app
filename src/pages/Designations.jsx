@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { Shuffle, Plus, Minus, MessageCircle, Copy, Download, Coffee, Trophy, Star, RotateCcw } from 'lucide-react'
+import { Shuffle, Minus, MessageCircle, Copy, Download, Coffee, Trophy, Star, RotateCcw, Clock, Settings2 } from 'lucide-react'
 
 import { Header } from '../components/layout/Header'
 import { toast } from '../components/ui/Toast'
@@ -218,14 +218,34 @@ export default function Designations() {
         }
         return next
       })
-    } catch (err) { toast.error(`Errore: ${err.message}`) }
+    } catch (err) { toast.error(`Error: ${err.message}`) }
   }
 
   // ─── Giri (rotazione) ──────────────────────────────────────────────────────
   const [giri, setGiri] = useState([]) // [{courts:[id|null], rest:[id]}]
-  const [nGiri, setNGiri] = useState(8)
   const [picker, setPicker] = useState(null) // {mode, ...}
   const [busy, setBusy] = useState(false)
+
+  // ─── Configurazione orari (persistita in localStorage per device) ──────────
+  const LS_START = 'bvb_day_start'
+  const LS_DUR   = 'bvb_round_duration'
+  const [dayStart, setDayStart]       = useState(() => localStorage.getItem(LS_START) || '09:00')
+  const [roundDuration, setRoundDuration] = useState(() => parseInt(localStorage.getItem(LS_DUR) || '55', 10))
+  const [showTimeCfg, setShowTimeCfg] = useState(false)
+
+  function updateDayStart(v)       { setDayStart(v);       localStorage.setItem(LS_START, v) }
+  function updateRoundDuration(v)  { setRoundDuration(v);  localStorage.setItem(LS_DUR, String(v)) }
+
+  // Calcola l'orario stimato di inizio di un round (indice 0-based)
+  function roundTime(idx) {
+    const [h, m] = dayStart.split(':').map(Number)
+    const total = h * 60 + m + idx * roundDuration
+    return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`
+  }
+  function estimatedEnd() {
+    if (giri.length === 0) return null
+    return roundTime(giri.length) // time after last round
+  }
 
   const rosterIds = useMemo(() => {
     if (presentRefs.length > 0) return presentRefs.map((r) => r.id)
@@ -263,7 +283,6 @@ export default function Designations() {
       rebuilt.push({ courts: courtsArr, rest: [] })
     }
     setGiri(rebuilt)
-    setNGiri(rebuilt.length)
   }, [tournamentId, dayNumber, courts])
   useEffect(() => { loadGiri() }, [loadGiri])
 
@@ -304,11 +323,10 @@ export default function Designations() {
       const add = genGiri(rosterIds, courts.length, 2, giri)
       const next = [...giri, ...add]
       setGiri(next)
-      setNGiri(next.length)
       await persistGiri(next)
-      toast.success('2 round generati')
+      toast.success(`2 rounds generated (${next.length} total)`)
     } catch (err) {
-      console.error(err); toast.error(`Errore salvataggio: ${err.message}`)
+      console.error(err); toast.error(`Save error: ${err.message}`)
     } finally { setBusy(false) }
   }
 
@@ -319,18 +337,17 @@ export default function Designations() {
     try {
       const next = giri.slice(0, Math.max(0, giri.length - 2))
       setGiri(next)
-      setNGiri(next.length)
       await persistGiri(next)
-      toast.success('Ultimi 2 round rimossi')
+      toast.success('Last 2 rounds removed')
     } catch (err) {
-      console.error(err); toast.error(`Errore: ${err.message}`)
+      console.error(err); toast.error(`Error: ${err.message}`)
     } finally { setBusy(false) }
   }
 
   // Azzera rotazione + presenze del giorno (le finali restano)
   async function resetDay() {
     if (!tournamentId) return
-    if (!window.confirm(`Azzerare rotazione e presenze del Day ${dayNumber}?\nLe finali NON vengono toccate.`)) return
+    if (!window.confirm(`Reset rotation and attendance for Day ${dayNumber}?\nFinals will NOT be affected.`)) return
     setBusy(true)
     try {
       await supabase
@@ -345,7 +362,6 @@ export default function Designations() {
           .map((r) => attendanceService.setPresent(tournamentId, r.id, dayNumber, SECTION, false))
       )
       setGiri([])
-      setNGiri(0)
       setAttendanceMap((prev) => {
         const next = { ...prev }
         for (const id of Object.keys(next)) {
@@ -355,9 +371,9 @@ export default function Designations() {
         }
         return next
       })
-      toast.success('Rotazione e presenze azzerate')
+      toast.success('Day reset — rotation and attendance cleared')
     } catch (err) {
-      console.error(err); toast.error(`Errore reset: ${err.message}`)
+      console.error(err); toast.error(`Reset error: ${err.message}`)
     } finally { setBusy(false) }
   }
 
@@ -370,8 +386,8 @@ export default function Designations() {
     rd.courts[courtIdx] = refId
     setGiri(next)
     setPicker(null)
-    try { await persistGiri(next); toast.success('Aggiornato') }
-    catch (err) { toast.error(`Errore: ${err.message}`) }
+    try { await persistGiri(next); toast.success('Assignment updated') }
+    catch (err) { toast.error(`Error: ${err.message}`) }
   }
 
   // ─── Finali ────────────────────────────────────────────────────────────────
@@ -418,12 +434,12 @@ export default function Designations() {
       }
       await loadFinals()
       setPicker(null)
-      toast.success(`${court} ${role} aggiornato`)
-    } catch (err) { toast.error(`Errore: ${err.message}`) }
+      toast.success(`${court} ${role} updated`)
+    } catch (err) { toast.error(`Error: ${err.message}`) }
   }
 
   async function applyMeritocratic() {
-    if (rankedList.length < 4) { toast.error('Servono almeno 4 arbitri valutati in questo torneo'); return }
+    if (rankedList.length < 4) { toast.error('At least 4 evaluated referees required for this tournament'); return }
     const snake = snakeFinals(rankedList.map((r) => r.id))
     try {
       await supabase.from('court_assignments').delete()
@@ -438,8 +454,8 @@ export default function Designations() {
           })
       if (rows.length) await courtAssignmentService.bulkCreate(rows)
       await loadFinals()
-      toast.success('Finali assegnate (meritocratico)')
-    } catch (err) { toast.error(`Errore: ${err.message}`) }
+      toast.success('Finals assigned (merit-based)')
+    } catch (err) { toast.error(`Error: ${err.message}`) }
   }
 
   // ─── Carico ────────────────────────────────────────────────────────────────
@@ -467,14 +483,14 @@ export default function Designations() {
   async function handleCopy() {
     const lang = await requestLanguage(); if (!lang) return
     const msg = buildDesignationMessage({ tournament, dayNumber, assignments: flatAssignments, lang })
-    await copyDesignationMessage(msg); toast.success('Copiato')
+    await copyDesignationMessage(msg); toast.success('Copied to clipboard')
   }
   async function handlePDF() {
     const lang = await requestLanguage(); if (!lang) return
     try {
       const blob = await generateDesignationPDF({ tournament, dayNumber, assignments: flatAssignments, lang })
       downloadPDF(blob, `designazioni-${tournament?.name || 'torneo'}-day${dayNumber}.pdf`)
-    } catch (err) { toast.error(`PDF non riuscito: ${err.message}`) }
+    } catch (err) { toast.error(`PDF failed: ${err.message}`) }
   }
 
   // ─── Invio designazioni personali (WhatsApp, 2 round alla volta, lingua per arbitro) ──
@@ -496,7 +512,7 @@ export default function Designations() {
     if (currentRounds.length === 0) return '—'
     return currentRounds.map((r) => {
       const ci = giri[r - 1]?.courts.findIndex((x) => x === refId)
-      return ci != null && ci >= 0 ? `R${r} ${courts[ci]}` : `R${r} riposo`
+      return ci != null && ci >= 0 ? `R${r} ${courts[ci]}` : `R${r} Rest`
     }).join(' · ')
   }
 
@@ -509,7 +525,7 @@ export default function Designations() {
   // ─── Render ──────────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-gray-100">
-      <Header title="Designazioni" subtitle={tournament?.name} />
+      <Header title="Assignments" subtitle={tournament?.name} />
 
       {/* Selettori + tab brand */}
       <div style={{ background: `linear-gradient(135deg, ${NAVY}, ${NAVY2})` }} className="text-white px-4 pt-3 pb-3">
@@ -600,8 +616,13 @@ export default function Designations() {
               return (
                 <div key={gi} className="rounded-2xl bg-white border border-gray-200 shadow-sm overflow-hidden">
                   <div style={{ background: NAVY }} className="text-white px-4 py-2 flex items-center justify-between">
-                    <span className="text-lg font-bold uppercase tracking-wide">Round {gi + 1}</span>
-                    <span className="text-white/50 text-xs">{g.courts.filter(Boolean).length} match in parallelo</span>
+                    <span className="text-lg font-bold uppercase tracking-wide flex items-center gap-2">
+                      Round {gi + 1}
+                      <span className="text-white/60 text-sm font-normal flex items-center gap-1 normal-case tracking-normal">
+                        <Clock size={12} />{roundTime(gi)}
+                      </span>
+                    </span>
+                    <span className="text-white/50 text-xs">{g.courts.filter(Boolean).length} simultaneous matches</span>
                   </div>
                   <div className="grid grid-cols-2 gap-2 p-3">
                     {g.courts.map((id, ci) => (
@@ -624,7 +645,7 @@ export default function Designations() {
                   {rest.length > 0 && (
                     <div className="px-3 pb-3">
                       <div className="rounded-xl bg-amber-50 border border-amber-200 px-3 py-2">
-                        <span className="text-[11px] font-bold uppercase text-amber-700 tracking-wide flex items-center gap-1"><Coffee size={12} /> In pausa</span>
+                        <span className="text-[11px] font-bold uppercase text-amber-700 tracking-wide flex items-center gap-1"><Coffee size={12} /> Resting</span>
                         <div className="text-base font-semibold text-amber-900 leading-tight">{rest.map(nameOf).join(' · ')}</div>
                       </div>
                     </div>
@@ -634,10 +655,41 @@ export default function Designations() {
             })}
           </div>
 
-          {/* Carico */}
+          {/* Day summary + time config */}
           {giri.length > 0 && (
             <div className="px-4 mt-4">
-              <div className="text-sm font-bold uppercase tracking-wide text-gray-600 mb-2">Carico arbitri ({giri.length} round)</div>
+              <div className="rounded-2xl bg-navy/5 border border-navy/10 px-4 py-3 flex items-center justify-between gap-3 flex-wrap">
+                <div className="flex items-center gap-4 text-sm flex-wrap">
+                  <span className="font-bold text-gray-700 flex items-center gap-1"><Clock size={14} /> {giri.length} rounds · {roundTime(0)} → ~{estimatedEnd()}</span>
+                  <span className="text-gray-500">· avg {Math.round(rosterIds.length > 0 ? (giri.length * courts.length) / rosterIds.length : 0)} matches/ref</span>
+                </div>
+                <button onClick={() => setShowTimeCfg(v => !v)} className="text-xs font-bold text-gray-500 flex items-center gap-1 hover:text-gray-800">
+                  <Settings2 size={13} /> Times
+                </button>
+              </div>
+              {showTimeCfg && (
+                <div className="mt-2 rounded-2xl bg-white border border-gray-200 p-4 flex flex-wrap gap-4 items-end">
+                  <div>
+                    <div className="text-xs font-bold text-gray-500 mb-1">Day start time</div>
+                    <input type="time" value={dayStart} onChange={(e) => updateDayStart(e.target.value)}
+                      className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm font-semibold" />
+                  </div>
+                  <div>
+                    <div className="text-xs font-bold text-gray-500 mb-1">Round duration (min)</div>
+                    <input type="number" min="30" max="120" value={roundDuration}
+                      onChange={(e) => updateRoundDuration(parseInt(e.target.value, 10) || 55)}
+                      className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm font-semibold w-20" />
+                  </div>
+                  <div className="text-xs text-gray-400 self-end pb-1.5">Settings saved on this device</div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Referee workload */}
+          {giri.length > 0 && (
+            <div className="px-4 mt-4">
+              <div className="text-sm font-bold uppercase tracking-wide text-gray-600 mb-2">Referee workload ({giri.length} rounds)</div>
               <div className="rounded-2xl bg-white border border-gray-200 p-3 space-y-2">
                 {rosterIds.map((id) => {
                   const t = load[id] || 0
@@ -667,7 +719,7 @@ export default function Designations() {
           {/* Designazioni personali — 2 round alla volta, lingua a scelta per arbitro */}
           {giri.length > 0 && (
             <div className="px-4 mt-4">
-              <div className="text-sm font-bold uppercase tracking-wide text-gray-600 mb-1">Designazioni personali</div>
+              <div className="text-sm font-bold uppercase tracking-wide text-gray-600 mb-1">Personal assignments</div>
               <div className="text-xs text-gray-400 mb-2">Rounds are sent in blocks of 2. Choose the block, then the language for each referee.</div>
               <div className="flex flex-wrap gap-2 mb-3">
                 {blocks.map((b, i) => (
@@ -686,7 +738,7 @@ export default function Designations() {
                     <div key={id} className="flex items-center justify-between px-3 py-2.5 gap-2">
                       <div className="min-w-0">
                         <div className="text-base font-semibold truncate">{nameOf(id)}</div>
-                        <div className="text-xs text-gray-400 truncate">{blockPreview(id)}{hasPhone ? '' : ' · nessun numero'}</div>
+                        <div className="text-xs text-gray-400 truncate">{blockPreview(id)}{hasPhone ? '' : ' · no phone'}</div>
                       </div>
                       <div className="flex gap-1 shrink-0">
                         {['en', 'fr', 'nl'].map((lng) => (
@@ -709,16 +761,16 @@ export default function Designations() {
         <div className="pb-24 px-4 pt-3">
           <button onClick={applyMeritocratic} style={{ background: ORANGE }}
             className="w-full rounded-xl text-white text-base font-bold py-3 shadow flex items-center justify-center gap-2 mb-3">
-            <Star size={18} /> Assegna meritocratico (top 4)
+            <Star size={18} /> Auto-assign (merit-based, top 4)
           </button>
           <p className="text-sm text-gray-500 leading-relaxed mb-3">
-            I 4 migliori di questo torneo coprono le due finali (snake: #1+#4 e #2+#3). Punteggio più alto = R1. Tocca uno slot per cambiare a mano.
+            The 4 best-ranked referees in this tournament cover the two finals (snake: #1+#4 and #2+#3). Highest score = R1. Tap a slot to change manually.
           </p>
 
           {FINALS_COURT_NAMES.map((court) => (
             <div key={court} className="rounded-2xl bg-white border border-gray-200 shadow-sm overflow-hidden mb-3">
               <div style={{ background: NAVY }} className="text-white px-4 py-2 flex items-center justify-between">
-                <span className="text-lg font-bold uppercase tracking-wide flex items-center gap-2"><Trophy size={16} /> {court === "Men's Final" ? 'Finale Maschile' : 'Finale Femminile'}</span>
+                <span className="text-lg font-bold uppercase tracking-wide flex items-center gap-2"><Trophy size={16} /> {court}</span>
                 <span className="text-white/50 text-xs">2 arbitri</span>
               </div>
               <div className="grid grid-cols-2 gap-2 p-3">
@@ -729,7 +781,7 @@ export default function Designations() {
                     <button key={role} onClick={() => setPicker({ mode: 'final', court, role })}
                       style={role === 'R1' ? { borderColor: ORANGE, background: '#FFF4EF' } : {}}
                       className={`rounded-xl border-2 px-2 py-3 text-center min-h-[88px] flex flex-col items-center justify-center gap-0.5 ${role === 'R1' ? '' : 'border-gray-300 bg-gray-50'}`}>
-                      <span className="text-[11px] font-bold uppercase tracking-wide text-gray-500">{role === 'R1' ? 'R1 · Primo' : 'R2 · Secondo'}</span>
+                      <span className="text-[11px] font-bold uppercase tracking-wide text-gray-500">{role === 'R1' ? 'R1 · First' : 'R2 · Second'}</span>
                       <span className="text-xl font-bold leading-tight">{nameOf(id)}</span>
                       {id && scoreById[id] != null && <span className="text-xs font-semibold text-gray-500">#{pos} · {scoreById[id].toFixed(1)}/5</span>}
                     </button>
@@ -741,9 +793,9 @@ export default function Designations() {
 
           {/* Classifica torneo */}
           <div className="mt-3">
-            <div className="text-sm font-bold uppercase tracking-wide text-gray-600 mb-2">Classifica valutazioni (questo torneo)</div>
+            <div className="text-sm font-bold uppercase tracking-wide text-gray-600 mb-2">Rankings (this tournament)</div>
             <div className="rounded-2xl bg-white border border-gray-200 divide-y divide-gray-100 overflow-hidden">
-              {rankedList.length === 0 && <div className="px-4 py-4 text-sm text-gray-500">Nessuna valutazione registrata per questo torneo.</div>}
+              {rankedList.length === 0 && <div className="px-4 py-4 text-sm text-gray-500">No evaluations recorded for this tournament.</div>}
               {rankedList.map((r, i) => (
                 <div key={r.id} className="flex items-center gap-3 px-4 py-3" style={i < 4 ? { background: '#FFF8F4' } : {}}>
                   <span className="w-7 h-7 rounded-full flex items-center justify-center text-sm font-bold shrink-0"

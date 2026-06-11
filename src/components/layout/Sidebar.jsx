@@ -1,4 +1,4 @@
-import { NavLink } from 'react-router-dom'
+import { NavLink, Link } from 'react-router-dom'
 import {
   LayoutDashboard,
   Users,
@@ -16,7 +16,7 @@ import { cn } from '../../lib/utils'
 import { useAppStore } from '../../store/appStore'
 
 const NAV = [
-  { to: '/',             icon: LayoutDashboard, label: 'Dashboard' },
+  { to: '/dashboard',    icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/briefing',     icon: BookOpen,        label: 'Briefing' },
   { to: '/referees',     icon: Users,           label: 'Referees' },
   { to: '/tournaments',  icon: Trophy,          label: 'Tournaments' },
@@ -48,17 +48,17 @@ export function Sidebar() {
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         )}
       >
-        {/* Logo */}
+        {/* Logo → back to circuit hub */}
         <div className="flex items-center justify-between p-4 border-b border-gray-200">
-          <div className="flex items-center gap-2.5">
+          <Link to="/" onClick={() => setSidebarOpen(false)} className="flex items-center gap-2.5 group">
             <div className="w-9 h-9 bg-gradient-to-br from-[#E85D26] to-[#C44D1E] rounded-lg flex items-center justify-center shadow-sm">
               <Volleyball size={20} className="text-white" strokeWidth={2.2} />
             </div>
             <div>
-              <div className="font-display text-lg font-bold uppercase text-gray-900 leading-none">BVB RC</div>
+              <div className="font-display text-lg font-bold uppercase text-gray-900 leading-none group-hover:text-[#E85D26] transition-colors">BVB RC</div>
               <div className="text-[10px] text-gray-500 leading-tight mt-0.5">Beach Volley Tour</div>
             </div>
-          </div>
+          </Link>
           <button
             onClick={() => setSidebarOpen(false)}
             className="lg:hidden p-1.5 rounded-lg hover:bg-gray-100 text-gray-500"
@@ -73,7 +73,6 @@ export function Sidebar() {
             <NavLink
               key={to}
               to={to}
-              end={to === '/'}
               onClick={() => setSidebarOpen(false)}
               className={({ isActive }) =>
                 cn(

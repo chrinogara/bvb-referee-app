@@ -574,14 +574,16 @@ export default function Designations() {
   }, [giri, courts, refById])
 
   async function handleWhatsApp() {
+    if (genCurrentRounds.length === 0) { toast.error('No rounds to send'); return }
     const lang = await requestLanguage(); if (!lang) return
-    const msg = buildDesignationMessage({ tournament, dayNumber, assignments: flatAssignments, lang })
+    const msg = buildDesignationMessage({ tournament, dayNumber, assignments: blockAssignments(genCurrentRounds), lang })
     shareToWhatsApp(msg)
   }
   async function handleCopy() {
+    if (genCurrentRounds.length === 0) { toast.error('No rounds to copy'); return }
     const lang = await requestLanguage(); if (!lang) return
-    const msg = buildDesignationMessage({ tournament, dayNumber, assignments: flatAssignments, lang })
-    await copyDesignationMessage(msg); toast.success('Copied to clipboard')
+    const msg = buildDesignationMessage({ tournament, dayNumber, assignments: blockAssignments(genCurrentRounds), lang })
+    await copyDesignationMessage(msg); toast.success(`Copied — ${blockLabel(genCurrentRounds)}`)
   }
   async function handlePDF() {
     const lang = await requestLanguage(); if (!lang) return
@@ -675,6 +677,25 @@ export default function Designations() {
     if (blockIdx > blocks.length - 1) setBlockIdx(Math.max(0, blocks.length - 1))
   }, [blocks.length, blockIdx])
   const currentRounds = blocks[blockIdx] || []
+
+  // ─── Invio messaggio GENERALE per blocco di 2 round (selettore indipendente) ──
+  const [genBlockIdx, setGenBlockIdx] = useState(0)
+  useEffect(() => {
+    if (genBlockIdx > blocks.length - 1) setGenBlockIdx(Math.max(0, blocks.length - 1))
+  }, [blocks.length, genBlockIdx])
+  const genCurrentRounds = blocks[genBlockIdx] || []
+
+  // Etichetta blocco, es. "Round 1–2"
+  function blockLabel(b) {
+    if (!b || b.length === 0) return '—'
+    return `Round ${b[0]}${b.length > 1 ? `–${b[b.length - 1]}` : ''}`
+  }
+
+  // Solo le designazioni dei round del blocco selezionato
+  function blockAssignments(roundsArr) {
+    const set = new Set(roundsArr)
+    return flatAssignments.filter((a) => set.has(a.session_order))
+  }
 
   // Anteprima (per il coach) di cosa farà l'arbitro nei round del blocco
   function blockPreview(refId) {
@@ -876,12 +897,32 @@ export default function Designations() {
             </div>
           )}
 
-          {/* Azioni condivisione */}
+          {/* General message — per 2-round block */}
           {giri.length > 0 && (
-            <div className="px-4 mt-4 grid grid-cols-3 gap-2">
-              <button onClick={handleWhatsApp} className="rounded-xl bg-green-600 text-white text-sm font-bold py-3 flex items-center justify-center gap-1"><MessageCircle size={16} /> WhatsApp</button>
-              <button onClick={handleCopy} className="rounded-xl bg-gray-700 text-white text-sm font-bold py-3 flex items-center justify-center gap-1"><Copy size={16} /> Copia</button>
-              <button onClick={handlePDF} style={{ background: NAVY }} className="rounded-xl text-white text-sm font-bold py-3 flex items-center justify-center gap-1"><Download size={16} /> PDF</button>
+            <div className="px-4 mt-4">
+              <div className="text-sm font-bold uppercase tracking-wide text-gray-600 mb-1">General message</div>
+              <div className="text-xs text-gray-400 mb-2">Send the rotation to the group in blocks of 2 rounds. Pick the block, then send.</div>
+              <div className="flex flex-wrap gap-2 mb-3">
+                {blocks.map((b, i) => (
+                  <button key={i} onClick={() => setGenBlockIdx(i)}
+                    style={i === genBlockIdx ? { background: NAVY, color: '#fff' } : {}}
+                    className={`rounded-lg px-3 py-1.5 text-sm font-bold border ${i === genBlockIdx ? '' : 'bg-white border-gray-300 text-gray-600'}`}>
+                    {blockLabel(b)}
+                  </button>
+                ))}
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <button onClick={handleWhatsApp} className="rounded-xl bg-green-600 text-white text-sm font-bold py-3 flex items-center justify-center gap-1.5">
+                  <MessageCircle size={16} /> WhatsApp · {blockLabel(genCurrentRounds)}
+                </button>
+                <button onClick={handleCopy} className="rounded-xl bg-gray-700 text-white text-sm font-bold py-3 flex items-center justify-center gap-1.5">
+                  <Copy size={16} /> Copy
+                </button>
+              </div>
+              <button onClick={handlePDF} style={{ background: NAVY }}
+                className="mt-2 w-full rounded-xl text-white text-sm font-bold py-3 flex items-center justify-center gap-1.5">
+                <Download size={16} /> Full-day PDF
+              </button>
             </div>
           )}
 

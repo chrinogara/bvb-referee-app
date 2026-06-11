@@ -5,11 +5,11 @@ import { cn } from '../../lib/utils'
 // Bottom navigation for mobile/tablet (hidden on desktop where the Sidebar is shown).
 // Thumb-friendly primary nav for on-court use.
 const ITEMS = [
-  { to: '/',            icon: LayoutDashboard, label: 'Home' },
-  { to: '/tournaments', icon: Trophy,          label: 'Tornei' },
-  { to: '/evaluate',    icon: ClipboardCheck,  label: 'Valuta', accent: true },
+  { to: '/dashboard',   icon: LayoutDashboard, label: 'Home' },
+  { to: '/tournaments', icon: Trophy,          label: 'Tournaments' },
+  { to: '/evaluate',    icon: ClipboardCheck,  label: 'Evaluate', accent: true },
   { to: '/live-courts', icon: Monitor,         label: 'Live' },
-  { to: '/reports',     icon: FileText,        label: 'Report' },
+  { to: '/reports',     icon: FileText,        label: 'Reports' },
 ]
 
 export function BottomNav() {
@@ -20,7 +20,6 @@ export function BottomNav() {
           <NavLink
             key={to}
             to={to}
-            end={to === '/'}
             className={({ isActive }) =>
               cn(
                 'flex flex-col items-center gap-0.5 py-2 transition-colors',

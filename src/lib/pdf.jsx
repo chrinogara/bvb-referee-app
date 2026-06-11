@@ -1098,3 +1098,189 @@ export function sharePDFWhatsApp(blob, filename) {
   // Fallback to download
   downloadPDF(blob, filename)
 }
+
+// ════════════════════════════════════════════════════════════════════════════
+//  ASSIGNMENTS REPORTS (daily + full tournament) — English, for the commission
+// ════════════════════════════════════════════════════════════════════════════
+
+const reportStyles = StyleSheet.create({
+  page: { fontFamily: 'Helvetica', fontSize: 10, color: DARK_GRAY, paddingTop: 30, paddingBottom: 36, paddingHorizontal: 35 },
+  header: { backgroundColor: NAVY, marginHorizontal: -35, marginTop: -30, paddingHorizontal: 35, paddingVertical: 18, marginBottom: 18 },
+  headerTitle: { color: '#FFFFFF', fontSize: 16, fontFamily: 'Helvetica-Bold', letterSpacing: 1 },
+  headerSubtitle: { color: '#CBD5E1', fontSize: 10, marginTop: 3 },
+  headerAccent: { width: 40, height: 3, backgroundColor: ORANGE, marginTop: 10 },
+  sectionTitle: { fontSize: 11, fontFamily: 'Helvetica-Bold', color: NAVY, marginTop: 14, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 },
+  metaRow: { flexDirection: 'row', flexWrap: 'wrap', marginBottom: 8 },
+  metaItem: { width: '33%', marginBottom: 4 },
+  metaLabel: { fontSize: 8, color: MED_GRAY, textTransform: 'uppercase' },
+  metaValue: { fontSize: 11, fontFamily: 'Helvetica-Bold', color: DARK_GRAY },
+  tableHead: { flexDirection: 'row', backgroundColor: NAVY, paddingVertical: 5, paddingHorizontal: 6, borderRadius: 2 },
+  th: { color: '#FFFFFF', fontSize: 8, fontFamily: 'Helvetica-Bold', textTransform: 'uppercase' },
+  tr: { flexDirection: 'row', paddingVertical: 4, paddingHorizontal: 6, borderBottomWidth: 0.5, borderBottomColor: '#E5E7EB' },
+  trAlt: { backgroundColor: LIGHT_GRAY },
+  td: { fontSize: 9, color: DARK_GRAY },
+  tip: { flexDirection: 'row', marginBottom: 4, paddingRight: 8 },
+  tipDot: { width: 8, fontSize: 9, fontFamily: 'Helvetica-Bold' },
+  tipText: { flex: 1, fontSize: 9, lineHeight: 1.35 },
+  footer: { position: 'absolute', bottom: 18, left: 35, right: 35, flexDirection: 'row', justifyContent: 'space-between', fontSize: 7, color: MED_GRAY, borderTopWidth: 0.5, borderTopColor: '#E5E7EB', paddingTop: 6 },
+})
+
+const TIP_COLOR = { good: '#059669', warn: '#D97706', info: '#2563EB' }
+const TIP_MARK = { good: '+', warn: '!', info: 'i' }
+
+function Tips({ tips }) {
+  return (
+    <View>
+      {tips.map((t, i) => (
+        <View key={i} style={reportStyles.tip}>
+          <Text style={[reportStyles.tipDot, { color: TIP_COLOR[t.type] || MED_GRAY }]}>{TIP_MARK[t.type] || '-'}</Text>
+          <Text style={reportStyles.tipText}>{t.text}</Text>
+        </View>
+      ))}
+    </View>
+  )
+}
+
+function DayReportDocument({ tournament, dayNumber, stats, tips, times, finals }) {
+  return (
+    <Document>
+      <Page size="A4" style={reportStyles.page}>
+        <View style={reportStyles.header}>
+          <Text style={reportStyles.headerTitle}>DAY {dayNumber} — ASSIGNMENT REPORT</Text>
+          <Text style={reportStyles.headerSubtitle}>{tournament?.name || 'Tournament'}{tournament?.location ? ` · ${tournament.location}` : ''}</Text>
+          <View style={reportStyles.headerAccent} />
+        </View>
+
+        <View style={reportStyles.metaRow}>
+          <View style={reportStyles.metaItem}><Text style={reportStyles.metaLabel}>Rounds</Text><Text style={reportStyles.metaValue}>{stats.rounds}</Text></View>
+          <View style={reportStyles.metaItem}><Text style={reportStyles.metaLabel}>Courts</Text><Text style={reportStyles.metaValue}>{stats.courtsCount}</Text></View>
+          <View style={reportStyles.metaItem}><Text style={reportStyles.metaLabel}>Active referees</Text><Text style={reportStyles.metaValue}>{stats.workingCount}/{stats.totalRefs}</Text></View>
+          {times && (
+            <View style={reportStyles.metaItem}><Text style={reportStyles.metaLabel}>Schedule</Text><Text style={reportStyles.metaValue}>{times.start} → ~{times.end}</Text></View>
+          )}
+          <View style={reportStyles.metaItem}><Text style={reportStyles.metaLabel}>Workload spread</Text><Text style={reportStyles.metaValue}>{stats.spread} match{stats.spread === 1 ? '' : 'es'}</Text></View>
+          <View style={reportStyles.metaItem}><Text style={reportStyles.metaLabel}>Evaluated</Text><Text style={reportStyles.metaValue}>{stats.evaluatedCount}/{stats.workingCount}</Text></View>
+        </View>
+
+        <Text style={reportStyles.sectionTitle}>Referee workload</Text>
+        <View style={reportStyles.tableHead}>
+          <Text style={[reportStyles.th, { width: '38%' }]}>Referee</Text>
+          <Text style={[reportStyles.th, { width: '12%' }]}>Level</Text>
+          <Text style={[reportStyles.th, { width: '14%' }]}>Matches</Text>
+          <Text style={[reportStyles.th, { width: '12%' }]}>Rest</Text>
+          <Text style={[reportStyles.th, { width: '14%' }]}>Max row</Text>
+          <Text style={[reportStyles.th, { width: '10%' }]}>Eval</Text>
+        </View>
+        {stats.perRef.map((r, i) => (
+          <View key={r.id} style={[reportStyles.tr, i % 2 === 1 ? reportStyles.trAlt : {}]}>
+            <Text style={[reportStyles.td, { width: '38%' }]}>{r.name}</Text>
+            <Text style={[reportStyles.td, { width: '12%' }]}>{r.level}</Text>
+            <Text style={[reportStyles.td, { width: '14%' }]}>{r.matches}</Text>
+            <Text style={[reportStyles.td, { width: '12%' }]}>{r.rest}</Text>
+            <Text style={[reportStyles.td, { width: '14%' }]}>{r.maxConsec}</Text>
+            <Text style={[reportStyles.td, { width: '10%' }]}>{r.evaluated ? 'Yes' : '—'}</Text>
+          </View>
+        ))}
+
+        {finals && finals.length > 0 && (
+          <>
+            <Text style={reportStyles.sectionTitle}>Finals & line judges</Text>
+            {finals.map((f, i) => (
+              <View key={i} style={{ marginBottom: 6 }}>
+                <Text style={{ fontSize: 10, fontFamily: 'Helvetica-Bold', color: NAVY }}>{f.court}</Text>
+                <Text style={[reportStyles.td, { marginTop: 1 }]}>Referees: {f.referees || '—'}</Text>
+                <Text style={[reportStyles.td, { marginTop: 1 }]}>Line judges: {f.lineJudges || '—'}</Text>
+              </View>
+            ))}
+          </>
+        )}
+
+        <Text style={reportStyles.sectionTitle}>Coach notes & suggestions</Text>
+        <Tips tips={tips} />
+
+        <View style={reportStyles.footer} fixed>
+          <Text>BVB Referee Coach · Day {dayNumber} report</Text>
+          <Text>Generated {formatDateTime(new Date())}</Text>
+        </View>
+      </Page>
+    </Document>
+  )
+}
+
+export async function generateDayReportPDF({ tournament, dayNumber, stats, tips, times, finals }) {
+  const blob = await pdf(
+    <DayReportDocument tournament={tournament} dayNumber={dayNumber} stats={stats} tips={tips} times={times} finals={finals} />
+  ).toBlob()
+  return blob
+}
+
+function TournamentReportDocument({ tournament, tStats, tTips, dayReports }) {
+  return (
+    <Document>
+      <Page size="A4" style={reportStyles.page}>
+        <View style={reportStyles.header}>
+          <Text style={reportStyles.headerTitle}>TOURNAMENT REPORT</Text>
+          <Text style={reportStyles.headerSubtitle}>{tournament?.name || 'Tournament'}{tournament?.location ? ` · ${tournament.location}` : ''}</Text>
+          <View style={reportStyles.headerAccent} />
+        </View>
+
+        <View style={reportStyles.metaRow}>
+          <View style={reportStyles.metaItem}><Text style={reportStyles.metaLabel}>Days</Text><Text style={reportStyles.metaValue}>{tStats.days}</Text></View>
+          <View style={reportStyles.metaItem}><Text style={reportStyles.metaLabel}>Total rounds</Text><Text style={reportStyles.metaValue}>{tStats.totalRounds}</Text></View>
+          <View style={reportStyles.metaItem}><Text style={reportStyles.metaLabel}>Total matches</Text><Text style={reportStyles.metaValue}>{tStats.totalMatches}</Text></View>
+          <View style={reportStyles.metaItem}><Text style={reportStyles.metaLabel}>Referees used</Text><Text style={reportStyles.metaValue}>{tStats.rows.filter((r) => r.matches > 0).length}</Text></View>
+          <View style={reportStyles.metaItem}><Text style={reportStyles.metaLabel}>Workload spread</Text><Text style={reportStyles.metaValue}>{tStats.spread}</Text></View>
+        </View>
+
+        <Text style={reportStyles.sectionTitle}>Workload across all days</Text>
+        <View style={reportStyles.tableHead}>
+          <Text style={[reportStyles.th, { width: '44%' }]}>Referee</Text>
+          <Text style={[reportStyles.th, { width: '12%' }]}>Level</Text>
+          <Text style={[reportStyles.th, { width: '16%' }]}>Matches</Text>
+          <Text style={[reportStyles.th, { width: '14%' }]}>Days</Text>
+          <Text style={[reportStyles.th, { width: '14%' }]}>Max row</Text>
+        </View>
+        {tStats.rows.map((r, i) => (
+          <View key={r.id} style={[reportStyles.tr, i % 2 === 1 ? reportStyles.trAlt : {}]}>
+            <Text style={[reportStyles.td, { width: '44%' }]}>{r.name}</Text>
+            <Text style={[reportStyles.td, { width: '12%' }]}>{r.level}</Text>
+            <Text style={[reportStyles.td, { width: '16%' }]}>{r.matches}</Text>
+            <Text style={[reportStyles.td, { width: '14%' }]}>{r.days}</Text>
+            <Text style={[reportStyles.td, { width: '14%' }]}>{r.maxConsec}</Text>
+          </View>
+        ))}
+
+        <Text style={reportStyles.sectionTitle}>Per-day summary</Text>
+        <View style={reportStyles.tableHead}>
+          <Text style={[reportStyles.th, { width: '20%' }]}>Day</Text>
+          <Text style={[reportStyles.th, { width: '20%' }]}>Rounds</Text>
+          <Text style={[reportStyles.th, { width: '30%' }]}>Active refs</Text>
+          <Text style={[reportStyles.th, { width: '30%' }]}>Spread</Text>
+        </View>
+        {dayReports.map(({ dayNumber, stats }, i) => (
+          <View key={dayNumber} style={[reportStyles.tr, i % 2 === 1 ? reportStyles.trAlt : {}]}>
+            <Text style={[reportStyles.td, { width: '20%' }]}>Day {dayNumber}</Text>
+            <Text style={[reportStyles.td, { width: '20%' }]}>{stats.rounds}</Text>
+            <Text style={[reportStyles.td, { width: '30%' }]}>{stats.workingCount}/{stats.totalRefs}</Text>
+            <Text style={[reportStyles.td, { width: '30%' }]}>{stats.spread}</Text>
+          </View>
+        ))}
+
+        <Text style={reportStyles.sectionTitle}>Commission notes & suggestions</Text>
+        <Tips tips={tTips} />
+
+        <View style={reportStyles.footer} fixed>
+          <Text>BVB Referee Coach · Tournament report</Text>
+          <Text>Generated {formatDateTime(new Date())}</Text>
+        </View>
+      </Page>
+    </Document>
+  )
+}
+
+export async function generateTournamentReportPDF({ tournament, tStats, tTips, dayReports }) {
+  const blob = await pdf(
+    <TournamentReportDocument tournament={tournament} tStats={tStats} tTips={tTips} dayReports={dayReports} />
+  ).toBlob()
+  return blob
+}

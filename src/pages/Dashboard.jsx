@@ -233,7 +233,7 @@ export default function Dashboard() {
         <div>
           <div className="flex items-center justify-between mb-2">
             <h2 className="font-display text-lg font-bold uppercase tracking-wide text-gray-600">Valutazioni recenti</h2>
-            <Link to="/evaluate" className="text-sm font-semibold text-[#E85D26] flex items-center gap-1">+ Nuova <ChevronRight size={14} /></Link>
+            <Link to="/evaluate" className="text-sm font-semibold text-[#E85D26] flex items-center gap-1">+ New <ChevronRight size={14} /></Link>
           </div>
           <div className="rounded-2xl bg-white border border-gray-200 shadow-sm overflow-hidden">
             {recentEvals.length === 0 ? (

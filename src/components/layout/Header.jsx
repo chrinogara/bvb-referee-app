@@ -1,4 +1,5 @@
-import { Menu, WifiOff, FlaskConical } from 'lucide-react'
+import { Menu, WifiOff, FlaskConical, Home } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import { useAppStore } from '../../store/appStore'
 import { useState, useEffect } from 'react'
 import { cn } from '../../lib/utils'
@@ -42,6 +43,15 @@ export function Header({ title, subtitle, actions }) {
         >
           <Menu size={20} />
         </button>
+
+        <Link
+          to="/"
+          title="Back to circuit hub"
+          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-gray-500 hover:text-[#E85D26] hover:bg-gray-100 transition-colors shrink-0"
+        >
+          <Home size={18} />
+          <span className="text-xs font-bold uppercase tracking-wide hidden sm:inline">Hub</span>
+        </Link>
 
         <div className="flex-1 min-w-0">
           {title && (

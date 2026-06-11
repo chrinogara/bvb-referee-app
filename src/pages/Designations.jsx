@@ -70,7 +70,10 @@ function applyRound(state, courtsArr) {
 // Calcola il round successivo dalla situazione corrente
 function nextRound(state) {
   const { REFS, NC, consec, rested, total, lastCourt, prevWorking } = state
-  const stay = prevWorking.filter((r) => consec[r] < STINT && consec[r] < MAX_CONSEC)
+  // "stay" = referees who keep working this round. Guard with REFS.includes so a
+  // referee removed from the roster mid-day (attendance toggled off after rounds
+  // were generated) can NEVER be re-assigned — prevents phantom designations.
+  const stay = prevWorking.filter((r) => REFS.includes(r) && consec[r] < STINT && consec[r] < MAX_CONSEC)
   const free = Math.max(0, NC - stay.length)
   const bench = REFS.filter((r) => !stay.includes(r))
   bench.sort((a, b) => (rested[b] - rested[a]) || (total[a] - total[b]) || (Math.random() - 0.5))
@@ -286,9 +289,31 @@ export default function Designations() {
   }, [tournamentId, dayNumber, courts])
   useEffect(() => { loadGiri() }, [loadGiri])
 
+  // Safety check: a referee must never appear twice in the same round.
+  // Returns the list of conflicts (empty = all good).
+  function findOverlaps(nextGiri) {
+    const conflicts = []
+    nextGiri.forEach((g, gi) => {
+      const seen = new Set()
+      g.courts.forEach((refId) => {
+        if (!refId) return
+        if (seen.has(refId)) conflicts.push({ round: gi + 1, referee: nameOf(refId) })
+        seen.add(refId)
+      })
+    })
+    return conflicts
+  }
+
   // Salva i giri (sostituisce solo le righe non-finali del giorno)
   async function persistGiri(nextGiri) {
     if (!tournamentId) return
+    // Guard: never write a rotation that double-books a referee in one round.
+    const overlaps = findOverlaps(nextGiri)
+    if (overlaps.length > 0) {
+      const msg = overlaps.map((c) => `${c.referee} (Round ${c.round})`).join(', ')
+      toast.error(`Overlap blocked — ${msg} assigned twice in the same round`)
+      throw new Error(`Referee overlap detected: ${msg}`)
+    }
     await supabase
       .from('court_assignments')
       .delete()
@@ -527,20 +552,20 @@ export default function Designations() {
     <div className="min-h-screen bg-gray-100">
       <Header title="Assignments" subtitle={tournament?.name} />
 
-      {/* Selettori + tab brand */}
+      {/* Selectors + brand tabs */}
       <div style={{ background: `linear-gradient(135deg, ${NAVY}, ${NAVY2})` }} className="text-white px-4 pt-3 pb-3">
         <div className="flex gap-2 mb-3">
           <select value={tournamentId} onChange={(e) => setTournamentId(e.target.value)}
-            className="flex-1 rounded-lg px-3 py-2 text-gray-900 text-sm font-semibold">
+            className="flex-1 rounded-lg px-3 py-2 bg-white text-gray-900 text-sm font-semibold border border-white/20 shadow-sm">
             {tournaments.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
           </select>
           <select value={dayNumber} onChange={(e) => setDayNumber(Number(e.target.value))}
-            className="rounded-lg px-3 py-2 text-gray-900 text-sm font-semibold">
+            className="rounded-lg px-3 py-2 bg-white text-gray-900 text-sm font-semibold border border-white/20 shadow-sm">
             {Array.from({ length: totalDays }, (_, i) => i + 1).map((d) => <option key={d} value={d}>Day {d}</option>)}
           </select>
         </div>
         <div className="flex gap-2">
-          {[['gironi', 'Gironi'], ['finali', 'Finali']].map(([k, label]) => (
+          {[['gironi', 'Rounds'], ['finali', 'Finals']].map(([k, label]) => (
             <button key={k} onClick={() => { setTab(k); setPicker(null) }}
               style={tab === k ? { background: '#fff', color: NAVY } : { background: 'rgba(255,255,255,.15)', color: '#fff' }}
               className="flex-1 rounded-xl py-2.5 text-base font-bold">

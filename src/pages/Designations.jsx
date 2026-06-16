@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { Shuffle, Minus, MessageCircle, Copy, Download, Coffee, Trophy, Star, RotateCcw, Clock, Settings2, FileText, Flag } from 'lucide-react'
+import { Shuffle, Minus, MessageCircle, Copy, Download, Coffee, Trophy, Star, RotateCcw, Clock, Settings2, FileText, Flag, AlertTriangle } from 'lucide-react'
 
 import { Header } from '../components/layout/Header'
 import { toast } from '../components/ui/Toast'
@@ -264,6 +264,23 @@ export default function Designations() {
     (courtsArr) => rosterIds.filter((id) => !courtsArr.includes(id)),
     [rosterIds]
   )
+
+  // ─── Avviso staffing: troppi pochi arbitri rispetto ai campi ────────────────
+  // Quando i presenti sono appena più dei campi, il tetto di riposo non può
+  // essere garantito (non c'è abbastanza panchina) e gli arbitri lavorano molti
+  // round di fila. Soglie ricavate dai test: ratio >= 1.5 è confortevole.
+  const staffing = useMemo(() => {
+    const present = rosterIds.length
+    const nc = courts.length
+    if (present === 0 || nc === 0) return null
+    const ratio = present / nc
+    const resting = present - nc // quanti riposano per round
+    // stima grossolana del massimo di round consecutivi quando la panchina è sottile
+    let level = 'ok'
+    if (present <= nc) level = 'critical'            // nessuno riposa mai
+    else if (ratio < 1.5) level = 'warn'             // riposo insufficiente
+    return { present, nc, ratio, resting, level }
+  }, [rosterIds.length, courts.length])
 
   // Carica i giri salvati
   const loadGiri = useCallback(async () => {
@@ -775,6 +792,26 @@ export default function Designations() {
               })}
             </div>
           </div>
+
+          {/* Staffing warning — too few referees for the number of courts */}
+          {staffing && staffing.level !== 'ok' && (
+            <div className="px-4 mb-2">
+              <div className={`rounded-xl px-3.5 py-2.5 flex items-start gap-2.5 border ${
+                staffing.level === 'critical'
+                  ? 'bg-red-50 border-red-200 text-red-800'
+                  : 'bg-amber-50 border-amber-200 text-amber-800'
+              }`}>
+                <AlertTriangle size={16} className="shrink-0 mt-0.5" />
+                <div className="text-xs leading-relaxed">
+                  {staffing.level === 'critical' ? (
+                    <><b>{staffing.present} referees for {staffing.nc} courts.</b> With this many no one can rest — every referee works every round. Add referees or reduce courts.</>
+                  ) : (
+                    <><b>{staffing.present} referees for {staffing.nc} courts</b> (only {staffing.resting} resting per round). Referees will work several rounds in a row with little rest. For comfortable rotation use at least {Math.ceil(staffing.nc * 1.5)} referees.</>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Azioni rotazione */}
           <div className="px-4 flex gap-2 items-center">

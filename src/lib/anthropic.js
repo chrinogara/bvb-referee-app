@@ -151,3 +151,51 @@ export async function* askRulesAssistantStream(question, conversationHistory = [
   const text = await askRulesAssistant(question, conversationHistory)
   yield text
 }
+
+// ─── Note translation (evaluation observations → English) ────────────────────
+// Translates free-text referee-evaluation notes into clear English. Used by the
+// "Translate" button / on-blur auto-translate in the Evaluate page so that the
+// PDF and WhatsApp output is always in English even when the coach writes in
+// Italian (or any other language).
+const TRANSLATE_SYSTEM = `You are a translator for a beach volleyball referee coach.
+Translate the user's referee-evaluation note into clear, professional English.
+Rules:
+- Output ONLY the translated text — no preamble, no quotes, no notes.
+- Keep it concise and faithful; preserve refereeing terminology.
+- If the text is already in English, return it unchanged.
+- Keep proper names, scores and abbreviations (R1, R2, BMP, etc.) as they are.`
+
+export async function translateToEnglish(text) {
+  const trimmed = (text || '').trim()
+  if (!trimmed) return ''
+  if (!API_KEY) throw new Error('Translation unavailable: missing API key')
+
+  const response = await fetch(API_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': API_KEY,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true',
+    },
+    body: JSON.stringify({
+      model: MODEL,
+      max_tokens: 600,
+      system: TRANSLATE_SYSTEM,
+      messages: [{ role: 'user', content: trimmed }],
+    }),
+  })
+
+  if (!response.ok) {
+    const errText = await response.text()
+    throw new Error(`Translation failed (${response.status}): ${errText}`)
+  }
+
+  const data = await response.json()
+  const out = (data.content || [])
+    .filter((b) => b.type === 'text')
+    .map((b) => b.text)
+    .join('')
+    .trim()
+  return out || trimmed
+}

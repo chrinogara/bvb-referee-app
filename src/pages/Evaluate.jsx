@@ -7,6 +7,7 @@ import { useAppStore } from '../store/appStore'
 import { CRITERIA, computeScore, SCORE_LABELS, getGrade } from '../lib/scoring'
 import { generateEvaluationPDF, downloadPDF, sharePDFWhatsApp } from '../lib/pdf'
 import { shareEvaluationToReferee } from '../lib/whatsapp'
+import { translateToEnglish } from '../lib/anthropic'
 import { useDocLanguage } from '../context/LanguageGate'
 import { cn, refereeName, roleColor, scoreColor } from '../lib/utils'
 import { Header } from '../components/layout/Header'
@@ -26,6 +27,7 @@ import {
   CheckCircle,
   Search,
   X,
+  Languages,
 } from 'lucide-react'
 
 // ─── Score button color map ───────────────────────────────────────────────────
@@ -234,6 +236,72 @@ function NumberStepper({ label, value, onChange, min = 1, max = 99 }) {
 
 // ─── Criterion card ───────────────────────────────────────────────────────────
 
+// Reusable note textarea with auto-translate-to-English (on blur) + manual button.
+// Writes in any language; output is English so PDF/WhatsApp are always in English.
+function NoteField({ value, onChange, placeholder, rows = 2, autoOpenLabel }) {
+  const [busy, setBusy] = useState(false)
+  const focusValueRef = useRef('')
+
+  async function runTranslate(text, { silent = false } = {}) {
+    const t = (text ?? value ?? '').trim()
+    if (!t || busy) return
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+      if (!silent) toast.error('Translation needs an internet connection')
+      return
+    }
+    setBusy(true)
+    try {
+      const en = await translateToEnglish(t)
+      if (en && en.trim() && en.trim() !== t) onChange(en.trim())
+    } catch (err) {
+      console.error('translate error', err)
+      if (!silent) toast.error('Translation failed — please try again')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center justify-between">
+        {autoOpenLabel && (
+          <label className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">{autoOpenLabel}</label>
+        )}
+        <div className="ml-auto flex items-center gap-2">
+          {busy && <span className="text-[10px] text-gray-400 animate-pulse">Translating…</span>}
+          <button
+            type="button"
+            onClick={() => runTranslate(value)}
+            disabled={busy || !value?.trim()}
+            title="Translate to English"
+            className="text-[10px] font-bold uppercase tracking-wide text-[#E85D26] flex items-center gap-1 disabled:opacity-40"
+          >
+            <Languages size={13} /> Translate
+          </button>
+        </div>
+      </div>
+      <textarea
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        onFocus={(e) => { focusValueRef.current = e.target.value }}
+        onBlur={(e) => {
+          const v = e.target.value
+          // Auto-translate only if the user actually typed something new
+          if (v.trim() && v !== focusValueRef.current) runTranslate(v, { silent: true })
+        }}
+        placeholder={placeholder}
+        rows={rows}
+        className={cn(
+          'w-full bg-gray-50 border border-gray-300 rounded-lg px-3 py-2',
+          'text-gray-900 placeholder-gray-400 text-sm resize-none',
+          'focus:outline-none focus:border-[#E85D26]/60 focus:ring-1 focus:ring-[#E85D26]/30',
+          'transition-colors duration-150'
+        )}
+      />
+    </div>
+  )
+}
+
 function CriterionCard({ criterion, score, repeat, note, onScore, onRepeat, onNote, error }) {
   const [descOpen, setDescOpen] = useState(false)
   const [noteOpen, setNoteOpen] = useState(!!note)
@@ -330,23 +398,13 @@ function CriterionCard({ criterion, score, repeat, note, onScore, onRepeat, onNo
             <span className="text-[#E85D26]">+</span> Add observation note
           </button>
         ) : (
-          <div className="space-y-1">
-            <label className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">
-              Observation
-            </label>
-            <textarea
-              value={note}
-              onChange={(e) => onNote(e.target.value)}
-              placeholder="What did you observe? Be specific…"
-              rows={2}
-              className={cn(
-                'w-full bg-gray-50 border border-gray-300 rounded-lg px-3 py-2',
-                'text-gray-900 placeholder-gray-400 text-sm resize-none',
-                'focus:outline-none focus:border-[#E85D26]/60 focus:ring-1 focus:ring-[#E85D26]/30',
-                'transition-colors duration-150'
-              )}
-            />
-          </div>
+          <NoteField
+            value={note}
+            onChange={onNote}
+            placeholder="What did you observe? Be specific…"
+            rows={2}
+            autoOpenLabel="Observation"
+          />
         )}
       </CardBody>
     </Card>
@@ -783,17 +841,11 @@ export default function Evaluate() {
               </h2>
             </CardHeader>
             <CardBody>
-              <textarea
+              <NoteField
                 value={generalNotes}
-                onChange={(e) => setGeneralNotes(e.target.value)}
+                onChange={setGeneralNotes}
                 placeholder="Overall impressions, strengths, areas for improvement…"
                 rows={4}
-                className={cn(
-                  'w-full bg-gray-50 border border-gray-300 rounded-lg px-3 py-2.5',
-                  'text-gray-900 placeholder-gray-400 text-sm resize-none',
-                  'focus:outline-none focus:border-[#E85D26]/60 focus:ring-1 focus:ring-[#E85D26]/30',
-                  'transition-colors duration-150'
-                )}
               />
             </CardBody>
           </Card>

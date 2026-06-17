@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useReferees } from '../hooks/useReferees'
 import { useTournaments } from '../hooks/useTournaments'
 import { useEvaluations } from '../hooks/useEvaluations'
+import { courtAssignmentService } from '../lib/supabase'
 import { useAppStore } from '../store/appStore'
 import { CRITERIA, computeScore, SCORE_LABELS, getGrade } from '../lib/scoring'
 import { generateEvaluationPDF, downloadPDF, sharePDFWhatsApp } from '../lib/pdf'
@@ -504,6 +505,43 @@ export default function Evaluate() {
   )
   const [dayNumber, setDayNumber] = useState(lastDayNumber || 1)
   const [courtNumber, setCourtNumber] = useState(null)
+  const [roundNumber, setRoundNumber] = useState(null)
+
+  // ── Round-aware selection (mirrors Assignments) ─────────────────────────────
+  const [pickMode, setPickMode] = useState('round') // 'round' | 'manual'
+  const [assignments, setAssignments] = useState([]) // court_assignments rows for the day
+  const [loadingAssign, setLoadingAssign] = useState(false)
+
+  // Load the day's assignments whenever tournament/day changes
+  useEffect(() => {
+    let alive = true
+    if (!tournamentId || !dayNumber) { setAssignments([]); return }
+    setLoadingAssign(true)
+    courtAssignmentService
+      .getByDay(tournamentId, dayNumber)
+      .then(({ data }) => { if (alive) setAssignments(data || []) })
+      .catch(() => { if (alive) setAssignments([]) })
+      .finally(() => { if (alive) setLoadingAssign(false) })
+    return () => { alive = false }
+  }, [tournamentId, dayNumber])
+
+  // Group assignments into rounds: { [session_order]: [{court, referee_id}] }
+  const rounds = useMemo(() => {
+    const FINALS = 99
+    const bySession = {}
+    for (const row of assignments) {
+      if (row.session_order === FINALS) continue
+      if (!bySession[row.session_order]) bySession[row.session_order] = []
+      bySession[row.session_order].push(row)
+    }
+    return Object.keys(bySession)
+      .map((s) => Number(s))
+      .sort((a, b) => a - b)
+      .map((s) => ({
+        round: s,
+        courts: bySession[s].sort((a, b) => a.court - b.court),
+      }))
+  }, [assignments])
 
   // Per-criterion: score, repeat, note
   const [criteriaData, setCriteriaData] = useState(() =>
@@ -551,6 +589,12 @@ export default function Evaluate() {
     }
   }
 
+  // ── Match label (round + court) ──────────────────────────────────────────────
+  function matchLabel() {
+    if (roundNumber) return `Round ${roundNumber}${courtNumber ? ` · Court ${courtNumber}` : ''}`
+    return courtNumber ? `Court ${courtNumber}` : null
+  }
+
   // ── Validation ───────────────────────────────────────────────────────────────
   function validate() {
     const errs = {}
@@ -579,7 +623,7 @@ export default function Evaluate() {
       role,
       tournament_id: tournamentId || null,
       day_number: dayNumber || null,
-      match_description: courtNumber ? `Court ${courtNumber}` : null,
+      match_description: matchLabel(),
       score_positioning:  criteriaData.positioning.score,
       score_signals:      criteriaData.signals.score,
       score_attitude:     criteriaData.attitude.score,
@@ -626,7 +670,7 @@ export default function Evaluate() {
         const blob = await generateEvaluationPDF(
           saved,
           referee,
-          { match_description: courtNumber ? `Court ${courtNumber}` : null },
+          { match_description: matchLabel() },
           tournament
         )
         setPdfBlob(blob)
@@ -664,7 +708,7 @@ export default function Evaluate() {
       const blob = await generateEvaluationPDF(
         savedEval,
         referee,
-        { match_description: courtNumber ? `Court ${courtNumber}` : null },
+        { match_description: matchLabel() },
         tournament,
         lang
       )
@@ -715,16 +759,115 @@ export default function Evaluate() {
               </h2>
             </CardHeader>
             <CardBody className="space-y-4">
-              {/* Referee selector */}
-              <RefereeSelector
-                referees={referees}
-                value={refereeId}
-                onChange={(id) => {
-                  setRefereeId(id)
-                  setErrors((p) => { const n = { ...p }; delete n.refereeId; return n })
-                }}
-                error={errors.refereeId}
-              />
+              {/* Pick mode: by round (from assignments) or manual */}
+              <div className="grid grid-cols-2 gap-2">
+                {[['round', 'By round'], ['manual', 'Manual']].map(([m, label]) => (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => setPickMode(m)}
+                    className={cn(
+                      'py-2 rounded-lg text-sm font-bold transition-all duration-150',
+                      pickMode === m
+                        ? 'bg-[#2D3270] text-white border border-[#2D3270]'
+                        : 'bg-gray-50 text-gray-500 border border-gray-200 hover:text-gray-700'
+                    )}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+
+              {/* ── By-round picker: mirrors the Assignments rounds ── */}
+              {pickMode === 'round' && (
+                <div className="space-y-3">
+                  {!tournamentId ? (
+                    <p className="text-xs text-gray-500">Select a tournament below to load its rounds.</p>
+                  ) : loadingAssign ? (
+                    <p className="text-xs text-gray-400">Loading rounds…</p>
+                  ) : rounds.length === 0 ? (
+                    <p className="text-xs text-gray-500">No assignments for this day yet. Create rounds in Assignments, or use Manual.</p>
+                  ) : (
+                    <>
+                      {/* Round selector */}
+                      <div className="flex flex-col gap-1">
+                        <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Round</label>
+                        <div className="flex flex-wrap gap-2">
+                          {rounds.map(({ round }) => (
+                            <button
+                              key={round}
+                              type="button"
+                              onClick={() => { setRoundNumber(round); setRefereeId(''); setCourtNumber(null) }}
+                              className={cn(
+                                'px-4 py-2 rounded-lg text-sm font-bold transition-all duration-150',
+                                roundNumber === round
+                                  ? 'bg-[#E85D26] text-white border border-[#E85D26]'
+                                  : 'bg-gray-50 text-gray-600 border border-gray-200 hover:border-gray-300'
+                              )}
+                            >
+                              Round {round}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Courts of the selected round → tap a referee */}
+                      {roundNumber && (
+                        <div className="flex flex-col gap-1">
+                          <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+                            Tap the referee to evaluate
+                          </label>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            {(rounds.find((r) => r.round === roundNumber)?.courts || []).map((row) => {
+                              const ref = row.referees || referees.find((r) => r.id === row.referee_id)
+                              const selected = refereeId === row.referee_id && courtNumber === row.court
+                              return (
+                                <button
+                                  key={`${row.court}-${row.referee_id}`}
+                                  type="button"
+                                  onClick={() => {
+                                    setRefereeId(row.referee_id)
+                                    setCourtNumber(row.court)
+                                    setRole('R1')
+                                    setErrors((p) => { const n = { ...p }; delete n.refereeId; return n })
+                                  }}
+                                  className={cn(
+                                    'flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl border text-left transition-all duration-150',
+                                    selected
+                                      ? 'bg-[#2D3270] text-white border-[#2D3270] ring-2 ring-[#2D3270]/30'
+                                      : 'bg-white text-gray-800 border-gray-200 hover:border-gray-300'
+                                  )}
+                                >
+                                  <span className="text-sm font-semibold truncate">
+                                    {ref ? refereeName(ref) : '—'}
+                                  </span>
+                                  <span className={cn('text-[11px] font-bold uppercase shrink-0', selected ? 'text-white/80' : 'text-[#E85D26]')}>
+                                    Court {row.court}
+                                  </span>
+                                </button>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
+
+              {/* Referee selector (manual mode, or to override) */}
+              {pickMode === 'manual' && (
+                <RefereeSelector
+                  referees={referees}
+                  value={refereeId}
+                  onChange={(id) => {
+                    setRefereeId(id)
+                    setRoundNumber(null)
+                    setErrors((p) => { const n = { ...p }; delete n.refereeId; return n })
+                  }}
+                  error={errors.refereeId}
+                />
+              )}
 
               {/* Role toggle */}
               <div className="flex flex-col gap-1">

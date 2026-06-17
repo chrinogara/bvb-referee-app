@@ -29,6 +29,7 @@ const SYSTEM_PROMPT = `You are the official FIVB **Beach Volleyball** Referee Ru
 # ANSWERING STYLE
 - Use official FIVB English terminology at all times.
 - Reference specific rule numbers when applicable (e.g. "Rule 13.1.2", "Chapter 6 Rule 20").
+- When the context contains them, give a layered reference: the **Rulebook** rule number, the matching **Casebook** case/interpretation, and the relevant **Referee Guideline** note — so the coach sees rule + interpretation + guidance together.
 - Concise and precise — this is used courtside.
 - Always cite the source: \`[Document name — page/section]\` or \`[fivb.com]\` / \`[cev.eu]\`.
 - For borderline situations, explain the referee's judgment framework ("Call the obvious. When in doubt — do not call.").
@@ -41,7 +42,32 @@ const WEB_SEARCH_TOOL = {
   max_uses: 3,
 }
 
-// ─── RAG: pull relevant document snippets ────────────────────────────────────
+// ─── RAG: pull snippets, ALWAYS spanning the three key documents ─────────────
+const PRIORITY_TYPES = ['FIVB_RULES', 'FIVB_CASEBOOK', 'RC_GUIDELINES']
+const PER_DOC_CHARS = 3500
+
+function bestChunk(text, terms, size) {
+  if (!text) return ''
+  if (!terms.length) return text.substring(0, size)
+  const lower = text.toLowerCase()
+  const positions = []
+  for (const t of terms) {
+    let i = lower.indexOf(t), guard = 0
+    while (i !== -1 && guard < 80) { positions.push(i); i = lower.indexOf(t, i + t.length); guard++ }
+  }
+  if (!positions.length) return text.substring(0, size)
+  positions.sort((a, b) => a - b)
+  let bestStart = 0, bestHits = -1
+  for (const p of positions) {
+    const start = Math.max(0, p - Math.floor(size / 3))
+    const end = start + size
+    let hits = 0
+    for (const q of positions) if (q >= start && q < end) hits++
+    if (hits > bestHits) { bestHits = hits; bestStart = start }
+  }
+  return text.substring(bestStart, bestStart + size)
+}
+
 async function buildRagContext(question) {
   try {
     const { data: docs } = await documentService.getAll()
@@ -53,41 +79,31 @@ async function buildRagContext(question) {
       .split(/\s+/)
       .filter((w) => w.length > 3)
 
-    if (!terms.length) {
-      return docs
-        .map((d) => `[${d.name}]\n${(d.content_text || '').substring(0, MAX_DOC_CHUNK)}`)
-        .join('\n\n---\n\n')
+    const score = (d) => {
+      const text = (d.content_text || '').toLowerCase()
+      return terms.reduce((s, t) => s + (text.split(t).length - 1), 0)
     }
 
-    const scored = docs.map((d) => {
-      const text = (d.content_text || '').toLowerCase()
-      const score = terms.reduce(
-        (sum, t) => sum + (text.match(new RegExp(t, 'g'))?.length || 0),
-        0
-      )
-      return { ...d, score }
-    })
+    // 1) Always include the three priority documents when present
+    const chosen = []
+    for (const type of PRIORITY_TYPES) {
+      const d = docs.find((x) => x.doc_type === type)
+      if (d) chosen.push(d)
+    }
+    // 2) Add up to 2 other strongly-matching documents
+    const others = docs
+      .filter((d) => !chosen.includes(d))
+      .map((d) => ({ d, s: score(d) }))
+      .filter((x) => x.s > 0)
+      .sort((a, b) => b.s - a.s)
+      .slice(0, 2)
+      .map((x) => x.d)
 
-    const top = scored
-      .sort((a, b) => b.score - a.score)
-      .slice(0, 3)
-      .filter((d) => d.score > 0 || scored.every((x) => x.score === 0))
+    const all = [...chosen, ...others]
+    if (!all.length) return ''
 
-    if (!top.length) return ''
-
-    return top
-      .map((d) => {
-        const text = d.content_text || ''
-        const lower = text.toLowerCase()
-        let bestIdx = -1
-        for (const t of terms) {
-          const idx = lower.indexOf(t)
-          if (idx !== -1 && (bestIdx === -1 || idx < bestIdx)) bestIdx = idx
-        }
-        const start = bestIdx === -1 ? 0 : Math.max(0, bestIdx - 500)
-        const chunk = text.substring(start, start + MAX_DOC_CHUNK)
-        return `[${d.name}]\n${chunk}`
-      })
+    return all
+      .map((d) => `[${d.name}${d.doc_type ? ` · ${d.doc_type}` : ''}]\n${bestChunk(d.content_text || '', terms, PER_DOC_CHARS)}`)
       .join('\n\n---\n\n')
   } catch (err) {
     console.error('RAG error:', err)
@@ -198,4 +214,46 @@ export async function translateToEnglish(text) {
     .join('')
     .trim()
   return out || trimmed
+}
+
+// ─── Rule reference lookup (for evaluation notes) ────────────────────────────
+// Given a short evaluation observation, returns a concise rule reference drawn
+// from the loaded Rulebook + Casebook + Guidelines (no web, documents only).
+const RULE_REF_SYSTEM = `You are a FIVB Beach Volleyball rules referencing tool for a referee coach.
+Given a short evaluation observation about a referee, identify the precise applicable rule(s).
+Use ONLY the provided DOCUMENT CONTEXT (Rulebook, Casebook, Guidelines). Never invent rule numbers.
+Reply in English, very concise, in this exact format (omit a line if nothing relevant is found):
+Rule: <number> — <short title>
+Casebook: <case ref / short note>
+Guideline: <short note>
+If nothing relevant is found in the documents, reply exactly: No matching rule found in the loaded documents.`
+
+export async function lookupRuleReference(observation) {
+  const obs = (observation || '').trim()
+  if (!obs) return ''
+  if (!API_KEY) throw new Error('Rule lookup unavailable: missing API key')
+
+  const context = await buildRagContext(obs)
+  const userContent = context
+    ? `DOCUMENT CONTEXT:\n\n${context}\n\n---\n\nOBSERVATION: ${obs}`
+    : `(No reference documents are loaded.)\n\nOBSERVATION: ${obs}`
+
+  const response = await fetch(API_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': API_KEY,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true',
+    },
+    body: JSON.stringify({
+      model: MODEL,
+      max_tokens: 400,
+      system: RULE_REF_SYSTEM,
+      messages: [{ role: 'user', content: userContent }],
+    }),
+  })
+  if (!response.ok) throw new Error(`Rule lookup failed (${response.status})`)
+  const data = await response.json()
+  return (data.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('').trim()
 }

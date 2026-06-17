@@ -11,6 +11,7 @@ import {
   Volleyball,
   Monitor,
   BookOpen,
+  FileBox,
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { useAppStore } from '../../store/appStore'
@@ -25,6 +26,7 @@ const NAV = [
   { to: '/evaluate',     icon: ClipboardCheck,  label: 'Evaluate', accent: true },
   { to: '/reports',      icon: FileText,        label: 'Reports' },
   { to: '/assistant',    icon: MessageSquare,   label: 'Rules AI' },
+  { to: '/documents',    icon: FileBox,         label: 'Documents' },
 ]
 
 export function Sidebar() {

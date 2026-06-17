@@ -196,3 +196,66 @@ export function sharePersonalToReferee({ referee, tournament, dayNumber, assignm
     shareToWhatsApp(msg)
   }
 }
+
+// ─── Per-referee digests (evening day + end of tournament) ───────────────────
+const DIG_CRIT = [
+  ['positioning', 'Positioning'],
+  ['signals', 'Signals'],
+  ['attitude', 'Attitude'],
+  ['captain_comm', 'Captain comm.'],
+  ['presentation', 'Presentation'],
+]
+function fmt1(n) { return n == null ? '—' : Number(n).toFixed(1) }
+
+/** Concise evening day-digest message for the referee (full detail in the PDF). */
+export function buildDayDigestMessage({ referee, tournament, dayNumber, digest }) {
+  const name = referee?.first_name || ''
+  const L = []
+  L.push(`Hi ${name},`.trim())
+  L.push('')
+  L.push(`Your Day ${dayNumber} summary${tournament?.name ? ` — *${tournament.name}*` : ''} (${digest.count} match${digest.count === 1 ? '' : 'es'}):`)
+  L.push('')
+  L.push(`Day average: *${fmt1(digest.averages.overall)}/5*`)
+  for (const [k, label] of DIG_CRIT) L.push(`• ${label}: ${fmt1(digest.averages.criteria[k])}`)
+  L.push('')
+  L.push('Full breakdown in the PDF I’m sending you. Rest well — see you tomorrow!')
+  L.push('— RC')
+  return L.join('\n')
+}
+
+/** Concise end-of-tournament message for the referee (full detail in the PDF). */
+export function buildTournamentDigestMessage({ referee, tournament, evolution, advice }) {
+  const name = referee?.first_name || ''
+  const ev = evolution.evolution
+  const L = []
+  L.push(`Hi ${name},`.trim())
+  L.push('')
+  L.push(`Your tournament evaluation${tournament?.name ? ` — *${tournament.name}*` : ''} (${evolution.count} match${evolution.count === 1 ? '' : 'es'}):`)
+  L.push('')
+  L.push(`Overall average: *${fmt1(evolution.overall.overall)}/5*`)
+  if (ev && ev.overall != null) {
+    const sign = ev.overall > 0 ? '+' : ''
+    L.push(`Evolution Day ${ev.fromDay}→${ev.toDay}: *${sign}${ev.overall.toFixed(1)}*`)
+  }
+  L.push('')
+  if (advice?.summary) L.push(advice.summary)
+  if (advice?.advice) { L.push(''); L.push(advice.advice) }
+  L.push('')
+  L.push('Full report in the PDF attached. Thanks for your work this tournament!')
+  L.push('— RC')
+  return L.join('\n')
+}
+
+export function shareDayDigestToReferee(args) {
+  const msg = buildDayDigestMessage(args)
+  const phone = normalizePhone(args.referee?.phone)
+  if (phone) window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, '_blank', 'noopener,noreferrer')
+  else shareToWhatsApp(msg)
+}
+
+export function shareTournamentDigestToReferee(args) {
+  const msg = buildTournamentDigestMessage(args)
+  const phone = normalizePhone(args.referee?.phone)
+  if (phone) window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, '_blank', 'noopener,noreferrer')
+  else shareToWhatsApp(msg)
+}

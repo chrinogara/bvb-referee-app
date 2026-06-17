@@ -8,7 +8,7 @@ import { useAppStore } from '../store/appStore'
 import { CRITERIA, computeScore, SCORE_LABELS, getGrade } from '../lib/scoring'
 import { generateEvaluationPDF, downloadPDF, sharePDFWhatsApp } from '../lib/pdf'
 import { shareEvaluationToReferee } from '../lib/whatsapp'
-import { translateToEnglish } from '../lib/anthropic'
+import { translateToEnglish, lookupRuleReference } from '../lib/anthropic'
 import { useDocLanguage } from '../context/LanguageGate'
 import { cn, refereeName, roleColor, scoreColor } from '../lib/utils'
 import { Header } from '../components/layout/Header'
@@ -29,6 +29,7 @@ import {
   Search,
   X,
   Languages,
+  BookMarked,
 } from 'lucide-react'
 
 // ─── Score button color map ───────────────────────────────────────────────────
@@ -239,8 +240,9 @@ function NumberStepper({ label, value, onChange, min = 1, max = 99 }) {
 
 // Reusable note textarea with auto-translate-to-English (on blur) + manual button.
 // Writes in any language; output is English so PDF/WhatsApp are always in English.
-function NoteField({ value, onChange, placeholder, rows = 2, autoOpenLabel }) {
+function NoteField({ value, onChange, placeholder, rows = 2, autoOpenLabel, ruleLookup = false }) {
   const [busy, setBusy] = useState(false)
+  const [refBusy, setRefBusy] = useState(false)
   const focusValueRef = useRef('')
 
   async function runTranslate(text, { silent = false } = {}) {
@@ -262,6 +264,30 @@ function NoteField({ value, onChange, placeholder, rows = 2, autoOpenLabel }) {
     }
   }
 
+  async function runRuleRef() {
+    const t = (value ?? '').trim()
+    if (!t || refBusy) return
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+      toast.error('Rule lookup needs an internet connection')
+      return
+    }
+    setRefBusy(true)
+    try {
+      const ref = await lookupRuleReference(t)
+      if (ref && ref.trim()) {
+        const base = value.replace(/\n*📖[\s\S]*$/, '').trimEnd() // replace a previous reference if present
+        onChange(`${base}\n\n📖 ${ref.trim()}`)
+      } else {
+        toast.info('No rule reference found in the loaded documents')
+      }
+    } catch (err) {
+      console.error('rule ref error', err)
+      toast.error(err.message || 'Rule lookup failed')
+    } finally {
+      setRefBusy(false)
+    }
+  }
+
   return (
     <div className="space-y-1">
       <div className="flex items-center justify-between">
@@ -269,7 +295,18 @@ function NoteField({ value, onChange, placeholder, rows = 2, autoOpenLabel }) {
           <label className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">{autoOpenLabel}</label>
         )}
         <div className="ml-auto flex items-center gap-2">
-          {busy && <span className="text-[10px] text-gray-400 animate-pulse">Translating…</span>}
+          {(busy || refBusy) && <span className="text-[10px] text-gray-400 animate-pulse">{refBusy ? 'Finding rule…' : 'Translating…'}</span>}
+          {ruleLookup && (
+            <button
+              type="button"
+              onClick={runRuleRef}
+              disabled={refBusy || !value?.trim()}
+              title="Find the rule (Rulebook + Casebook + Guidelines)"
+              className="text-[10px] font-bold uppercase tracking-wide text-[#2D3270] flex items-center gap-1 disabled:opacity-40"
+            >
+              <BookMarked size={13} /> Rule
+            </button>
+          )}
           <button
             type="button"
             onClick={() => runTranslate(value)}
@@ -405,6 +442,7 @@ function CriterionCard({ criterion, score, repeat, note, onScore, onRepeat, onNo
             placeholder="What did you observe? Be specific…"
             rows={2}
             autoOpenLabel="Observation"
+            ruleLookup
           />
         )}
       </CardBody>

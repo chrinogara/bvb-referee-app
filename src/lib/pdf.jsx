@@ -1284,3 +1284,189 @@ export async function generateTournamentReportPDF({ tournament, tStats, tTips, d
   ).toBlob()
   return blob
 }
+
+// ════════════════════════════════════════════════════════════════════════════
+//  PER-REFEREE DIGESTS — evening (one day) + end-of-tournament (with evolution)
+//  Sent individually to each referee via WhatsApp/PDF. English.
+// ════════════════════════════════════════════════════════════════════════════
+import { DIGEST_CRITERIA } from './report'
+
+const CRIT_SHORT = { positioning: 'POS', signals: 'SIG', attitude: 'ATT', captain_comm: 'CAP', presentation: 'PRE' }
+
+function fmt(n) { return n == null ? '—' : Number(n).toFixed(1) }
+function signed(n) { return n == null ? '—' : (n > 0 ? `+${n.toFixed(1)}` : n.toFixed(1)) }
+function trendWord(n) { if (n == null) return ''; if (n >= 0.3) return 'improving'; if (n <= -0.3) return 'declining'; return 'stable' }
+
+const digestStyles = StyleSheet.create({
+  avgBox: { flexDirection: 'row', flexWrap: 'wrap', backgroundColor: LIGHT_GRAY, borderRadius: 4, padding: 8, marginBottom: 6 },
+  avgCell: { width: '16.6%', alignItems: 'center' },
+  avgLabel: { fontSize: 7, color: MED_GRAY, textTransform: 'uppercase' },
+  avgVal: { fontSize: 13, fontFamily: 'Helvetica-Bold', color: NAVY, marginTop: 1 },
+  noteBlock: { marginBottom: 5, paddingLeft: 6, borderLeftWidth: 2, borderLeftColor: '#E5E7EB' },
+  noteHead: { fontSize: 8, fontFamily: 'Helvetica-Bold', color: NAVY },
+  noteText: { fontSize: 9, color: DARK_GRAY, marginTop: 1, lineHeight: 1.3 },
+})
+
+function AvgStrip({ averages, label = 'Average' }) {
+  return (
+    <View style={digestStyles.avgBox}>
+      <View style={digestStyles.avgCell}>
+        <Text style={digestStyles.avgLabel}>{label}</Text>
+        <Text style={[digestStyles.avgVal, { color: ORANGE }]}>{fmt(averages.overall)}</Text>
+      </View>
+      {DIGEST_CRITERIA.map((c) => (
+        <View key={c.key} style={digestStyles.avgCell}>
+          <Text style={digestStyles.avgLabel}>{CRIT_SHORT[c.key]}</Text>
+          <Text style={digestStyles.avgVal}>{fmt(averages.criteria[c.key])}</Text>
+        </View>
+      ))}
+    </View>
+  )
+}
+
+function MatchesTable({ matches }) {
+  return (
+    <>
+      <View style={reportStyles.tableHead}>
+        <Text style={[reportStyles.th, { width: '28%' }]}>Match</Text>
+        <Text style={[reportStyles.th, { width: '10%' }]}>Role</Text>
+        {DIGEST_CRITERIA.map((c) => (
+          <Text key={c.key} style={[reportStyles.th, { width: '10%', textAlign: 'center' }]}>{CRIT_SHORT[c.key]}</Text>
+        ))}
+        <Text style={[reportStyles.th, { width: '12%', textAlign: 'center' }]}>Overall</Text>
+      </View>
+      {matches.map((m, i) => (
+        <View key={i} style={[reportStyles.tr, i % 2 === 1 ? reportStyles.trAlt : {}]}>
+          <Text style={[reportStyles.td, { width: '28%' }]}>{m.label}</Text>
+          <Text style={[reportStyles.td, { width: '10%' }]}>{m.role}</Text>
+          {DIGEST_CRITERIA.map((c) => (
+            <Text key={c.key} style={[reportStyles.td, { width: '10%', textAlign: 'center', color: m.repeats[c.key] ? ORANGE : DARK_GRAY }]}>
+              {m.scores[c.key] ?? '—'}{m.repeats[c.key] ? '!' : ''}
+            </Text>
+          ))}
+          <Text style={[reportStyles.td, { width: '12%', textAlign: 'center', fontFamily: 'Helvetica-Bold' }]}>{fmt(m.overall)}</Text>
+        </View>
+      ))}
+    </>
+  )
+}
+
+function MatchNotes({ matches }) {
+  const withNotes = matches.filter((m) => m.general || Object.values(m.notes).some(Boolean))
+  if (!withNotes.length) return null
+  return (
+    <>
+      <Text style={reportStyles.sectionTitle}>Observations</Text>
+      {withNotes.map((m, i) => (
+        <View key={i} style={digestStyles.noteBlock}>
+          <Text style={digestStyles.noteHead}>{m.label}</Text>
+          {DIGEST_CRITERIA.map((c) => m.notes[c.key] ? (
+            <Text key={c.key} style={digestStyles.noteText}>• {CRIT_SHORT[c.key]}: {m.notes[c.key]}</Text>
+          ) : null)}
+          {m.general ? <Text style={digestStyles.noteText}>• General: {m.general}</Text> : null}
+        </View>
+      ))}
+    </>
+  )
+}
+
+function RefereeDayDigestDocument({ referee, tournament, dayNumber, digest }) {
+  return (
+    <Document>
+      <Page size="A4" style={reportStyles.page}>
+        <View style={reportStyles.header}>
+          <Text style={reportStyles.headerTitle}>DAY {dayNumber} — EVALUATION DIGEST</Text>
+          <Text style={reportStyles.headerSubtitle}>{refereeName(referee)}{tournament?.name ? ` · ${tournament.name}` : ''}</Text>
+          <View style={reportStyles.headerAccent} />
+        </View>
+
+        <Text style={reportStyles.sectionTitle}>Day average ({digest.count} match{digest.count === 1 ? '' : 'es'})</Text>
+        <AvgStrip averages={digest.averages} label="Day avg" />
+
+        <Text style={reportStyles.sectionTitle}>Matches</Text>
+        <MatchesTable matches={digest.matches} />
+
+        <MatchNotes matches={digest.matches} />
+
+        <View style={reportStyles.footer} fixed>
+          <Text>BVB Referee Coach · Day {dayNumber} digest · {refereeName(referee)}</Text>
+          <Text>Generated {formatDateTime(new Date())}</Text>
+        </View>
+      </Page>
+    </Document>
+  )
+}
+
+export async function generateRefereeDayDigestPDF({ referee, tournament, dayNumber, digest }) {
+  return pdf(<RefereeDayDigestDocument referee={referee} tournament={tournament} dayNumber={dayNumber} digest={digest} />).toBlob()
+}
+
+function RefereeTournamentDigestDocument({ referee, tournament, evolution, advice }) {
+  const ev = evolution.evolution
+  return (
+    <Document>
+      <Page size="A4" style={reportStyles.page}>
+        <View style={reportStyles.header}>
+          <Text style={reportStyles.headerTitle}>TOURNAMENT EVALUATION</Text>
+          <Text style={reportStyles.headerSubtitle}>{refereeName(referee)}{tournament?.name ? ` · ${tournament.name}` : ''}</Text>
+          <View style={reportStyles.headerAccent} />
+        </View>
+
+        <Text style={reportStyles.sectionTitle}>Tournament average ({evolution.count} match{evolution.count === 1 ? '' : 'es'})</Text>
+        <AvgStrip averages={evolution.overall} label="Overall" />
+
+        <Text style={reportStyles.sectionTitle}>Day-by-day</Text>
+        <View style={reportStyles.tableHead}>
+          <Text style={[reportStyles.th, { width: '20%' }]}>Day</Text>
+          <Text style={[reportStyles.th, { width: '14%', textAlign: 'center' }]}>Matches</Text>
+          <Text style={[reportStyles.th, { width: '16%', textAlign: 'center' }]}>Overall</Text>
+          {DIGEST_CRITERIA.map((c) => (
+            <Text key={c.key} style={[reportStyles.th, { width: '10%', textAlign: 'center' }]}>{CRIT_SHORT[c.key]}</Text>
+          ))}
+        </View>
+        {evolution.perDay.map((d, i) => (
+          <View key={d.day} style={[reportStyles.tr, i % 2 === 1 ? reportStyles.trAlt : {}]}>
+            <Text style={[reportStyles.td, { width: '20%' }]}>Day {d.day}</Text>
+            <Text style={[reportStyles.td, { width: '14%', textAlign: 'center' }]}>{d.count}</Text>
+            <Text style={[reportStyles.td, { width: '16%', textAlign: 'center', fontFamily: 'Helvetica-Bold' }]}>{fmt(d.averages.overall)}</Text>
+            {DIGEST_CRITERIA.map((c) => (
+              <Text key={c.key} style={[reportStyles.td, { width: '10%', textAlign: 'center' }]}>{fmt(d.averages.criteria[c.key])}</Text>
+            ))}
+          </View>
+        ))}
+
+        {ev && (
+          <>
+            <Text style={reportStyles.sectionTitle}>Evolution (Day {ev.fromDay} → Day {ev.toDay})</Text>
+            <View style={[digestStyles.avgBox, { backgroundColor: '#FFF7ED' }]}>
+              <View style={digestStyles.avgCell}>
+                <Text style={digestStyles.avgLabel}>Overall</Text>
+                <Text style={[digestStyles.avgVal, { color: ev.overall > 0 ? '#059669' : ev.overall < 0 ? '#DC2626' : MED_GRAY }]}>{signed(ev.overall)}</Text>
+              </View>
+              {DIGEST_CRITERIA.map((c) => (
+                <View key={c.key} style={digestStyles.avgCell}>
+                  <Text style={digestStyles.avgLabel}>{CRIT_SHORT[c.key]}</Text>
+                  <Text style={[digestStyles.avgVal, { fontSize: 11, color: ev.criteria[c.key] > 0 ? '#059669' : ev.criteria[c.key] < 0 ? '#DC2626' : MED_GRAY }]}>{signed(ev.criteria[c.key])}</Text>
+                </View>
+              ))}
+            </View>
+            <Text style={{ fontSize: 9, color: MED_GRAY }}>Trend: {trendWord(ev.overall)}</Text>
+          </>
+        )}
+
+        <Text style={reportStyles.sectionTitle}>Coach summary & advice</Text>
+        <Text style={{ fontSize: 10, color: DARK_GRAY, lineHeight: 1.4, marginBottom: 4 }}>{advice.summary}</Text>
+        {advice.advice ? <Text style={{ fontSize: 10, color: DARK_GRAY, lineHeight: 1.4 }}>{advice.advice}</Text> : null}
+
+        <View style={reportStyles.footer} fixed>
+          <Text>BVB Referee Coach · Tournament evaluation · {refereeName(referee)}</Text>
+          <Text>Generated {formatDateTime(new Date())}</Text>
+        </View>
+      </Page>
+    </Document>
+  )
+}
+
+export async function generateRefereeTournamentDigestPDF({ referee, tournament, evolution, advice }) {
+  return pdf(<RefereeTournamentDigestDocument referee={referee} tournament={tournament} evolution={evolution} advice={advice} />).toBlob()
+}

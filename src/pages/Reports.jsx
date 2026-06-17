@@ -15,6 +15,9 @@ import {
   Award,
   FileText,
   ExternalLink,
+  CalendarDays,
+  MessageCircle,
+  Minus,
 } from 'lucide-react'
 
 import { Header } from '../components/layout/Header'
@@ -32,8 +35,157 @@ import { cn, formatDate, refereeName, levelColor, scoreColor } from '../lib/util
 import {
   generateEvaluationsSummaryPDF,
   generateRcReportPDF,
+  generateRefereeDayDigestPDF,
+  generateRefereeTournamentDigestPDF,
   downloadPDF,
 } from '../lib/pdf'
+import { refereeDayDigest, refereeEvolution, refereeTournamentAdvice } from '../lib/report'
+import { shareDayDigestToReferee, shareTournamentDigestToReferee } from '../lib/whatsapp'
+
+// ─── Per-referee digest panels (evening day + end of tournament) ──────────────
+function refMapFromEvals(evals) {
+  // group evals by referee, keeping the joined referee object (incl. phone)
+  const map = {}
+  for (const e of evals) {
+    const id = e.referee_id
+    if (!map[id]) map[id] = { referee: e.referees || { id }, evals: [] }
+    map[id].evals.push(e)
+  }
+  return map
+}
+
+function DigestPanel({ tournament, evals }) {
+  const days = useMemo(() => {
+    const s = new Set(evals.map((e) => e.day_number || 1))
+    return [...s].sort((a, b) => a - b)
+  }, [evals])
+  const [day, setDay] = useState(null)
+  useEffect(() => { if (days.length && !days.includes(day)) setDay(days[0]) }, [days]) // eslint-disable-line
+
+  const dayEvals = useMemo(() => evals.filter((e) => (e.day_number || 1) === day), [evals, day])
+  const byRef = useMemo(() => refMapFromEvals(dayEvals), [dayEvals])
+  const [busy, setBusy] = useState(null)
+
+  async function downloadFor(refId) {
+    const { referee, evals: re } = byRef[refId]
+    setBusy(refId)
+    try {
+      const digest = refereeDayDigest(re)
+      const blob = await generateRefereeDayDigestPDF({ referee, tournament, dayNumber: day, digest })
+      downloadPDF(blob, `BVB_Day${day}_${refereeName(referee).replace(/\s+/g, '_')}.pdf`)
+    } catch (e) { toast.error('PDF failed: ' + e.message) } finally { setBusy(null) }
+  }
+  function whatsappFor(refId) {
+    const { referee, evals: re } = byRef[refId]
+    shareDayDigestToReferee({ referee, tournament, dayNumber: day, digest: refereeDayDigest(re) })
+  }
+
+  const ids = Object.keys(byRef)
+  return (
+    <Card>
+      <CardHeader className="flex items-center justify-between">
+        <CardTitle className="flex items-center gap-2"><CalendarDays size={14} /> Evening digest per referee</CardTitle>
+        <div className="flex gap-1">
+          {days.map((d) => (
+            <button key={d} onClick={() => setDay(d)}
+              className={cn('px-3 py-1.5 rounded-lg text-xs font-bold', day === d ? 'bg-[#E85D26] text-white' : 'bg-gray-50 text-gray-600 border border-gray-200')}>
+              Day {d}
+            </button>
+          ))}
+        </div>
+      </CardHeader>
+      <CardBody className="space-y-2">
+        {ids.length === 0 ? (
+          <p className="text-sm text-gray-500 py-6 text-center">No evaluations for this day yet.</p>
+        ) : ids.map((id) => {
+          const { referee, evals: re } = byRef[id]
+          const dig = refereeDayDigest(re)
+          return (
+            <div key={id} className="flex items-center justify-between gap-3 p-3 bg-gray-50 rounded-xl">
+              <div className="min-w-0">
+                <div className="text-sm font-semibold text-gray-900 truncate">{refereeName(referee)}</div>
+                <div className="text-xs text-gray-500">{dig.count} match{dig.count === 1 ? '' : 'es'} · day avg <b style={{ color: '#E85D26' }}>{dig.averages.overall?.toFixed(1) ?? '—'}</b></div>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <Button variant="outline" size="xs" onClick={() => downloadFor(id)} disabled={busy === id}>
+                  <FileText size={12} /> {busy === id ? '…' : 'PDF'}
+                </Button>
+                <Button variant="outline" size="xs" onClick={() => whatsappFor(id)}>
+                  <MessageCircle size={12} /> WhatsApp
+                </Button>
+              </div>
+            </div>
+          )
+        })}
+      </CardBody>
+    </Card>
+  )
+}
+
+function EvoArrow({ d }) {
+  if (d == null) return <Minus size={13} className="text-gray-400" />
+  if (d > 0) return <TrendingUp size={13} className="text-emerald-500" />
+  if (d < 0) return <TrendingDown size={13} className="text-red-500" />
+  return <Minus size={13} className="text-gray-400" />
+}
+
+function FinalPanel({ tournament, evals }) {
+  const byRef = useMemo(() => refMapFromEvals(evals), [evals])
+  const [busy, setBusy] = useState(null)
+  const ids = Object.keys(byRef)
+
+  async function downloadFor(refId) {
+    const { referee, evals: re } = byRef[refId]
+    setBusy(refId)
+    try {
+      const evolution = refereeEvolution(re)
+      const advice = refereeTournamentAdvice(re)
+      const blob = await generateRefereeTournamentDigestPDF({ referee, tournament, evolution, advice })
+      downloadPDF(blob, `BVB_Tournament_${refereeName(referee).replace(/\s+/g, '_')}.pdf`)
+    } catch (e) { toast.error('PDF failed: ' + e.message) } finally { setBusy(null) }
+  }
+  function whatsappFor(refId) {
+    const { referee, evals: re } = byRef[refId]
+    shareTournamentDigestToReferee({ referee, tournament, evolution: refereeEvolution(re), advice: refereeTournamentAdvice(re) })
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2"><Award size={14} /> End-of-tournament evaluation per referee</CardTitle>
+      </CardHeader>
+      <CardBody className="space-y-2">
+        {ids.length === 0 ? (
+          <p className="text-sm text-gray-500 py-6 text-center">No evaluations for this tournament yet.</p>
+        ) : ids.map((id) => {
+          const { referee, evals: re } = byRef[id]
+          const evo = refereeEvolution(re)
+          const d = evo.evolution?.overall
+          return (
+            <div key={id} className="flex items-center justify-between gap-3 p-3 bg-gray-50 rounded-xl">
+              <div className="min-w-0">
+                <div className="text-sm font-semibold text-gray-900 truncate">{refereeName(referee)}</div>
+                <div className="text-xs text-gray-500 flex items-center gap-1.5">
+                  avg <b>{evo.overall.overall?.toFixed(1) ?? '—'}</b>
+                  {evo.evolution && (<><span className="text-gray-300">·</span><EvoArrow d={d} /> {d != null ? (d > 0 ? `+${d.toFixed(1)}` : d.toFixed(1)) : ''} <span className="text-gray-400">D{evo.evolution.fromDay}→D{evo.evolution.toDay}</span></>)}
+                  <span className="text-gray-300">·</span> {evo.count} match{evo.count === 1 ? '' : 'es'}
+                </div>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <Button variant="outline" size="xs" onClick={() => downloadFor(id)} disabled={busy === id}>
+                  <FileText size={12} /> {busy === id ? '…' : 'PDF'}
+                </Button>
+                <Button variant="outline" size="xs" onClick={() => whatsappFor(id)}>
+                  <MessageCircle size={12} /> WhatsApp
+                </Button>
+              </div>
+            </div>
+          )
+        })}
+      </CardBody>
+    </Card>
+  )
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -359,6 +511,8 @@ export default function Reports() {
           {[
             { id: 'season',     label: 'Season Ranking', icon: Trophy },
             { id: 'tournament', label: 'Tournament Report', icon: BarChart3 },
+            { id: 'digest',     label: 'Day digest', icon: CalendarDays },
+            { id: 'final',      label: 'Tournament eval', icon: Award },
           ].map(({ id, label, icon: Icon }) => (
             <button
               key={id}
@@ -710,6 +864,60 @@ export default function Reports() {
                   </>
                 )}
               </>
+            )}
+          </>
+        )}
+
+        {/* ── DAY DIGEST (per-referee evening) ── */}
+        {activeSection === 'digest' && (
+          <>
+            <select
+              value={selectedTournamentId}
+              onChange={(e) => setSelectedTournamentId(e.target.value)}
+              className={cn(
+                'w-full bg-white border border-gray-300 rounded-xl px-3 py-2.5',
+                'text-gray-900 text-sm appearance-none',
+                'focus:outline-none focus:border-[#E85D26]/60 focus:ring-1 focus:ring-[#E85D26]/30 transition-colors'
+              )}
+            >
+              <option value="">Select tournament…</option>
+              {tournaments.map((t) => (
+                <option key={t.id} value={t.id}>{t.name} — {formatDate(t.start_date)}</option>
+              ))}
+            </select>
+            {!selectedTournamentId ? (
+              <p className="text-sm text-gray-500 text-center py-8">Select a tournament to send evening digests.</p>
+            ) : loadingEvals ? (
+              <div className="h-24 bg-gray-50 rounded-xl animate-pulse" />
+            ) : (
+              <DigestPanel tournament={tournaments.find((t) => t.id === selectedTournamentId)} evals={tournamentEvals} />
+            )}
+          </>
+        )}
+
+        {/* ── TOURNAMENT EVALUATION (per-referee, both days + evolution) ── */}
+        {activeSection === 'final' && (
+          <>
+            <select
+              value={selectedTournamentId}
+              onChange={(e) => setSelectedTournamentId(e.target.value)}
+              className={cn(
+                'w-full bg-white border border-gray-300 rounded-xl px-3 py-2.5',
+                'text-gray-900 text-sm appearance-none',
+                'focus:outline-none focus:border-[#E85D26]/60 focus:ring-1 focus:ring-[#E85D26]/30 transition-colors'
+              )}
+            >
+              <option value="">Select tournament…</option>
+              {tournaments.map((t) => (
+                <option key={t.id} value={t.id}>{t.name} — {formatDate(t.start_date)}</option>
+              ))}
+            </select>
+            {!selectedTournamentId ? (
+              <p className="text-sm text-gray-500 text-center py-8">Select a tournament to build the final evaluations.</p>
+            ) : loadingEvals ? (
+              <div className="h-24 bg-gray-50 rounded-xl animate-pulse" />
+            ) : (
+              <FinalPanel tournament={tournaments.find((t) => t.id === selectedTournamentId)} evals={tournamentEvals} />
             )}
           </>
         )}

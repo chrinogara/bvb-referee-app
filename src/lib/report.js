@@ -189,3 +189,135 @@ export function tournamentAdvice(tStats) {
   }
   return tips
 }
+
+// ════════════════════════════════════════════════════════════════════════════
+//  Per-referee digests (Evening day digest + End-of-tournament evolution)
+//  Used by the per-referee PDF/WhatsApp digests. Pure, deterministic, offline.
+// ════════════════════════════════════════════════════════════════════════════
+import { getGrade } from './scoring'
+
+export const DIGEST_CRITERIA = [
+  { key: 'positioning',  label: 'Positioning & Court Coverage' },
+  { key: 'signals',      label: 'Signals & 3-Step Protocol' },
+  { key: 'attitude',     label: 'Attitude & Player Management' },
+  { key: 'captain_comm', label: 'Captain Communication' },
+  { key: 'presentation', label: 'Presentation & Critical Situations' },
+]
+
+function _mean(nums) {
+  const a = nums.filter((n) => typeof n === 'number' && !isNaN(n))
+  return a.length ? a.reduce((x, y) => x + y, 0) / a.length : null
+}
+function _r1(n) { return n == null ? null : Math.round(n * 10) / 10 }
+
+// Average overall + per-criterion for a set of evaluations
+export function evalAverages(evals) {
+  return {
+    overall: _r1(_mean(evals.map((e) => e.overall_score))),
+    criteria: Object.fromEntries(
+      DIGEST_CRITERIA.map((c) => [c.key, _r1(_mean(evals.map((e) => e[`score_${c.key}`])))])
+    ),
+  }
+}
+
+// One referee's day: per-round list + day averages
+export function refereeDayDigest(evals) {
+  const sorted = [...evals].sort((a, b) => new Date(a.evaluated_at) - new Date(b.evaluated_at))
+  return {
+    count: sorted.length,
+    averages: evalAverages(sorted),
+    matches: sorted.map((e) => ({
+      label: e.match_description || '—',
+      role: e.role || 'R1',
+      overall: e.overall_score,
+      scores: Object.fromEntries(DIGEST_CRITERIA.map((c) => [c.key, e[`score_${c.key}`]])),
+      repeats: Object.fromEntries(DIGEST_CRITERIA.map((c) => [c.key, !!e[`repeat_${c.key}`]])),
+      notes: Object.fromEntries(DIGEST_CRITERIA.map((c) => [c.key, e[`note_${c.key}`] || ''])),
+      general: e.general_notes || '',
+    })),
+  }
+}
+
+// One referee across the whole tournament: per-day averages + evolution deltas
+export function refereeEvolution(evals) {
+  const byDay = {}
+  evals.forEach((e) => {
+    const d = e.day_number || 1
+    ;(byDay[d] = byDay[d] || []).push(e)
+  })
+  const days = Object.keys(byDay).map(Number).sort((a, b) => a - b)
+  const perDay = days.map((d) => ({ day: d, count: byDay[d].length, averages: evalAverages(byDay[d]) }))
+
+  let evolution = null
+  if (perDay.length >= 2) {
+    const first = perDay[0].averages
+    const last = perDay[perDay.length - 1].averages
+    const delta = (a, b) => (a == null || b == null ? null : _r1(b - a))
+    evolution = {
+      fromDay: perDay[0].day,
+      toDay: perDay[perDay.length - 1].day,
+      overall: delta(first.overall, last.overall),
+      criteria: Object.fromEntries(
+        DIGEST_CRITERIA.map((c) => [c.key, delta(first.criteria[c.key], last.criteria[c.key])])
+      ),
+    }
+  }
+  return { perDay, evolution, overall: evalAverages(evals), count: evals.length }
+}
+
+// Auto summary + advice for ONE referee across the tournament (English)
+export function refereeTournamentAdvice(evals) {
+  const ev = refereeEvolution(evals)
+  const avg = ev.overall
+  if (avg.overall == null) {
+    return { summary: 'No scored evaluations recorded for this referee.', advice: '', trend: 'na' }
+  }
+  const grade = getGrade(avg.overall).grade
+
+  // Strongest / weakest criterion by tournament average
+  const rated = DIGEST_CRITERIA
+    .map((c) => ({ ...c, v: avg.criteria[c.key] }))
+    .filter((c) => c.v != null)
+    .sort((a, b) => b.v - a.v)
+  const strongest = rated[0]
+  const weakest = rated[rated.length - 1]
+
+  // Repeated faults across the tournament
+  const repeatCounts = Object.fromEntries(DIGEST_CRITERIA.map((c) => [c.key, 0]))
+  evals.forEach((e) => DIGEST_CRITERIA.forEach((c) => { if (e[`repeat_${c.key}`]) repeatCounts[c.key]++ }))
+  const flagged = DIGEST_CRITERIA.filter((c) => repeatCounts[c.key] >= 2)
+
+  // Trend
+  let trend = 'stable'
+  const d = ev.evolution?.overall
+  if (typeof d === 'number') {
+    if (d >= 0.3) trend = 'improving'
+    else if (d <= -0.3) trend = 'declining'
+  }
+
+  const dayWord = ev.perDay.length === 1 ? 'day' : `${ev.perDay.length} days`
+  let summary = `Over ${ev.count} match${ev.count === 1 ? '' : 'es'} across ${dayWord}, the average performance was ${avg.overall.toFixed(1)}/5 (${grade}).`
+  if (ev.evolution && typeof d === 'number') {
+    const arrow = d > 0 ? 'up' : d < 0 ? 'down' : 'flat'
+    const sign = d > 0 ? '+' : ''
+    summary += ` Performance was ${trend} from Day ${ev.evolution.fromDay} to Day ${ev.evolution.toDay} (${sign}${d.toFixed(1)} overall, trending ${arrow}).`
+  }
+
+  // Advice
+  const tips = []
+  if (trend === 'improving') tips.push('Good progression through the tournament — acknowledge the improvement and keep building on it.')
+  else if (trend === 'declining') tips.push('Performance dropped over the tournament — check for fatigue or confidence and give targeted support before the next event.')
+  else tips.push('Performance was consistent across the tournament.')
+
+  if (weakest && weakest.v != null && weakest.v < 3.5) {
+    tips.push(`Main area to work on: ${weakest.label.toLowerCase()} (avg ${weakest.v.toFixed(1)}).`)
+  }
+  if (strongest && strongest.v != null && strongest.v >= 4) {
+    tips.push(`Strength to maintain: ${strongest.label.toLowerCase()} (avg ${strongest.v.toFixed(1)}).`)
+  }
+  if (flagged.length) {
+    tips.push(`Recurring faults flagged in: ${flagged.map((c) => c.label.toLowerCase()).join(', ')} — address these specifically.`)
+  }
+
+  return { summary, advice: tips.join(' '), trend, grade, strongest, weakest }
+}

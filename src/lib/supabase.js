@@ -265,6 +265,11 @@ export const documentService = {
 
   create: (data) => supabase.from('documents').insert(data).select().single(),
 
+  delete: (id) => supabase.from('documents').delete().eq('id', id),
+
+  deleteByType: (docType) =>
+    supabase.from('documents').delete().eq('doc_type', docType).is('tournament_id', null),
+
   search: (query) =>
     supabase
       .from('documents')

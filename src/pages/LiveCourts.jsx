@@ -4,6 +4,7 @@ import {
   Play,
   Pause,
   Clock,
+  Timer,
   Monitor,
   Users as UsersIcon,
 } from 'lucide-react'
@@ -22,7 +23,7 @@ import {
   liveMatchService,
 } from '../lib/supabase'
 import { useAppStore } from '../store/appStore'
-import { cn, refereeName, refereeInitials, formatTime } from '../lib/utils'
+import { cn, refereeName, refereeInitials, formatTime, formatDuration } from '../lib/utils'
 
 // ─── Single court SVG component ──────────────────────────────────────────────
 //
@@ -35,13 +36,26 @@ import { cn, refereeName, refereeInitials, formatTime } from '../lib/utils'
 //   LJ1 — diagonal corner from R1 (back-left of side A)
 //   LJ2 — diagonal corner from LJ1 (back-right of side B)
 //
-function CourtCanvas({ court, assignments, liveMatch, onToggleMatch, onEditStartTime, rankingById, isFinalsCourt = false }) {
+function CourtCanvas({ court, assignments, liveMatch, onToggleMatch, onEditStartTime, rankingById, isFinalsCourt = false, now }) {
   // Pull referee for each role
   const r1 = assignments.find((a) => a.role === 'R1')
   const r2 = assignments.find((a) => a.role === 'R2')
   const finalsLabel = isFinalsCourt ? assignments[0]?.court_label : null
 
   const isActive = !!liveMatch?.is_active
+
+  // Match duration: while LIVE it counts up from start_time; once stopped it
+  // freezes at (end_time − start_time).
+  const startMs = liveMatch?.start_time ? new Date(liveMatch.start_time).getTime() : null
+  const endMs = liveMatch?.end_time ? new Date(liveMatch.end_time).getTime() : null
+  const elapsedMs =
+    startMs == null
+      ? null
+      : isActive
+        ? now - startMs
+        : endMs != null
+          ? endMs - startMs
+          : null
 
   return (
     <Card className={cn('overflow-hidden', isFinalsCourt && 'ring-2 ring-amber-400/60')}>
@@ -78,10 +92,24 @@ function CourtCanvas({ court, assignments, liveMatch, onToggleMatch, onEditStart
           )}
         </div>
         {liveMatch?.start_time && (
-          <span className="text-xs font-mono text-gray-600 flex items-center gap-1">
-            <Clock size={11} />
-            {formatTime(liveMatch.start_time)}
-          </span>
+          <div className="flex flex-col items-end leading-tight">
+            <span className="text-xs font-mono text-gray-600 flex items-center gap-1">
+              <Clock size={11} />
+              {formatTime(liveMatch.start_time)}
+            </span>
+            {elapsedMs != null && (
+              <span
+                className={cn(
+                  'text-xs font-mono font-semibold flex items-center gap-1',
+                  isActive ? 'text-emerald-700' : 'text-gray-500'
+                )}
+                title={isActive ? 'Tempo trascorso' : 'Durata gara'}
+              >
+                <Timer size={11} />
+                {formatDuration(elapsedMs)}
+              </span>
+            )}
+          </div>
         )}
       </div>
 
@@ -289,6 +317,13 @@ export default function LiveCourts() {
   const [editingLive, setEditingLive] = useState(null)
   const [editCourt, setEditCourt] = useState(null)
 
+  // Ticks every second so the live match clocks count up in real time.
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(id)
+  }, [])
+
   useEffect(() => {
     if (!tournamentId && tournaments.length > 0) {
       const now = new Date()
@@ -399,7 +434,15 @@ export default function LiveCourts() {
           toast.error(`Stop failed: ${error.message}`)
           return
         }
-        toast(`${court} match stopped`, 'info')
+        const durationMs = existing.start_time
+          ? Date.now() - new Date(existing.start_time).getTime()
+          : null
+        toast(
+          durationMs != null
+            ? `${court} match stopped — durata ${formatDuration(durationMs)}`
+            : `${court} match stopped`,
+          'info'
+        )
       } else {
         toast.error('No active match to stop')
         return
@@ -553,6 +596,7 @@ export default function LiveCourts() {
                 onEditStartTime={handleEditStartTime}
                 rankingById={rankingById}
                 isFinalsCourt={false}
+                now={now}
               />
             ))}
           </div>
@@ -583,6 +627,7 @@ export default function LiveCourts() {
                     onEditStartTime={handleEditStartTime}
                     rankingById={rankingById}
                     isFinalsCourt={true}
+                    now={now}
                   />
                 ))}
               </div>

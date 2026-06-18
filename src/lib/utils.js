@@ -33,6 +33,18 @@ export function formatTime(date) {
   }).format(new Date(date))
 }
 
+// Format an elapsed duration (in milliseconds) as H:MM:SS, or M:SS when under
+// an hour. Used for the live running clock and the final match duration.
+export function formatDuration(ms) {
+  if (ms == null || Number.isNaN(ms) || ms < 0) return '—'
+  const totalSec = Math.floor(ms / 1000)
+  const h = Math.floor(totalSec / 3600)
+  const m = Math.floor((totalSec % 3600) / 60)
+  const s = totalSec % 60
+  const pad = (n) => String(n).padStart(2, '0')
+  return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${m}:${pad(s)}`
+}
+
 export function refereeName(referee) {
   if (!referee) return 'Unknown'
   return `${referee.first_name} ${referee.last_name}`

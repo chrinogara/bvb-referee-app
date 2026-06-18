@@ -42,20 +42,27 @@ function scoreColorHex(s) {
   return '#DC2626'
 }
 
-// ─── Algoritmo rotazione GIRONI (2 ON / 2 OFF sfalsato + rimescolato) ────────
-// Ogni arbitro lavora 2 round di fila, poi riposa; 1 arbitro per campo; bench
-// rimescolato/bilanciato (chi ha riposato di più / ha meno match entra prima);
-// tetto MAX_CONSEC=3 di sicurezza; rotazione campi. La generazione avviene a
-// blocchi di 2 round e PROSEGUE dalla situazione esistente (replay dei round
+// ─── Algoritmo rotazione GIRONI (alternanza adattiva + rimescolato) ──────────
+// Cadenza decisa in makeState (state.stint): con panchina (arbitri > campi) si
+// alterna (1-ON/1-OFF quando arbitri >= 2x campi, es. 8 su 4: chi lavora un round
+// riposa il successivo); 1 arbitro per campo; bench bilanciato (chi ha riposato
+// di più / ha meno match entra prima); tetto MAX_CONSEC=3. La generazione avviene
+// a blocchi di 2 round e PROSEGUE dalla situazione esistente (replay dei round
 // già creati), così rigenerando si continua senza ripartire da capo.
-const STINT = 2
 
 function makeState(refIds, nCourts) {
   const REFS = [...refIds]
   const NC = Math.min(nCourts, REFS.length)
+  // Rotation cadence. With any bench at all (refs > courts) we ALTERNATE: whoever
+  // worked a round is sent to rest and the most-rested referees come in, so nobody
+  // ever sits out two rounds in a row. With a deep bench (refs >= 2x courts, e.g.
+  // 8 on 4) this is a clean 1-ON/1-OFF (round-1 referees rest in round 2). With a
+  // thin roster some referees must work two rounds in a row (unavoidable), but rest
+  // is still never doubled. When refs == courts everyone works every round anyway.
+  const stint = REFS.length > NC ? 1 : 2
   const consec = {}, rested = {}, total = {}, lastCourt = {}
   REFS.forEach((r) => { consec[r] = 0; rested[r] = 99; total[r] = 0; lastCourt[r] = null })
-  return { REFS, NC, consec, rested, total, lastCourt, prevWorking: [] }
+  return { REFS, NC, stint, consec, rested, total, lastCourt, prevWorking: [] }
 }
 
 // Applica un round già noto (per il replay dello storico)
@@ -71,11 +78,11 @@ function applyRound(state, courtsArr) {
 
 // Calcola il round successivo dalla situazione corrente
 function nextRound(state) {
-  const { REFS, NC, consec, rested, total, lastCourt, prevWorking } = state
+  const { REFS, NC, stint, consec, rested, total, lastCourt, prevWorking } = state
   // "stay" = referees who keep working this round. Guard with REFS.includes so a
   // referee removed from the roster mid-day (attendance toggled off after rounds
   // were generated) can NEVER be re-assigned — prevents phantom designations.
-  const stay = prevWorking.filter((r) => REFS.includes(r) && consec[r] < STINT && consec[r] < MAX_CONSEC)
+  const stay = prevWorking.filter((r) => REFS.includes(r) && consec[r] < stint && consec[r] < MAX_CONSEC)
   const free = Math.max(0, NC - stay.length)
   const bench = REFS.filter((r) => !stay.includes(r))
   bench.sort((a, b) => (rested[b] - rested[a]) || (total[a] - total[b]) || (Math.random() - 0.5))
@@ -97,9 +104,12 @@ function nextRound(state) {
 function genGiri(refIds, nCourts, count, existing = []) {
   const state = makeState(refIds, nCourts)
   if (existing.length === 0) {
-    // sfalsamento iniziale: i primi due partono "a metà ciclo"
-    if (state.REFS[0]) state.consec[state.REFS[0]] = 1
-    if (state.REFS[1]) state.consec[state.REFS[1]] = 1
+    // initial desync for 2-ON/2-OFF only: start the first two "mid-cycle" so
+    // stints don't all rotate together. Not used in 1-ON/1-OFF (alternation).
+    if (state.stint === 2) {
+      if (state.REFS[0]) state.consec[state.REFS[0]] = 1
+      if (state.REFS[1]) state.consec[state.REFS[1]] = 1
+    }
   } else {
     for (const g of existing) applyRound(state, g.courts)
   }

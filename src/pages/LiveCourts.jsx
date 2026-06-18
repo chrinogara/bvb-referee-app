@@ -187,6 +187,23 @@ function CourtCanvas({ court, assignments, liveMatch, onToggleMatch, onEditStart
             </>
           )}
         </Button>
+
+        {/* Duration chip: live elapsed (green, ticking) or final duration (gray) */}
+        {elapsedMs != null && (
+          <span
+            className={cn(
+              'flex items-center gap-1 px-2 py-1 rounded-md font-mono text-xs font-bold tabular-nums',
+              isActive
+                ? 'bg-emerald-100 text-emerald-700'
+                : 'bg-gray-200 text-gray-700'
+            )}
+            title={isActive ? 'Tempo trascorso' : 'Durata gara'}
+          >
+            <Timer size={12} />
+            {isActive ? formatDuration(elapsedMs) : `Durata ${formatDuration(elapsedMs)}`}
+          </span>
+        )}
+
         <button
           type="button"
           onClick={() => onEditStartTime(liveMatch, court)}

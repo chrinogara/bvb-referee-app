@@ -409,16 +409,10 @@ export default function LiveCourts() {
     return data
   }, [courts, assignments, liveMatches, sessionOrder])
 
-  // Default start time:
-  //   • Session 1 (first match of the day) → 09:00 on the tournament day
-  //   • Other sessions → current time
+  // Start time = the real moment Start is clicked, so the match duration
+  // (end_time − start_time) always reflects the actual elapsed time.
+  // Use "Edit time" to adjust it afterwards if a different start is needed.
   function defaultStartTime() {
-    if (sessionOrder === 1 && tournament?.start_date) {
-      const base = new Date(tournament.start_date)
-      base.setDate(base.getDate() + (dayNumber - 1))
-      base.setHours(9, 0, 0, 0)
-      return base.toISOString()
-    }
     return new Date().toISOString()
   }
 

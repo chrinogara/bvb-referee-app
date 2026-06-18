@@ -166,11 +166,15 @@ CREATE TABLE IF NOT EXISTS live_matches (
   court TEXT NOT NULL,
   session_order INTEGER NOT NULL,
   start_time TIMESTAMPTZ,
+  end_time TIMESTAMPTZ,
   is_active BOOLEAN DEFAULT FALSE,
   is_test BOOLEAN DEFAULT FALSE,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   UNIQUE(tournament_id, day_number, court, session_order)
 );
+
+-- end_time records when a live match is stopped, so its duration can be shown.
+ALTER TABLE live_matches ADD COLUMN IF NOT EXISTS end_time TIMESTAMPTZ;
 
 -- ─── FEEDBACK ALERTS (low-performance warnings) ───────────────────────────────
 CREATE TABLE IF NOT EXISTS feedback_alerts (

@@ -218,6 +218,7 @@ export const liveMatchService = {
           court,
           session_order: sessionOrder,
           start_time: startTime || new Date().toISOString(),
+          end_time: null,
           is_active: true,
           is_test: !!isTest,
         },
@@ -227,7 +228,10 @@ export const liveMatchService = {
       .single(),
 
   stopMatch: (id) =>
-    supabase.from('live_matches').update({ is_active: false }).eq('id', id),
+    supabase
+      .from('live_matches')
+      .update({ is_active: false, end_time: new Date().toISOString() })
+      .eq('id', id),
 
   updateStartTime: (id, startTime) =>
     supabase.from('live_matches').update({ start_time: startTime }).eq('id', id),

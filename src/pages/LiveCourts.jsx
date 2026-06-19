@@ -39,7 +39,6 @@ import { cn, refereeName, refereeInitials, formatTime } from '../lib/utils'
 function CourtCanvas({ court, assignments, liveMatch, onToggleMatch, onEditStartTime, onMto, rankingById, isFinalsCourt = false }) {
   // Pull referee for each role
   const r1 = assignments.find((a) => a.role === 'R1')
-  const r2 = assignments.find((a) => a.role === 'R2')
   const finalsLabel = isFinalsCourt ? assignments[0]?.court_label : null
 
   const isActive = !!liveMatch?.is_active
@@ -128,19 +127,6 @@ function CourtCanvas({ court, assignments, liveMatch, onToggleMatch, onEditStart
           anchor="right"
           big
         />
-
-        {/* Finals-only: R2 on the opposite side of R1 */}
-        {isFinalsCourt && (
-          <RefereePin
-            referee={r2}
-            ranking={r2 && rankingById[r2.referee_id]}
-            role="R2"
-            style={{ top: '50%', left: '4%' }}
-            colorClass="bg-blue-100 border-blue-500 text-blue-800"
-            anchor="left"
-            big
-          />
-        )}
       </div>
 
       {/* Footer: actions */}
@@ -541,18 +527,6 @@ export default function LiveCourts() {
                 R1
               </span>
               <span className="text-gray-600">1st Referee (chair)</span>
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="w-6 h-6 rounded-full bg-blue-100 border-2 border-blue-500 flex items-center justify-center text-[9px] font-bold text-blue-800">
-                R2
-              </span>
-              <span className="text-gray-600">2nd Referee (ground)</span>
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="w-6 h-6 rounded-full bg-cyan-100 border-2 border-cyan-400 flex items-center justify-center text-[9px] font-bold text-cyan-800">
-                LJ
-              </span>
-              <span className="text-gray-600">Line Judges (diagonals)</span>
             </span>
             <span className="flex items-center gap-1.5">
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />

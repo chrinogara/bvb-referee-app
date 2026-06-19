@@ -36,10 +36,10 @@ const FINALS_COURT_NAMES = [
 const LEGACY_FINALS_COURT_NAMES = ["Women's Final", "Men's Final"]
 const FINALS_SESSION_ORDER = 99
 const FINALS_SECTION_NUMBER = 1
-const FINALS_ROLES = ['R1', 'R2']
-const FINALS_LINE_ROLES = ['LJ1', 'LJ2', 'LJ3', 'LJ4'] // up to 4 line judges per final
+const FINALS_ROLES = ['R1']                 // direttiva ufficiale: 1 SOLO arbitro per finale
+const FINALS_LINE_ROLES = []                // direttiva ufficiale: NESSUN giudice di linea nelle finali
 
-const MAX_CONSEC = 3 // tetto massimo giri consecutivi (decisione concordata)
+const MAX_CONSEC = 2 // tetto massimo giri consecutivi — direttiva ufficiale 2★/3★: mai 3 di fila
 
 // Colore del piccolo badge valutazione (verde/ambra/rosso)
 function scoreColorHex(s) {
@@ -92,8 +92,14 @@ function nextRound(state) {
   const stay = prevWorking.filter((r) => REFS.includes(r) && consec[r] < stint && consec[r] < MAX_CONSEC)
   const free = Math.max(0, NC - stay.length)
   const bench = REFS.filter((r) => !stay.includes(r))
-  bench.sort((a, b) => (rested[b] - rested[a]) || (total[a] - total[b]) || (Math.random() - 0.5))
-  const working = [...stay, ...bench.slice(0, free)]
+  const benchSort = (a, b) => (rested[b] - rested[a]) || (total[a] - total[b]) || (Math.random() - 0.5)
+  // HARD CAP (direttiva "mai 3 di fila"): per riempire i campi si usano PRIMA gli
+  // arbitri sotto il tetto (consec < MAX_CONSEC); quelli che hanno già raggiunto il
+  // tetto entrano SOLO se non c'è alternativa (organico insufficiente), scegliendo i
+  // meno "in debito" (consec minore, poi meno match totali).
+  const eligible = bench.filter((r) => consec[r] < MAX_CONSEC).sort(benchSort)
+  const overCap = bench.filter((r) => consec[r] >= MAX_CONSEC).sort((a, b) => (consec[a] - consec[b]) || (total[a] - total[b]) || (Math.random() - 0.5))
+  const working = [...stay, ...eligible, ...overCap].slice(0, stay.length + free)
 
   const courtsArr = new Array(NC).fill(null)
   const avail = Array.from({ length: NC }, (_, i) => i)
@@ -136,18 +142,17 @@ function stateBeforeRound(refIds, nCourts, giri, giroIdx) {
   return state
 }
 
-// ─── Finali snake bilanciato (#1+#4 maschile, #2+#3 femminile, più alto = R1) ─
-// Balanced snake over the top-8 ranked referees for the 4 finals.
-// Pairs (1+8, 2+7, 3+6, 4+5) so every final gets one stronger + one weaker
-// referee (equal total quality); the higher-ranked of each pair is R1.
-// Same philosophy as the original 2-finals snake (1+4, 2+3), extended to 8.
+// ─── Finali: designazione meritocratica a UN solo arbitro per finale ──────────
+// Direttiva ufficiale 2★/3★: tutte le finali (PRO inclusa) con 1 solo arbitro,
+// senza giudici di linea. I 4 migliori in classifica coprono le 4 finali; il
+// migliore va alla finale più prestigiosa (PRO) a scendere. Più alto = designato.
 function snakeFinals(rankedIds) {
   const r = rankedIds
   return {
-    "Men's Final — PRO":         { R1: r[0] || '', R2: r[7] || '' },
-    "Women's Final — PRO":       { R1: r[1] || '', R2: r[6] || '' },
-    "Men's Final — Challenge":   { R1: r[2] || '', R2: r[5] || '' },
-    "Women's Final — Challenge": { R1: r[3] || '', R2: r[4] || '' },
+    "Men's Final — PRO":         { R1: r[0] || '' },
+    "Women's Final — PRO":       { R1: r[1] || '' },
+    "Men's Final — Challenge":   { R1: r[2] || '' },
+    "Women's Final — Challenge": { R1: r[3] || '' },
   }
 }
 
@@ -602,7 +607,7 @@ export default function Designations() {
   }
 
   async function applyMeritocratic() {
-    if (rankedList.length < 8) { toast.error('At least 8 evaluated referees required to auto-assign the 4 finals (2 per final). Assign manually if you have fewer.'); return }
+    if (rankedList.length < 4) { toast.error('At least 4 evaluated referees required to auto-assign the 4 finals (1 per final). Assign manually if you have fewer.'); return }
     const snake = snakeFinals(rankedList.map((r) => r.id))
     try {
       await supabase.from('court_assignments').delete()
@@ -1168,27 +1173,27 @@ export default function Designations() {
         <div className="pb-24 px-4 pt-3">
           <button onClick={applyMeritocratic} style={{ background: ORANGE }}
             className="w-full rounded-xl text-white text-base font-bold py-3 shadow flex items-center justify-center gap-2 mb-3">
-            <Star size={18} /> Auto-assign (merit-based, top 8)
+            <Star size={18} /> Auto-assign (merit-based, top 4)
           </button>
           <p className="text-sm text-gray-500 leading-relaxed mb-3">
-            The 8 best-ranked referees cover the four finals (PRO &amp; Challenge, men &amp; women). Balanced snake — each final gets one stronger + one weaker referee (#1+#8, #2+#7, #3+#6, #4+#5); highest score = R1. Tap a slot to change manually.
+            The 4 best-ranked referees cover the four finals (PRO &amp; Challenge, men &amp; women) — one referee per final, no line judges (official 2★/3★ directive). Best score goes to the PRO final. Tap a slot to change manually.
           </p>
 
           {FINALS_COURT_NAMES.map((court) => (
             <div key={court} className="rounded-2xl bg-white border border-gray-200 shadow-sm overflow-hidden mb-3">
               <div style={{ background: NAVY }} className="text-white px-4 py-2 flex items-center justify-between">
                 <span className="text-lg font-bold uppercase tracking-wide flex items-center gap-2"><Trophy size={16} /> {court}</span>
-                <span className="text-white/50 text-xs">2 referees</span>
+                <span className="text-white/50 text-xs">1 referee</span>
               </div>
-              <div className="grid grid-cols-2 gap-2 p-3">
+              <div className="grid grid-cols-1 gap-2 p-3">
                 {FINALS_ROLES.map((role) => {
                   const id = finalsSlot(court, role)
                   const pos = id ? rankedList.findIndex((r) => r.id === id) + 1 : 0
                   return (
                     <button key={role} onClick={() => setPicker({ mode: 'final', court, role })}
-                      style={role === 'R1' ? { borderColor: ORANGE, background: '#FFF4EF' } : {}}
-                      className={`rounded-xl border-2 px-2 py-3 text-center min-h-[88px] flex flex-col items-center justify-center gap-0.5 ${role === 'R1' ? '' : 'border-gray-300 bg-gray-50'}`}>
-                      <span className="text-[11px] font-bold uppercase tracking-wide text-gray-500">{role === 'R1' ? 'R1 · First' : 'R2 · Second'}</span>
+                      style={{ borderColor: ORANGE, background: '#FFF4EF' }}
+                      className="rounded-xl border-2 px-2 py-3 text-center min-h-[88px] flex flex-col items-center justify-center gap-0.5">
+                      <span className="text-[11px] font-bold uppercase tracking-wide text-gray-500">Referee</span>
                       <span className="text-xl font-bold leading-tight">{nameOf(id)}</span>
                       {id && scoreById[id] != null && <span className="text-xs font-semibold text-gray-500">#{pos} · {scoreById[id].toFixed(1)}/5</span>}
                     </button>
@@ -1197,56 +1202,6 @@ export default function Designations() {
               </div>
             </div>
           ))}
-
-          {/* Line judges — appear automatically on the last day */}
-          {isLastDay && (
-            <div className="mt-4">
-              <div className="flex items-center gap-2 mb-1">
-                <Flag size={16} style={{ color: ORANGE }} />
-                <span className="text-sm font-bold uppercase tracking-wide text-gray-700">Line judges</span>
-              </div>
-              <p className="text-xs text-gray-500 leading-relaxed mb-3">
-                Proposed from the lowest-ranked referees of this tournament (the two finalists are excluded automatically). Up to 4 per final — leave a slot empty if only 2 are needed. Adjust any dropdown manually.
-              </p>
-
-              {FINALS_COURT_NAMES.map((court) => {
-                const chosen = FINALS_LINE_ROLES.map((role) => lineJudge(court, role))
-                return (
-                  <div key={court} className="rounded-2xl bg-white border border-gray-200 shadow-sm overflow-hidden mb-3">
-                    <div className="bg-gray-100 px-4 py-2 flex items-center justify-between">
-                      <span className="text-sm font-bold uppercase tracking-wide text-gray-700 flex items-center gap-2"><Flag size={14} /> {court}</span>
-                      <button onClick={() => autoProposeLineJudges(court)}
-                        className="text-xs font-bold px-3 py-1.5 rounded-lg text-white" style={{ background: ORANGE }}>
-                        Auto-propose 4
-                      </button>
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 p-3">
-                      {FINALS_LINE_ROLES.map((role, idx) => {
-                        const current = lineJudge(court, role)
-                        // Exclude referees already chosen as line judge on this court (other slots)
-                        const takenElsewhere = new Set(chosen.filter((c, i) => c && FINALS_LINE_ROLES[i] !== role))
-                        const options = ljCandidates(court).filter((r) => !takenElsewhere.has(r.id) || r.id === current)
-                        return (
-                          <div key={role} className="flex items-center gap-2">
-                            <span className="text-xs font-bold text-gray-400 w-8 shrink-0">L{idx + 1}</span>
-                            <select value={current} onChange={(e) => setLineJudge(court, role, e.target.value)}
-                              className="flex-1 rounded-lg border border-gray-300 px-2 py-2 text-sm font-semibold bg-white text-gray-900">
-                              <option value="">— empty —</option>
-                              {options.map((r) => (
-                                <option key={r.id} value={r.id}>
-                                  {refereeName(r)}{scoreById[r.id] != null ? ` · ${scoreById[r.id].toFixed(1)}` : ' · n/d'}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          )}
 
           {/* Tournament rankings */}
           <div className="mt-3">

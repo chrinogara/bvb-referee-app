@@ -125,6 +125,17 @@ function genGiri(refIds, nCourts, count, existing = []) {
   return out
 }
 
+// Ricostruisce i contatori della rotazione (consec/rested/total) COSÌ COM'ERANO
+// all'inizio del round `giroIdx`, replaying i round precedenti. Serve per valutare
+// una sostituzione manuale con la stessa logica dell'algoritmo automatico.
+function stateBeforeRound(refIds, nCourts, giri, giroIdx) {
+  const state = makeState(refIds, nCourts)
+  for (let i = 0; i < giroIdx; i++) {
+    if (giri[i] && giri[i].courts) applyRound(state, giri[i].courts)
+  }
+  return state
+}
+
 // ─── Finali snake bilanciato (#1+#4 maschile, #2+#3 femminile, più alto = R1) ─
 // Balanced snake over the top-8 ranked referees for the 4 finals.
 // Pairs (1+8, 2+7, 3+6, 4+5) so every final gets one stronger + one weaker
@@ -484,6 +495,62 @@ export default function Designations() {
     setPicker(null)
     try { await persistGiri(next); toast.success('Assignment updated') }
     catch (err) { toast.error(`Error: ${err.message}`) }
+  }
+
+  // Valuta ogni candidato per la sostituzione aperta nel picker, con la stessa
+  // logica della rotazione (riposo/lavoro/consecutivi ricostruiti fino a quel round).
+  const ASSESS_ORDER = { best: 0, swap: 1, ok: 2, caution: 3, danger: 4, current: 5 }
+  const pickerAssessments = useMemo(() => {
+    if (!picker || picker.mode !== 'court') return {}
+    const giroIdx = picker.giro, courtIdx = picker.court
+    const round = giri[giroIdx]
+    if (!round) return {}
+    const st = stateBeforeRound(rosterIds, nCourts, giri, giroIdx)
+    const currentRef = round.courts[courtIdx]
+    const onCourt = round.courts.filter(Boolean)
+    const onCourtSet = new Set(onCourt)
+    const resting = rosterIds.filter((id) => !onCourtSet.has(id))
+    const benchSorted = [...resting].sort((a, b) =>
+      ((st.rested[b] || 0) - (st.rested[a] || 0)) || ((st.total[a] || 0) - (st.total[b] || 0))
+    )
+    const bestPick = benchSorted[0]
+    const minTotal = resting.length ? Math.min(...resting.map((id) => st.total[id] || 0)) : 0
+    const out = {}
+    for (const id of rosterIds) {
+      if (id === currentRef) { out[id] = { level: 'current', label: 'Current', detail: 'Already on this court' }; continue }
+      if (onCourtSet.has(id)) {
+        const ci = round.courts.indexOf(id)
+        out[id] = { level: 'swap', label: 'Swap', detail: `On ${courts[ci]} now — clean swap, no imbalance` }
+        continue
+      }
+      const consecBefore = st.consec[id] || 0
+      if (consecBefore >= MAX_CONSEC) {
+        out[id] = { level: 'danger', label: 'Not advised', detail: `Already ${consecBefore} rounds in a row — breaks the ${MAX_CONSEC}-in-a-row limit` }
+        continue
+      }
+      if (consecBefore === MAX_CONSEC - 1) {
+        out[id] = { level: 'caution', label: 'Caution', detail: `Would be ${consecBefore + 1} rounds in a row (at the limit)` }
+        continue
+      }
+      if (id === bestPick) { out[id] = { level: 'best', label: 'Recommended', detail: 'Most rested / fewest matches — the rotation pick' }; continue }
+      const total = st.total[id] || 0
+      if (total > minTotal) {
+        const fresher = benchSorted.find((x) => (st.total[x] || 0) === minTotal && x !== id)
+        out[id] = { level: 'caution', label: 'Caution', detail: `Has more matches than others${fresher ? ` (e.g. ${nameOf(fresher)} rested more)` : ''}` }
+        continue
+      }
+      out[id] = { level: 'ok', label: 'OK', detail: 'Was resting this round' }
+    }
+    return out
+  }, [picker, giri, rosterIds, nCourts, courts]) // eslint-disable-line
+
+  function chooseCourtRef(id) {
+    const a = pickerAssessments[id]
+    if (a && (a.level === 'danger' || a.level === 'caution')) {
+      const ok = window.confirm(`${nameOf(id)} — ${a.detail}.\n\nThis bends the round rotation. Insert anyway?`)
+      if (!ok) return
+    }
+    swapCourt(picker.giro, picker.court, id)
   }
 
   // ─── Finali ────────────────────────────────────────────────────────────────
@@ -1208,14 +1275,36 @@ export default function Designations() {
             {picker.mode === 'court' ? (
               <>
                 <div className="text-lg font-bold uppercase mb-1">Round {picker.giro + 1} · {courts[picker.court]}</div>
-                <div className="text-sm text-gray-500 mb-3">Select the referee for this court</div>
-                <div className="grid grid-cols-2 gap-2">
-                  {rosterIds.map((id) => {
-                    const onC = giri[picker.giro].courts.includes(id)
+                <div className="text-sm text-gray-500 mb-3">Pick a referee — the badge shows if it respects the rotation</div>
+                <div className="grid grid-cols-1 gap-2">
+                  {[...rosterIds]
+                    .sort((a, b) => (ASSESS_ORDER[pickerAssessments[a]?.level] ?? 9) - (ASSESS_ORDER[pickerAssessments[b]?.level] ?? 9))
+                    .map((id) => {
+                    const a = pickerAssessments[id] || { level: 'ok', label: 'OK', detail: '' }
+                    const pill = {
+                      best:    'bg-emerald-100 text-emerald-800 border-emerald-300',
+                      swap:    'bg-blue-100 text-blue-800 border-blue-300',
+                      ok:      'bg-gray-100 text-gray-600 border-gray-300',
+                      caution: 'bg-amber-100 text-amber-800 border-amber-300',
+                      danger:  'bg-red-100 text-red-800 border-red-300',
+                      current: 'bg-slate-200 text-slate-600 border-slate-300',
+                    }[a.level]
+                    const cardBorder = {
+                      best: 'border-emerald-300 bg-emerald-50', swap: 'border-blue-200 bg-blue-50',
+                      ok: 'border-gray-200 bg-gray-50', caution: 'border-amber-200 bg-amber-50',
+                      danger: 'border-red-200 bg-red-50', current: 'border-slate-300 bg-slate-100',
+                    }[a.level]
                     return (
-                      <button key={id} onClick={() => swapCourt(picker.giro, picker.court, id)}
-                        className={`rounded-xl py-3 px-3 text-base font-bold border-2 text-left ${onC ? 'border-emerald-300 bg-emerald-50' : 'border-gray-200 bg-gray-50'}`}>
-                        {nameOf(id)}<div className="text-xs font-medium text-gray-500">{onC ? 'on court' : 'resting'}{globalScoreById[id]?.avg_score != null ? ` · ★ ${globalScoreById[id].avg_score.toFixed(1)}` : ''}</div>
+                      <button key={id} disabled={a.level === 'current'}
+                        onClick={() => chooseCourtRef(id)}
+                        className={`rounded-xl py-2.5 px-3 border-2 text-left ${cardBorder} ${a.level === 'current' ? 'opacity-60 cursor-default' : 'active:scale-[0.99]'}`}>
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-base font-bold leading-tight">{nameOf(id)}</span>
+                          <span className={`text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded border ${pill}`}>{a.label}</span>
+                        </div>
+                        <div className="text-xs font-medium text-gray-500 mt-0.5">
+                          {a.detail}{globalScoreById[id]?.avg_score != null ? ` · ★ ${globalScoreById[id].avg_score.toFixed(1)}` : ''}
+                        </div>
                       </button>
                     )
                   })}

@@ -26,7 +26,14 @@ const NAVY2 = '#3D4490'
 const ORANGE = '#E85D26'
 
 // ─── Finals (sentinel, come nel modello esistente) ──────────────────────────
-const FINALS_COURT_NAMES = ["Women's Final", "Men's Final"]
+const FINALS_COURT_NAMES = [
+  "Men's Final — PRO",
+  "Women's Final — PRO",
+  "Men's Final — Challenge",
+  "Women's Final — Challenge",
+]
+// Legacy 2-finals names, kept only to clean up old rows when re-assigning.
+const LEGACY_FINALS_COURT_NAMES = ["Women's Final", "Men's Final"]
 const FINALS_SESSION_ORDER = 99
 const FINALS_SECTION_NUMBER = 1
 const FINALS_ROLES = ['R1', 'R2']
@@ -119,11 +126,17 @@ function genGiri(refIds, nCourts, count, existing = []) {
 }
 
 // ─── Finali snake bilanciato (#1+#4 maschile, #2+#3 femminile, più alto = R1) ─
+// Balanced snake over the top-8 ranked referees for the 4 finals.
+// Pairs (1+8, 2+7, 3+6, 4+5) so every final gets one stronger + one weaker
+// referee (equal total quality); the higher-ranked of each pair is R1.
+// Same philosophy as the original 2-finals snake (1+4, 2+3), extended to 8.
 function snakeFinals(rankedIds) {
   const r = rankedIds
   return {
-    "Men's Final": { R1: r[0] || '', R2: r[3] || '' },
-    "Women's Final": { R1: r[1] || '', R2: r[2] || '' },
+    "Men's Final — PRO":         { R1: r[0] || '', R2: r[7] || '' },
+    "Women's Final — PRO":       { R1: r[1] || '', R2: r[6] || '' },
+    "Men's Final — Challenge":   { R1: r[2] || '', R2: r[5] || '' },
+    "Women's Final — Challenge": { R1: r[3] || '', R2: r[4] || '' },
   }
 }
 
@@ -522,12 +535,13 @@ export default function Designations() {
   }
 
   async function applyMeritocratic() {
-    if (rankedList.length < 4) { toast.error('At least 4 evaluated referees required for this tournament'); return }
+    if (rankedList.length < 8) { toast.error('At least 8 evaluated referees required to auto-assign the 4 finals (2 per final). Assign manually if you have fewer.'); return }
     const snake = snakeFinals(rankedList.map((r) => r.id))
     try {
       await supabase.from('court_assignments').delete()
         .eq('tournament_id', tournamentId).eq('day_number', dayNumber)
-        .eq('session_order', FINALS_SESSION_ORDER).in('court', FINALS_COURT_NAMES)
+        .eq('session_order', FINALS_SESSION_ORDER)
+        .in('court', [...FINALS_COURT_NAMES, ...LEGACY_FINALS_COURT_NAMES])
       const rows = []
       for (const court of FINALS_COURT_NAMES)
         for (const role of FINALS_ROLES)
@@ -1087,10 +1101,10 @@ export default function Designations() {
         <div className="pb-24 px-4 pt-3">
           <button onClick={applyMeritocratic} style={{ background: ORANGE }}
             className="w-full rounded-xl text-white text-base font-bold py-3 shadow flex items-center justify-center gap-2 mb-3">
-            <Star size={18} /> Auto-assign (merit-based, top 4)
+            <Star size={18} /> Auto-assign (merit-based, top 8)
           </button>
           <p className="text-sm text-gray-500 leading-relaxed mb-3">
-            The 4 best-ranked referees in this tournament cover the two finals (snake: #1+#4 and #2+#3). Highest score = R1. Tap a slot to change manually.
+            The 8 best-ranked referees cover the four finals (PRO &amp; Challenge, men &amp; women). Balanced snake — each final gets one stronger + one weaker referee (#1+#8, #2+#7, #3+#6, #4+#5); highest score = R1. Tap a slot to change manually.
           </p>
 
           {FINALS_COURT_NAMES.map((court) => (

@@ -332,7 +332,12 @@ export default function LiveCourts() {
   }, [tournament])
 
   // Finals courts are hardcoded names that activate only when assignments exist.
-  const FINALS_COURT_NAMES = ["Women's Final", "Men's Final"]
+  const FINALS_COURT_NAMES = [
+    "Men's Final — PRO",
+    "Women's Final — PRO",
+    "Men's Final — Challenge",
+    "Women's Final — Challenge",
+  ]
   const FINALS_SESSION_ORDER = 99
 
   // All possible courts (regular + finals), used to fetch assignments uniformly.

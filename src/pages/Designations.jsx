@@ -158,6 +158,11 @@ export default function Designations() {
     return m
   }, [globalRanking])
 
+  const [nCourts, setNCourts] = useState(() => {
+    const v = parseInt(localStorage.getItem('bvb_courts') || '4', 10)
+    return v === 3 ? 3 : 4
+  })
+
   const courts = useMemo(() => {
     const base = (Array.isArray(tournament?.courts) && tournament.courts.length > 0)
       ? tournament.courts
@@ -249,10 +254,6 @@ export default function Designations() {
   const LS_COURTS = 'bvb_courts' // shared with Evaluate (3 or 4 courts)
   const [dayStart, setDayStart]       = useState(() => localStorage.getItem(LS_START) || '09:00')
   const [roundDuration, setRoundDuration] = useState(() => parseInt(localStorage.getItem(LS_DUR) || '55', 10))
-  const [nCourts, setNCourts] = useState(() => {
-    const v = parseInt(localStorage.getItem(LS_COURTS) || '4', 10)
-    return v === 3 ? 3 : 4
-  })
   const [showTimeCfg, setShowTimeCfg] = useState(false)
 
   function updateDayStart(v)       { setDayStart(v);       localStorage.setItem(LS_START, v) }

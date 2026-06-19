@@ -20,6 +20,7 @@ import Reports from './pages/Reports'
 import RcReport from './pages/RcReport'
 import Assistant from './pages/Assistant'
 import Documents from './pages/Documents'
+import Mto from './pages/Mto'
 
 // App shell (sidebar + bottom nav) used by every circuit section.
 function AppLayout() {
@@ -65,6 +66,7 @@ export default function App() {
             <Route path="/rc-report"        element={<RcReport />} />
             <Route path="/assistant"        element={<Assistant />} />
             <Route path="/documents"        element={<Documents />} />
+            <Route path="/mto"              element={<Mto />} />
           </Route>
 
           {/* Anything unknown → hub */}

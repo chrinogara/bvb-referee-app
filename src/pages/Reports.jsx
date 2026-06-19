@@ -18,6 +18,7 @@ import {
   CalendarDays,
   MessageCircle,
   Minus,
+  Stethoscope,
 } from 'lucide-react'
 
 import { Header } from '../components/layout/Header'
@@ -29,7 +30,7 @@ import { toast } from '../components/ui/Toast'
 
 import { useTournaments } from '../hooks/useTournaments'
 import { useRanking } from '../hooks/useRanking'
-import { evaluationService, rcReportService } from '../lib/supabase'
+import { evaluationService, rcReportService, mtoService } from '../lib/supabase'
 import { CRITERIA, getGrade } from '../lib/scoring'
 import { cn, formatDate, refereeName, levelColor, scoreColor } from '../lib/utils'
 import {
@@ -37,6 +38,7 @@ import {
   generateRcReportPDF,
   generateRefereeDayDigestPDF,
   generateRefereeTournamentDigestPDF,
+  generateBV15PDF,
   downloadPDF,
 } from '../lib/pdf'
 import { refereeDayDigest, refereeEvolution, refereeTournamentAdvice } from '../lib/report'
@@ -396,6 +398,7 @@ export default function Reports() {
   const [selectedTournamentId, setSelectedTournamentId] = useState('')
   const [tournamentEvals, setTournamentEvals] = useState([])
   const [loadingEvals, setLoadingEvals] = useState(false)
+  const [mtoRecords, setMtoRecords] = useState([])
   const [activeSection, setActiveSection] = useState('season') // 'season' | 'tournament'
 
   // Load evaluations when tournament selected
@@ -406,7 +409,17 @@ export default function Reports() {
       setTournamentEvals(data || [])
       setLoadingEvals(false)
     })
+    mtoService.getByTournament(selectedTournamentId)
+      .then(({ data }) => setMtoRecords(data || []))
+      .catch(() => setMtoRecords([]))
   }, [selectedTournamentId])
+
+  async function downloadMtoPdf(rec) {
+    try {
+      const blob = await generateBV15PDF(rec)
+      downloadPDF(blob, `BV-15_${(rec.athlete_name || 'athlete').replace(/\s+/g, '_')}.pdf`)
+    } catch (e) { toast.error('PDF failed: ' + e.message) }
+  }
 
   // Tournament ranking
   const tournamentRanking = useMemo(() => buildRankingFromEvals(tournamentEvals), [tournamentEvals])
@@ -636,6 +649,33 @@ export default function Reports() {
 
             {selectedTournamentId && (
               <>
+                {/* Medical Time-Outs (BV-15) */}
+                <Card className="overflow-hidden">
+                  <CardHeader className="flex items-center justify-between">
+                    <CardTitle className="flex items-center gap-2"><Stethoscope size={15} /> Medical Time-Outs (BV-15)</CardTitle>
+                    <Badge variant={mtoRecords.length ? 'orange' : 'gray'} size="xs">{mtoRecords.length}</Badge>
+                  </CardHeader>
+                  <CardBody className="space-y-2">
+                    {mtoRecords.length === 0 ? (
+                      <p className="text-sm text-gray-500 py-2 text-center">No MTO / forfeit recorded for this tournament.</p>
+                    ) : mtoRecords.map((rec) => (
+                      <div key={rec.id} className="flex items-center justify-between gap-3 p-2.5 bg-gray-50 rounded-xl">
+                        <div className="min-w-0">
+                          <div className="text-sm font-semibold text-gray-900 truncate">
+                            {rec.athlete_name || '—'}
+                            <span className={cn('ml-2 text-[10px] font-bold px-1.5 py-0.5 rounded', rec.kind === 'FORFEIT' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700')}>{rec.kind === 'FORFEIT' ? 'FORFEIT' : 'MTO'}</span>
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            {[rec.match_number && `Match ${rec.match_number}`, rec.court && `Court ${rec.court}`, rec.form_date].filter(Boolean).join(' · ')}
+                            {rec.able_to_continue != null && (<> · <span className={rec.able_to_continue ? 'text-emerald-600' : 'text-red-600'}>{rec.able_to_continue ? 'can continue' : 'cannot continue'}</span></>)}
+                          </div>
+                        </div>
+                        <Button variant="outline" size="xs" onClick={() => downloadMtoPdf(rec)}><FileText size={12} /> PDF</Button>
+                      </div>
+                    ))}
+                  </CardBody>
+                </Card>
+
                 {loadingEvals ? (
                   <div className="space-y-3">
                     {[1, 2, 3].map((i) => <div key={i} className="h-24 bg-white border border-gray-200 rounded-xl animate-pulse" />)}

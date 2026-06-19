@@ -1470,3 +1470,174 @@ function RefereeTournamentDigestDocument({ referee, tournament, evolution, advic
 export async function generateRefereeTournamentDigestPDF({ referee, tournament, evolution, advice }) {
   return pdf(<RefereeTournamentDigestDocument referee={referee} tournament={tournament} evolution={evolution} advice={advice} />).toBlob()
 }
+
+// ════════════════════════════════════════════════════════════════════════════
+//  CEV BV-15 — Medical Injury Time-Out / Injury Forfeit (official form)
+//  Faithful black/white reproduction of the official © CEV 2019 form, filled in.
+// ════════════════════════════════════════════════════════════════════════════
+const BVK = '#000000'
+const bv15 = StyleSheet.create({
+  page: { fontFamily: 'Helvetica', fontSize: 9, color: BVK, paddingTop: 26, paddingBottom: 22, paddingHorizontal: 34 },
+  hdrBox: { borderWidth: 1.5, borderColor: BVK, flexDirection: 'row', alignItems: 'stretch' },
+  hdrLeft: { width: 92, justifyContent: 'center', alignItems: 'center', borderRightWidth: 1, borderColor: BVK, paddingVertical: 10 },
+  hdrCode: { fontSize: 16, fontFamily: 'Helvetica-Bold' },
+  hdrCenter: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: 8, paddingHorizontal: 4 },
+  hdrTitle: { fontSize: 12, fontFamily: 'Helvetica-Bold', textAlign: 'center', lineHeight: 1.25 },
+  hdrRight: { width: 64, justifyContent: 'center', alignItems: 'center', borderLeftWidth: 1, borderColor: BVK },
+  hdrCev: { fontSize: 14, fontFamily: 'Helvetica-Bold' },
+  topRow: { flexDirection: 'row', alignItems: 'flex-end', marginTop: 9 },
+  topLabel: { fontSize: 9 },
+  topLine: { flex: 1, borderBottomWidth: 1, borderColor: BVK, marginLeft: 6, paddingBottom: 1, fontSize: 9, minHeight: 12 },
+  secLabel: { fontSize: 9, fontFamily: 'Helvetica-Bold', marginTop: 10, marginBottom: 3 },
+  table: { borderWidth: 1, borderColor: BVK },
+  row: { flexDirection: 'row', borderTopWidth: 1, borderColor: BVK },
+  rowFirst: { flexDirection: 'row' },
+  lab: { width: 118, padding: 4, fontFamily: 'Helvetica-Bold', fontSize: 8.5, textAlign: 'right', borderRightWidth: 1, borderColor: BVK },
+  val: { flex: 1, padding: 4, fontSize: 9 },
+  labSmall: { width: 86, padding: 4, fontFamily: 'Helvetica-Bold', fontSize: 8.5, textAlign: 'right', borderRightWidth: 1, borderLeftWidth: 1, borderColor: BVK },
+  cellGrow: { flex: 1, padding: 4, fontSize: 9, borderRightWidth: 1, borderColor: BVK },
+  ackCell: { flex: 1, fontSize: 8.5 },
+  ackHead: { fontFamily: 'Helvetica-Bold', padding: 4, borderRightWidth: 1, borderColor: BVK },
+  ackHeadLast: { fontFamily: 'Helvetica-Bold', padding: 4 },
+  ackVal: { padding: 4, minHeight: 26, borderRightWidth: 1, borderColor: BVK },
+  ackValLast: { padding: 4, minHeight: 26 },
+  checkRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  box: { width: 11, height: 11, borderWidth: 1, borderColor: BVK, alignItems: 'center', justifyContent: 'center' },
+  boxX: { fontSize: 9, fontFamily: 'Helvetica-Bold', lineHeight: 1 },
+  instrTitle: { fontSize: 8, fontFamily: 'Helvetica-Bold', marginTop: 10 },
+  instr: { fontSize: 6.7, color: '#222', lineHeight: 1.3, marginTop: 2, textAlign: 'justify' },
+  note: { fontSize: 7, fontStyle: 'italic', marginTop: 2, marginBottom: 2 },
+  footer: { textAlign: 'center', fontSize: 7, color: MED_GRAY, marginTop: 8 },
+})
+
+function Box({ on }) {
+  return <View style={bv15.box}>{on ? <Text style={bv15.boxX}>X</Text> : null}</View>
+}
+
+const BV15_INSTRUCTION = [
+  'In the case of an athlete requesting a medical injury time-out, or forfeiting a match due to injury, immediately following the relevant scoresheet administration, he/she will be given a copy of the BV-15 form by the match referee (the exception to this rule being the use of a medical injury time-out due to blood injury).',
+  'Upon receipt, the athlete will be then responsible for filling in the reasons for the medical injury time-out request or the forfeit of the match and must then sign it and present him/herself along with the form at the Events medical office. After going through a check by the official medical doctor, the athlete will then be responsible for giving the form, duly signed by the official medical doctor, to the CEV Supervisor who shall assess the situation (if needed together with the event\u2019s official medical doctor and the CEV Medical Delegate, if present) and make a copy of the BV-15 to be attached to the TS report together with the relevant match scoresheet.',
+  'The athlete will receive the original BV-15 form for submission to their medical doctor(s) who will be then responsible for clearing the athlete for the next match by confirming that he/she is in good health condition and can participate without putting his/her own health at risk. The athlete must then present the form duly completed to the CEV Supervisor before he/she plays their next match in the same tournament. Otherwise, the BV-15 duly filled in, must be presented to the CEV Supervisor at the Technical Meeting of the next event the athlete wishes to participate in.',
+]
+
+function BV15Document({ r }) {
+  const v = (x) => (x == null ? '' : String(x))
+  return (
+    <Document>
+      <Page size="A4" style={bv15.page}>
+        {/* Header */}
+        <View style={bv15.hdrBox}>
+          <View style={bv15.hdrLeft}><Text style={bv15.hdrCode}>BV-15</Text></View>
+          <View style={bv15.hdrCenter}>
+            <Text style={bv15.hdrTitle}>CEV BEACH VOLLEYBALL</Text>
+            <Text style={bv15.hdrTitle}>MEDICAL INJURY TIME OUT /</Text>
+            <Text style={bv15.hdrTitle}>INJURY FORFEIT</Text>
+          </View>
+          <View style={bv15.hdrRight}><Text style={bv15.hdrCev}>CEV</Text></View>
+        </View>
+
+        {/* Competition / venue */}
+        <View style={bv15.topRow}>
+          <Text style={bv15.topLabel}>Name of the Competition:</Text>
+          <Text style={bv15.topLine}>{v(r.competition_name)}</Text>
+        </View>
+        <View style={bv15.topRow}>
+          <Text style={bv15.topLabel}>Venue and date:</Text>
+          <Text style={bv15.topLine}>{v(r.venue_date)}</Text>
+        </View>
+
+        {/* Athlete section */}
+        <Text style={bv15.secLabel}>To be filled in by the athlete:</Text>
+        <View style={bv15.table}>
+          <View style={bv15.rowFirst}>
+            <Text style={bv15.lab}>Athlete Name</Text>
+            <Text style={bv15.cellGrow}>{v(r.athlete_name)}</Text>
+            <Text style={bv15.labSmall}>Date (d/m/y)</Text>
+            <Text style={bv15.val}>{v(r.form_date)}</Text>
+          </View>
+          <View style={bv15.row}>
+            <Text style={bv15.lab}>Match #</Text>
+            <Text style={bv15.cellGrow}>{v(r.match_number)}</Text>
+            <Text style={bv15.labSmall}>Hour (h/m)</Text>
+            <Text style={bv15.val}>{v(r.hour)}</Text>
+          </View>
+          <View style={bv15.row}>
+            <Text style={bv15.lab}>Reason for Medical Time Out / Forfeit Injury</Text>
+            <Text style={[bv15.val, { minHeight: 38 }]}>{v(r.reason)}</Text>
+          </View>
+          <View style={bv15.row}>
+            <Text style={bv15.lab}>Athlete Signature</Text>
+            <Text style={bv15.val}>{v(r.athlete_signature)}</Text>
+          </View>
+        </View>
+
+        {/* Event's Doctor section */}
+        <Text style={bv15.secLabel}>To be filled in by the official Event{'\u2019'}s Doctor:</Text>
+        <View style={bv15.table}>
+          <View style={bv15.rowFirst}>
+            <Text style={bv15.lab}>Medical Evaluation</Text>
+            <Text style={[bv15.val, { minHeight: 44 }]}>{v(r.medical_evaluation)}</Text>
+          </View>
+          <View style={bv15.row}>
+            <View style={[bv15.val, { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }]}>
+              <Text style={{ fontSize: 8.5, flex: 1, paddingRight: 6 }}>
+                Is the athlete able to continue in the competition without putting his/her own health condition at risk?
+              </Text>
+              <View style={bv15.checkRow}><Box on={r.able_to_continue === true} /><Text style={{ fontFamily: 'Helvetica-Bold', fontSize: 9 }}>YES</Text></View>
+              <View style={[bv15.checkRow, { marginLeft: 10 }]}><Box on={r.able_to_continue === false} /><Text style={{ fontFamily: 'Helvetica-Bold', fontSize: 9 }}>NO</Text></View>
+            </View>
+          </View>
+          <View style={bv15.row}>
+            <Text style={bv15.lab}>Remarks</Text>
+            <Text style={[bv15.val, { minHeight: 22 }]}>{v(r.remarks)}</Text>
+          </View>
+        </View>
+
+        {/* Acknowledgement */}
+        <Text style={bv15.secLabel}>Acknowledgement by:</Text>
+        <View style={bv15.table}>
+          <View style={[bv15.rowFirst, { borderBottomWidth: 1, borderColor: BVK }]}>
+            <Text style={[bv15.ackCell, bv15.ackHead]}>Event{'\u2019'}s Doctor</Text>
+            <Text style={[bv15.ackCell, bv15.ackHead]}>CEV Medical Delegate (if any)</Text>
+            <Text style={[bv15.ackCell, bv15.ackHeadLast]}>CEV Supervisor</Text>
+          </View>
+          <View style={bv15.rowFirst}>
+            <Text style={[bv15.ackCell, bv15.ackVal]}>{v(r.ack_event_doctor)}</Text>
+            <Text style={[bv15.ackCell, bv15.ackVal]}>{v(r.ack_medical_delegate)}</Text>
+            <Text style={[bv15.ackCell, bv15.ackValLast]}>{v(r.ack_supervisor)}</Text>
+          </View>
+        </View>
+
+        {/* Team medical personnel / certificate */}
+        <Text style={[bv15.secLabel, { marginTop: 12 }]}>TO BE FILLED IN BY THE TEAM{'\u2019'}S MEDICAL PERSONNEL</Text>
+        <Text style={bv15.note}>
+          Note: in the case that a medical doctor for the team concerned is not available, the athlete must get the written approval of the official Event{'\u2019'}s Doctor or the CEV Medical Delegate, if present.
+        </Text>
+        <View style={bv15.table}>
+          <View style={[bv15.rowFirst, { padding: 5 }]}>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontFamily: 'Helvetica-Bold', fontSize: 9 }}>MEDICAL CERTIFICATE</Text>
+              <Text style={{ fontSize: 8.5, marginTop: 2, lineHeight: 1.3 }}>
+                I, {v(r.cert_doctor_name) || '________________'} hereby confirm, that the athlete indicated here is fit to participate in any CEV Beach Volleyball event without putting his / her own health condition at risk.
+              </Text>
+              <View style={{ flexDirection: 'row', marginTop: 18 }}>
+                <Text style={{ flex: 1, fontSize: 7.5, borderTopWidth: 1, borderColor: BVK, paddingTop: 2, marginRight: 14 }}>Name of the Medical Doctor (printed)</Text>
+                <Text style={{ flex: 1, fontSize: 7.5, borderTopWidth: 1, borderColor: BVK, paddingTop: 2 }}>Signature of the Medical Doctor</Text>
+              </View>
+            </View>
+          </View>
+        </View>
+
+        {/* Instruction */}
+        <Text style={bv15.instrTitle}>INSTRUCTION:</Text>
+        {BV15_INSTRUCTION.map((p, i) => <Text key={i} style={bv15.instr}>{p}</Text>)}
+
+        <Text style={bv15.footer}>© CEV 2019 · Generated with BVB RC{r.kind === 'FORFEIT' ? ' · INJURY FORFEIT' : ''}</Text>
+      </Page>
+    </Document>
+  )
+}
+
+export async function generateBV15PDF(record) {
+  return pdf(<BV15Document r={record} />).toBlob()
+}

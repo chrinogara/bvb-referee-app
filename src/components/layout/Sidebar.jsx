@@ -12,6 +12,7 @@ import {
   Monitor,
   BookOpen,
   FileBox,
+  Stethoscope,
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { useAppStore } from '../../store/appStore'
@@ -25,6 +26,7 @@ const NAV = [
   { to: '/live-courts',  icon: Monitor,         label: 'Live Courts' },
   { to: '/evaluate',     icon: ClipboardCheck,  label: 'Evaluate', accent: true },
   { to: '/reports',      icon: FileText,        label: 'Reports' },
+  { to: '/mto',          icon: Stethoscope,     label: 'MTO · BV-15' },
   { to: '/assistant',    icon: MessageSquare,   label: 'Rules AI' },
   { to: '/documents',    icon: FileBox,         label: 'Documents' },
 ]

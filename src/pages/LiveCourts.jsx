@@ -1,12 +1,12 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useSearchParams, useNavigate } from 'react-router-dom'
 import {
   Play,
   Pause,
   Clock,
-  Timer,
   Monitor,
   Users as UsersIcon,
+  Stethoscope,
 } from 'lucide-react'
 
 import { Header } from '../components/layout/Header'
@@ -23,7 +23,7 @@ import {
   liveMatchService,
 } from '../lib/supabase'
 import { useAppStore } from '../store/appStore'
-import { cn, refereeName, refereeInitials, formatTime, formatDuration } from '../lib/utils'
+import { cn, refereeName, refereeInitials, formatTime } from '../lib/utils'
 
 // ─── Single court SVG component ──────────────────────────────────────────────
 //
@@ -36,26 +36,13 @@ import { cn, refereeName, refereeInitials, formatTime, formatDuration } from '..
 //   LJ1 — diagonal corner from R1 (back-left of side A)
 //   LJ2 — diagonal corner from LJ1 (back-right of side B)
 //
-function CourtCanvas({ court, assignments, liveMatch, onToggleMatch, onEditStartTime, rankingById, isFinalsCourt = false, now }) {
+function CourtCanvas({ court, assignments, liveMatch, onToggleMatch, onEditStartTime, onMto, rankingById, isFinalsCourt = false }) {
   // Pull referee for each role
   const r1 = assignments.find((a) => a.role === 'R1')
   const r2 = assignments.find((a) => a.role === 'R2')
   const finalsLabel = isFinalsCourt ? assignments[0]?.court_label : null
 
   const isActive = !!liveMatch?.is_active
-
-  // Match duration: while LIVE it counts up from start_time; once stopped it
-  // freezes at (end_time − start_time).
-  const startMs = liveMatch?.start_time ? new Date(liveMatch.start_time).getTime() : null
-  const endMs = liveMatch?.end_time ? new Date(liveMatch.end_time).getTime() : null
-  const elapsedMs =
-    startMs == null
-      ? null
-      : isActive
-        ? now - startMs
-        : endMs != null
-          ? endMs - startMs
-          : null
 
   return (
     <Card className={cn('overflow-hidden', isFinalsCourt && 'ring-2 ring-amber-400/60')}>
@@ -92,24 +79,10 @@ function CourtCanvas({ court, assignments, liveMatch, onToggleMatch, onEditStart
           )}
         </div>
         {liveMatch?.start_time && (
-          <div className="flex flex-col items-end leading-tight">
-            <span className="text-xs font-mono text-gray-600 flex items-center gap-1">
-              <Clock size={11} />
-              {formatTime(liveMatch.start_time)}
-            </span>
-            {elapsedMs != null && (
-              <span
-                className={cn(
-                  'text-xs font-mono font-semibold flex items-center gap-1',
-                  isActive ? 'text-emerald-700' : 'text-gray-500'
-                )}
-                title={isActive ? 'Tempo trascorso' : 'Durata gara'}
-              >
-                <Timer size={11} />
-                {formatDuration(elapsedMs)}
-              </span>
-            )}
-          </div>
+          <span className="text-xs font-mono text-gray-600 flex items-center gap-1">
+            <Clock size={11} />
+            {formatTime(liveMatch.start_time)}
+          </span>
         )}
       </div>
 
@@ -187,31 +160,24 @@ function CourtCanvas({ court, assignments, liveMatch, onToggleMatch, onEditStart
             </>
           )}
         </Button>
-
-        {/* Duration chip: live elapsed (green, ticking) or final duration (gray) */}
-        {elapsedMs != null && (
-          <span
-            className={cn(
-              'flex items-center gap-1 px-2 py-1 rounded-md font-mono text-xs font-bold tabular-nums',
-              isActive
-                ? 'bg-emerald-100 text-emerald-700'
-                : 'bg-gray-200 text-gray-700'
-            )}
-            title={isActive ? 'Tempo trascorso' : 'Durata gara'}
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => onMto && onMto(court)}
+            className="text-xs font-semibold text-[#E85D26] hover:text-[#C44D1E] flex items-center gap-1"
+            title="Record a Medical Time-Out (BV-15)"
           >
-            <Timer size={12} />
-            {isActive ? formatDuration(elapsedMs) : `Durata ${formatDuration(elapsedMs)}`}
-          </span>
-        )}
-
-        <button
-          type="button"
-          onClick={() => onEditStartTime(liveMatch, court)}
-          className="text-xs text-gray-600 hover:text-gray-900 underline disabled:opacity-40"
-          disabled={!liveMatch}
-        >
-          Edit time
-        </button>
+            <Stethoscope size={13} /> MTO
+          </button>
+          <button
+            type="button"
+            onClick={() => onEditStartTime(liveMatch, court)}
+            className="text-xs text-gray-600 hover:text-gray-900 underline disabled:opacity-40"
+            disabled={!liveMatch}
+          >
+            Edit time
+          </button>
+        </div>
       </div>
     </Card>
   )
@@ -334,13 +300,6 @@ export default function LiveCourts() {
   const [editingLive, setEditingLive] = useState(null)
   const [editCourt, setEditCourt] = useState(null)
 
-  // Ticks every second so the live match clocks count up in real time.
-  const [now, setNow] = useState(() => Date.now())
-  useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 1000)
-    return () => clearInterval(id)
-  }, [])
-
   useEffect(() => {
     if (!tournamentId && tournaments.length > 0) {
       const now = new Date()
@@ -353,6 +312,17 @@ export default function LiveCourts() {
   }, [tournaments, tournamentId])
 
   const tournament = tournaments.find((t) => t.id === tournamentId)
+  const navigate = useNavigate()
+  function handleMto(court) {
+    navigate('/mto', {
+      state: {
+        tournamentId,
+        dayNumber,
+        court: String(court).replace(/[^0-9]/g, '') || court,
+        kind: 'MTO',
+      },
+    })
+  }
 
   // Regular courts come from the tournament config.
   const regularCourts = useMemo(() => {
@@ -409,10 +379,16 @@ export default function LiveCourts() {
     return data
   }, [courts, assignments, liveMatches, sessionOrder])
 
-  // Start time = the real moment Start is clicked, so the match duration
-  // (end_time − start_time) always reflects the actual elapsed time.
-  // Use "Edit time" to adjust it afterwards if a different start is needed.
+  // Default start time:
+  //   • Session 1 (first match of the day) → 09:00 on the tournament day
+  //   • Other sessions → current time
   function defaultStartTime() {
+    if (sessionOrder === 1 && tournament?.start_date) {
+      const base = new Date(tournament.start_date)
+      base.setDate(base.getDate() + (dayNumber - 1))
+      base.setHours(9, 0, 0, 0)
+      return base.toISOString()
+    }
     return new Date().toISOString()
   }
 
@@ -445,15 +421,7 @@ export default function LiveCourts() {
           toast.error(`Stop failed: ${error.message}`)
           return
         }
-        const durationMs = existing.start_time
-          ? Date.now() - new Date(existing.start_time).getTime()
-          : null
-        toast(
-          durationMs != null
-            ? `${court} match stopped — durata ${formatDuration(durationMs)}`
-            : `${court} match stopped`,
-          'info'
-        )
+        toast(`${court} match stopped`, 'info')
       } else {
         toast.error('No active match to stop')
         return
@@ -605,9 +573,9 @@ export default function LiveCourts() {
                 liveMatch={courtData[c]?.liveMatch}
                 onToggleMatch={handleToggleMatch}
                 onEditStartTime={handleEditStartTime}
+                onMto={handleMto}
                 rankingById={rankingById}
                 isFinalsCourt={false}
-                now={now}
               />
             ))}
           </div>
@@ -636,9 +604,9 @@ export default function LiveCourts() {
                     liveMatch={courtData[c]?.liveMatch}
                     onToggleMatch={handleToggleMatch}
                     onEditStartTime={handleEditStartTime}
+                    onMto={handleMto}
                     rankingById={rankingById}
                     isFinalsCourt={true}
-                    now={now}
                   />
                 ))}
               </div>

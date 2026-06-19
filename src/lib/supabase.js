@@ -218,7 +218,6 @@ export const liveMatchService = {
           court,
           session_order: sessionOrder,
           start_time: startTime || new Date().toISOString(),
-          end_time: null,
           is_active: true,
           is_test: !!isTest,
         },
@@ -228,10 +227,7 @@ export const liveMatchService = {
       .single(),
 
   stopMatch: (id) =>
-    supabase
-      .from('live_matches')
-      .update({ is_active: false, end_time: new Date().toISOString() })
-      .eq('id', id),
+    supabase.from('live_matches').update({ is_active: false }).eq('id', id),
 
   updateStartTime: (id, startTime) =>
     supabase.from('live_matches').update({ start_time: startTime }).eq('id', id),
@@ -279,6 +275,23 @@ export const documentService = {
       .from('documents')
       .select('id, name, doc_type, content_text')
       .textSearch('content_text', query),
+}
+
+// ─── MTO / BV-15 records (Medical Injury Time-Out / Forfeit) ─────────────────
+export const mtoService = {
+  getByTournament: (tournamentId) =>
+    supabase
+      .from('mto_records')
+      .select('*')
+      .eq('tournament_id', tournamentId)
+      .order('created_at', { ascending: false }),
+
+  create: (data) => supabase.from('mto_records').insert(data).select().single(),
+
+  update: (id, data) =>
+    supabase.from('mto_records').update(data).eq('id', id).select().single(),
+
+  delete: (id) => supabase.from('mto_records').delete().eq('id', id),
 }
 
 // ─── Court Assignments (session-based designations) ───────────────────────────

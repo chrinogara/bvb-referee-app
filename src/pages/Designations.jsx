@@ -159,9 +159,11 @@ export default function Designations() {
   }, [globalRanking])
 
   const courts = useMemo(() => {
-    if (Array.isArray(tournament?.courts) && tournament.courts.length > 0) return tournament.courts
-    return ['Court 1', 'Court 2', 'Court 3', 'Court 4']
-  }, [tournament])
+    const base = (Array.isArray(tournament?.courts) && tournament.courts.length > 0)
+      ? tournament.courts
+      : ['Court 1', 'Court 2', 'Court 3', 'Court 4']
+    return base.slice(0, nCourts)
+  }, [tournament, nCourts])
 
   const totalDays = useMemo(() => {
     if (!tournament?.start_date || !tournament?.end_date) return 2
@@ -244,12 +246,38 @@ export default function Designations() {
   // ─── Configurazione orari (persistita in localStorage per device) ──────────
   const LS_START = 'bvb_day_start'
   const LS_DUR   = 'bvb_round_duration'
+  const LS_COURTS = 'bvb_courts' // shared with Evaluate (3 or 4 courts)
   const [dayStart, setDayStart]       = useState(() => localStorage.getItem(LS_START) || '09:00')
   const [roundDuration, setRoundDuration] = useState(() => parseInt(localStorage.getItem(LS_DUR) || '55', 10))
+  const [nCourts, setNCourts] = useState(() => {
+    const v = parseInt(localStorage.getItem(LS_COURTS) || '4', 10)
+    return v === 3 ? 3 : 4
+  })
   const [showTimeCfg, setShowTimeCfg] = useState(false)
 
   function updateDayStart(v)       { setDayStart(v);       localStorage.setItem(LS_START, v) }
   function updateRoundDuration(v)  { setRoundDuration(v);  localStorage.setItem(LS_DUR, String(v)) }
+  function updateNCourts(v)        { setNCourts(v);        localStorage.setItem(LS_COURTS, String(v)) }
+
+  // Switch number of courts (3/4). If rounds already exist for the day they were
+  // generated with the old court count, so clear them (attendance is kept) and let
+  // the user press Generate again — keeps the rotation logic consistent.
+  async function changeNCourts(v) {
+    if (v === nCourts) return
+    if (giri.length > 0) {
+      if (!window.confirm(`Switch to ${v} courts? Today's generated rounds will be cleared (referee attendance is kept). Then press Generate again.`)) return
+      if (tournamentId) {
+        await supabase
+          .from('court_assignments')
+          .delete()
+          .eq('tournament_id', tournamentId)
+          .eq('day_number', dayNumber)
+          .neq('session_order', FINALS_SESSION_ORDER)
+      }
+      setGiri([])
+    }
+    updateNCourts(v)
+  }
 
   // Calcola l'orario stimato di inizio di un round (indice 0-based)
   function roundTime(idx) {
@@ -822,6 +850,28 @@ export default function Designations() {
               </div>
             </div>
           )}
+
+          {/* Courts selector (3 / 4) — shared with Evaluate via localStorage */}
+          <div className="px-4 pt-1 pb-1 flex items-center gap-2">
+            <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Courts</span>
+            <div className="flex gap-1.5">
+              {[3, 4].map((n) => (
+                <button
+                  key={n}
+                  onClick={() => changeNCourts(n)}
+                  disabled={busy}
+                  className={
+                    'px-4 py-1.5 rounded-lg text-sm font-bold transition-all duration-150 disabled:opacity-50 ' +
+                    (nCourts === n
+                      ? 'bg-[#2D3270] text-white border border-[#2D3270]'
+                      : 'bg-gray-50 text-gray-600 border border-gray-200 hover:border-gray-300')
+                  }
+                >
+                  {n} courts
+                </button>
+              ))}
+            </div>
+          </div>
 
           {/* Azioni rotazione */}
           <div className="px-4 flex gap-2 items-center">

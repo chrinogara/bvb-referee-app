@@ -544,6 +544,16 @@ export default function Evaluate() {
   const [dayNumber, setDayNumber] = useState(lastDayNumber || 1)
   const [courtNumber, setCourtNumber] = useState(null)
   const [roundNumber, setRoundNumber] = useState(null)
+  // Number of courts (3 or 4), shared with Assignments via localStorage.
+  const [nCourts, setNCourts] = useState(() => {
+    const v = parseInt(localStorage.getItem('bvb_courts') || '4', 10)
+    return v === 3 ? 3 : 4
+  })
+  function updateNCourts(v) {
+    setNCourts(v)
+    localStorage.setItem('bvb_courts', String(v))
+    if (courtNumber && courtNumber > v) setCourtNumber(null)
+  }
 
   // ── Round-aware selection (mirrors Assignments) ─────────────────────────────
   const [pickMode, setPickMode] = useState('round') // 'round' | 'manual'
@@ -968,11 +978,31 @@ export default function Evaluate() {
 
               {/* Court selector */}
               <div className="flex flex-col gap-1">
-                <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">
-                  Court
-                </label>
-                <div className="grid grid-cols-4 gap-2">
-                  {[1, 2, 3, 4].map((n) => (
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+                    Court
+                  </label>
+                  {/* Courts count (3 / 4) — shared with Assignments */}
+                  <div className="flex gap-1">
+                    {[3, 4].map((n) => (
+                      <button
+                        key={n}
+                        type="button"
+                        onClick={() => updateNCourts(n)}
+                        className={cn(
+                          'px-2.5 py-1 rounded-md text-xs font-bold transition-all duration-150',
+                          nCourts === n
+                            ? 'bg-[#2D3270] text-white'
+                            : 'bg-gray-50 text-gray-500 border border-gray-200 hover:text-gray-700'
+                        )}
+                      >
+                        {n}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className={cn('grid gap-2', nCourts === 3 ? 'grid-cols-3' : 'grid-cols-4')}>
+                  {Array.from({ length: nCourts }, (_, i) => i + 1).map((n) => (
                     <button
                       key={n}
                       type="button"

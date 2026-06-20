@@ -1,11 +1,11 @@
-import { Menu, WifiOff, FlaskConical, Home } from 'lucide-react'
+import { Menu, WifiOff, FlaskConical, Home, Check, Loader2, AlertTriangle } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useAppStore } from '../../store/appStore'
 import { useState, useEffect } from 'react'
 import { cn } from '../../lib/utils'
 
 export function Header({ title, subtitle, actions }) {
-  const { toggleSidebar, offlineQueue, sandboxMode, setSandboxMode } = useAppStore()
+  const { toggleSidebar, offlineQueue, sandboxMode, setSandboxMode, saveStatus, savePending } = useAppStore()
   const [isOnline, setIsOnline] = useState(navigator.onLine)
 
   useEffect(() => {
@@ -77,6 +77,22 @@ export function Header({ title, subtitle, actions }) {
             <FlaskConical size={12} />
             {sandboxMode ? 'Sandbox ON' : 'Sandbox'}
           </button>
+
+          {isOnline && (() => {
+            const saving = savePending > 0 || saveStatus === 'saving'
+            const error = saveStatus === 'error'
+            const cfg = saving
+              ? { Icon: Loader2, text: 'Saving…', cls: 'bg-blue-100 border-blue-300 text-blue-700', spin: true }
+              : error
+              ? { Icon: AlertTriangle, text: 'Save error', cls: 'bg-red-100 border-red-300 text-red-700' }
+              : { Icon: Check, text: 'All saved', cls: 'bg-emerald-100 border-emerald-300 text-emerald-700' }
+            return (
+              <div className={cn('flex items-center gap-1.5 px-2 py-1 rounded-full border', cfg.cls)} title="Tournament data is saved to the cloud">
+                <cfg.Icon size={12} className={cfg.spin ? 'animate-spin' : ''} />
+                <span className="text-xs font-semibold">{cfg.text}</span>
+              </div>
+            )
+          })()}
 
           {!isOnline && (
             <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-amber-100 border border-amber-300">

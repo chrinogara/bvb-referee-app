@@ -1,3 +1,4 @@
+import { trackSave } from '../lib/saveTracker'
 import { useState, useEffect, useMemo } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { Header } from '../components/layout/Header'
@@ -144,8 +145,7 @@ export default function Mto() {
       court: form.court,
     }
     try {
-      if (editingId) await mtoService.update(editingId, payload)
-      else await mtoService.create(payload)
+      await trackSave(() => editingId ? mtoService.update(editingId, payload) : mtoService.create(payload))
       toast.success(editingId ? 'BV-15 updated' : 'BV-15 saved')
       setShowForm(false)
       setEditingId(null)

@@ -1,3 +1,4 @@
+import { trackSave } from '../lib/saveTracker'
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useReferees } from '../hooks/useReferees'
@@ -777,7 +778,7 @@ export default function Evaluate() {
 
     setSaving(true)
     try {
-      const saved = await create(payload)
+      const saved = await trackSave(() => create(payload))
       setSavedEval(saved)
       clearWipDraft()
 

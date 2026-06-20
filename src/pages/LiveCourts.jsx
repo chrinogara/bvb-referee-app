@@ -1,3 +1,4 @@
+import { trackSave } from '../lib/saveTracker'
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import {
@@ -391,14 +392,14 @@ export default function LiveCourts() {
         (l) => l.court === court && l.session_order === targetSession
       )
       if (start) {
-        const { data, error } = await liveMatchService.startMatch({
+        const { data, error } = await trackSave(() => liveMatchService.startMatch({
           tournamentId,
           dayNumber,
           court,
           sessionOrder: targetSession,
           startTime: defaultStartTime(),
           isTest: sandboxMode,
-        })
+        }))
         if (error) {
           console.error('[startMatch error]', error)
           toast.error(`Start failed: ${error.message}`)
@@ -406,7 +407,7 @@ export default function LiveCourts() {
         }
         toast.success(`${court} match started`)
       } else if (existing) {
-        const { error } = await liveMatchService.stopMatch(existing.id)
+        const { error } = await trackSave(() => liveMatchService.stopMatch(existing.id))
         if (error) {
           console.error('[stopMatch error]', error)
           toast.error(`Stop failed: ${error.message}`)
@@ -435,7 +436,7 @@ export default function LiveCourts() {
 
   async function handleSaveStartTime(newTime) {
     if (!editingLive) return
-    await liveMatchService.updateStartTime(editingLive.id, newTime)
+    await trackSave(() => liveMatchService.updateStartTime(editingLive.id, newTime))
     setEditingLive(null)
     await loadData()
     toast.success('Start time updated')

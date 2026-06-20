@@ -49,6 +49,24 @@ export const useAppStore = create(
       lastDayNumber: 1,
       setLastTournamentId: (id) => set({ lastTournamentId: id }),
       setLastDayNumber: (n) => set({ lastDayNumber: n }),
+
+      // ─── Save status (global "all saved" indicator) ─────────────────────
+      saveStatus: 'idle',   // 'idle' | 'saving' | 'saved' | 'error'
+      savePending: 0,       // number of writes currently in flight
+      lastSavedAt: null,
+      lastSaveError: null,
+      beginSave: () =>
+        set((s) => ({ savePending: s.savePending + 1, saveStatus: 'saving' })),
+      endSave: (ok = true, errMsg = null) =>
+        set((s) => {
+          const pending = Math.max(0, s.savePending - 1)
+          return {
+            savePending: pending,
+            saveStatus: pending > 0 ? 'saving' : ok ? 'saved' : 'error',
+            lastSavedAt: ok ? Date.now() : s.lastSavedAt,
+            lastSaveError: ok ? null : errMsg,
+          }
+        }),
     }),
     {
       name: 'bvb-rc-store',

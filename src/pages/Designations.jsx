@@ -8,6 +8,7 @@ import { toast } from '../components/ui/Toast'
 import { useTournaments, useTournamentReferees } from '../hooks/useTournaments'
 import { useRanking, useTournamentRanking } from '../hooks/useRanking'
 import { supabase, courtAssignmentService, attendanceService, evaluationService } from '../lib/supabase'
+import { trackSave } from '../lib/saveTracker'
 import {
   buildDesignationMessage,
   buildPersonalMessage,
@@ -241,7 +242,7 @@ export default function Designations() {
 
   async function togglePresence(refId) {
     const current = isPresent(refId)
-    await attendanceService.setPresent(tournamentId, refId, dayNumber, SECTION, !current)
+    await trackSave(() => attendanceService.setPresent(tournamentId, refId, dayNumber, SECTION, !current))
     setAttendanceMap((prev) => {
       const refAtt = { ...(prev[refId] || {}) }
       if (current) delete refAtt[attendanceKey]
@@ -401,12 +402,20 @@ export default function Designations() {
       toast.error(`Overlap blocked — ${msg} assigned twice in the same round`)
       throw new Error(`Referee overlap detected: ${msg}`)
     }
-    await supabase
+
+    // ── Crash-safe save (never wipe the day on a failed/interrupted save) ──
+    // 1) snapshot the existing rows, 2) UPSERT the new ones first (if this fails,
+    // the old data is still intact), 3) only then delete the rows that are no
+    // longer part of the rotation. Thanks to the UNIQUE(tournament,day,section,
+    // court,session_order,role) constraint the upsert can't create duplicates.
+    const { data: existing } = await supabase
       .from('court_assignments')
-      .delete()
+      .select('id')
       .eq('tournament_id', tournamentId)
       .eq('day_number', dayNumber)
       .neq('session_order', FINALS_SESSION_ORDER)
+    const existingIds = (existing || []).map((r) => r.id)
+
     const rows = []
     nextGiri.forEach((g, gi) => {
       g.courts.forEach((refId, ci) => {
@@ -421,10 +430,23 @@ export default function Designations() {
         })
       })
     })
-    if (rows.length > 0) {
-      const { error } = await courtAssignmentService.bulkCreate(rows)
-      if (error) throw error
-    }
+
+    let keptIds = []
+    await trackSave(async () => {
+      if (rows.length > 0) {
+        const { data: up, error } = await supabase
+          .from('court_assignments')
+          .upsert(rows, { onConflict: 'tournament_id,day_number,section_number,court,session_order,role' })
+          .select('id')
+        if (error) throw error
+        keptIds = (up || []).map((r) => r.id)
+      }
+      const stale = existingIds.filter((id) => !keptIds.includes(id))
+      if (stale.length > 0) {
+        const { error: delErr } = await supabase.from('court_assignments').delete().in('id', stale)
+        if (delErr) throw delErr
+      }
+    })
   }
 
   // Genera/continua 2 round alla volta (prosegue dalla situazione esistente)
@@ -621,7 +643,7 @@ export default function Designations() {
             tournament_id: tournamentId, referee_id: snake[court][role], day_number: dayNumber,
             section_number: FINALS_SECTION_NUMBER, court, session_order: FINALS_SESSION_ORDER, role,
           })
-      if (rows.length) await courtAssignmentService.bulkCreate(rows)
+      if (rows.length) await trackSave(() => courtAssignmentService.bulkCreate(rows))
       await loadFinals()
       toast.success('Finals assigned (merit-based)')
     } catch (err) { toast.error(`Error: ${err.message}`) }
@@ -690,7 +712,7 @@ export default function Designations() {
         tournament_id: tournamentId, referee_id: id, day_number: dayNumber,
         section_number: FINALS_SECTION_NUMBER, court, session_order: FINALS_SESSION_ORDER, role: FINALS_LINE_ROLES[i],
       }))
-      if (rows.length) await courtAssignmentService.bulkCreate(rows)
+      if (rows.length) await trackSave(() => courtAssignmentService.bulkCreate(rows))
       await loadFinals()
       toast.success(`${picks.length} line judges proposed for ${court}`)
     } catch (err) { toast.error(`Error: ${err.message}`) }

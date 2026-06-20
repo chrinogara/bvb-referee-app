@@ -385,3 +385,21 @@ export const alertService = {
       .update({ acknowledged: true })
       .eq('id', id),
 }
+
+// ─── Referee summary notes (coach's holistic day / final comment) ─────────────
+// day_number = 0  -> end-of-tournament (final) comment
+// day_number = 1,2,3… -> that day's comment
+export const summaryNoteService = {
+  getForTournament: (tournamentId) =>
+    supabase.from('referee_summary_notes').select('*').eq('tournament_id', tournamentId),
+
+  upsert: ({ referee_id, tournament_id, day_number, comment }) =>
+    supabase
+      .from('referee_summary_notes')
+      .upsert(
+        { referee_id, tournament_id, day_number, comment, updated_at: new Date().toISOString() },
+        { onConflict: 'referee_id,tournament_id,day_number' }
+      )
+      .select()
+      .single(),
+}

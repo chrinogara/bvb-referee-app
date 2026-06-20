@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import {
   Trophy,
@@ -31,7 +31,8 @@ import { toast } from '../components/ui/Toast'
 
 import { useTournaments } from '../hooks/useTournaments'
 import { useRanking } from '../hooks/useRanking'
-import { evaluationService, rcReportService, mtoService } from '../lib/supabase'
+import { evaluationService, rcReportService, mtoService, summaryNoteService } from '../lib/supabase'
+import { trackSave } from '../lib/saveTracker'
 import { CRITERIA, getGrade } from '../lib/scoring'
 import { cn, formatDate, refereeName, levelColor, scoreColor } from '../lib/utils'
 import {
@@ -57,6 +58,53 @@ function refMapFromEvals(evals) {
   return map
 }
 
+// ─── Coach holistic comments (day + end-of-tournament) ───────────────────────
+function useSummaryNotes(tournamentId) {
+  const [notes, setNotes] = useState({})
+  const reload = useCallback(async () => {
+    if (!tournamentId) { setNotes({}); return }
+    const { data } = await summaryNoteService.getForTournament(tournamentId)
+    const m = {}; (data || []).forEach((n) => { m[`${n.referee_id}:${n.day_number}`] = n.comment || '' })
+    setNotes(m)
+  }, [tournamentId])
+  useEffect(() => { reload() }, [reload])
+  const save = useCallback(async (refId, dayNum, text) => {
+    await trackSave(() => summaryNoteService.upsert({ referee_id: refId, tournament_id: tournamentId, day_number: dayNum, comment: text || null }))
+    setNotes((prev) => ({ ...prev, [`${refId}:${dayNum}`]: text }))
+  }, [tournamentId])
+  return { notes, save }
+}
+
+function CoachCommentBox({ value, label, onSave }) {
+  const [text, setText] = useState(value || '')
+  const [saving, setSaving] = useState(false)
+  const [dirty, setDirty] = useState(false)
+  useEffect(() => { setText(value || ''); setDirty(false) }, [value])
+  async function commit() {
+    if (!dirty) return
+    setSaving(true)
+    try { await onSave(text); setDirty(false); toast.success('Coach comment saved') }
+    catch (e) { toast.error('Save failed: ' + (e?.message || '')) }
+    finally { setSaving(false) }
+  }
+  return (
+    <div className="mt-2">
+      <div className="text-[11px] font-bold uppercase tracking-wide text-gray-500 mb-1 flex items-center gap-1">
+        <Pencil size={11} /> {label}
+      </div>
+      <textarea
+        value={text}
+        onChange={(e) => { setText(e.target.value); setDirty(true) }}
+        onBlur={commit}
+        rows={2}
+        placeholder="Coach's overall comment…"
+        className="w-full text-sm rounded-lg border border-gray-300 px-2.5 py-2 focus:outline-none focus:ring-2 focus:ring-amber-300 bg-white"
+      />
+      {saving && <div className="text-[11px] text-gray-400 mt-0.5">Saving…</div>}
+    </div>
+  )
+}
+
 function DigestPanel({ tournament, evals }) {
   const days = useMemo(() => {
     const s = new Set(evals.map((e) => e.day_number || 1))
@@ -69,13 +117,14 @@ function DigestPanel({ tournament, evals }) {
   const byRef = useMemo(() => refMapFromEvals(dayEvals), [dayEvals])
   const [busy, setBusy] = useState(null)
   const [openRef, setOpenRef] = useState(null)
+  const { notes, save: saveNote } = useSummaryNotes(tournament?.id)
 
   async function downloadFor(refId) {
     const { referee, evals: re } = byRef[refId]
     setBusy(refId)
     try {
       const digest = refereeDayDigest(re)
-      const blob = await generateRefereeDayDigestPDF({ referee, tournament, dayNumber: day, digest })
+      const blob = await generateRefereeDayDigestPDF({ referee, tournament, dayNumber: day, digest, coachComment: notes[`${refId}:${day}`] })
       downloadPDF(blob, `BVB_Day${day}_${refereeName(referee).replace(/\s+/g, '_')}.pdf`)
     } catch (e) { toast.error('PDF failed: ' + e.message) } finally { setBusy(null) }
   }
@@ -140,6 +189,11 @@ function DigestPanel({ tournament, evals }) {
                       )}
                     </div>
                   ))}
+                  <CoachCommentBox
+                    value={notes[`${id}:${day}`]}
+                    label={`Coach comment — Day ${day}`}
+                    onSave={(t) => saveNote(id, day, t)}
+                  />
                 </div>
               )}
             </div>
@@ -160,6 +214,7 @@ function EvoArrow({ d }) {
 function FinalPanel({ tournament, evals }) {
   const byRef = useMemo(() => refMapFromEvals(evals), [evals])
   const [busy, setBusy] = useState(null)
+  const { notes, save: saveNote } = useSummaryNotes(tournament?.id)
   const ids = Object.keys(byRef)
 
   async function downloadFor(refId) {
@@ -168,7 +223,7 @@ function FinalPanel({ tournament, evals }) {
     try {
       const evolution = refereeEvolution(re)
       const advice = refereeTournamentAdvice(re)
-      const blob = await generateRefereeTournamentDigestPDF({ referee, tournament, evolution, advice })
+      const blob = await generateRefereeTournamentDigestPDF({ referee, tournament, evolution, advice, coachComment: notes[`${refId}:0`] })
       downloadPDF(blob, `BVB_Tournament_${refereeName(referee).replace(/\s+/g, '_')}.pdf`)
     } catch (e) { toast.error('PDF failed: ' + e.message) } finally { setBusy(null) }
   }
@@ -190,23 +245,30 @@ function FinalPanel({ tournament, evals }) {
           const evo = refereeEvolution(re)
           const d = evo.evolution?.overall
           return (
-            <div key={id} className="flex items-center justify-between gap-3 p-3 bg-gray-50 rounded-xl">
-              <div className="min-w-0">
-                <div className="text-sm font-semibold text-gray-900 truncate">{refereeName(referee)}</div>
-                <div className="text-xs text-gray-500 flex items-center gap-1.5">
-                  avg <b>{evo.overall.overall?.toFixed(1) ?? '—'}</b>
-                  {evo.evolution && (<><span className="text-gray-300">·</span><EvoArrow d={d} /> {d != null ? (d > 0 ? `+${d.toFixed(1)}` : d.toFixed(1)) : ''} <span className="text-gray-400">D{evo.evolution.fromDay}→D{evo.evolution.toDay}</span></>)}
-                  <span className="text-gray-300">·</span> {evo.count} match{evo.count === 1 ? '' : 'es'}
+            <div key={id} className="p-3 bg-gray-50 rounded-xl">
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="text-sm font-semibold text-gray-900 truncate">{refereeName(referee)}</div>
+                  <div className="text-xs text-gray-500 flex items-center gap-1.5">
+                    avg <b>{evo.overall.overall?.toFixed(1) ?? '—'}</b>
+                    {evo.evolution && (<><span className="text-gray-300">·</span><EvoArrow d={d} /> {d != null ? (d > 0 ? `+${d.toFixed(1)}` : d.toFixed(1)) : ''} <span className="text-gray-400">D{evo.evolution.fromDay}→D{evo.evolution.toDay}</span></>)}
+                    <span className="text-gray-300">·</span> {evo.count} match{evo.count === 1 ? '' : 'es'}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <Button variant="outline" size="xs" onClick={() => downloadFor(id)} disabled={busy === id}>
+                    <FileText size={12} /> {busy === id ? '…' : 'PDF'}
+                  </Button>
+                  <Button variant="outline" size="xs" onClick={() => whatsappFor(id)}>
+                    <MessageCircle size={12} /> WhatsApp
+                  </Button>
                 </div>
               </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <Button variant="outline" size="xs" onClick={() => downloadFor(id)} disabled={busy === id}>
-                  <FileText size={12} /> {busy === id ? '…' : 'PDF'}
-                </Button>
-                <Button variant="outline" size="xs" onClick={() => whatsappFor(id)}>
-                  <MessageCircle size={12} /> WhatsApp
-                </Button>
-              </div>
+              <CoachCommentBox
+                value={notes[`${id}:0`]}
+                label="Final coach comment"
+                onSave={(t) => saveNote(id, 0, t)}
+              />
             </div>
           )
         })}

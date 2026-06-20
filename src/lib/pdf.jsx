@@ -1370,7 +1370,7 @@ function MatchNotes({ matches }) {
   )
 }
 
-function RefereeDayDigestDocument({ referee, tournament, dayNumber, digest }) {
+function RefereeDayDigestDocument({ referee, tournament, dayNumber, digest, coachComment }) {
   return (
     <Document>
       <Page size="A4" style={reportStyles.page}>
@@ -1388,6 +1388,13 @@ function RefereeDayDigestDocument({ referee, tournament, dayNumber, digest }) {
 
         <MatchNotes matches={digest.matches} />
 
+        {coachComment ? (
+          <View wrap={false}>
+            <Text style={reportStyles.sectionTitle}>Coach comment — Day {dayNumber}</Text>
+            <Text style={{ fontSize: 10, color: DARK_GRAY, lineHeight: 1.4 }}>{coachComment}</Text>
+          </View>
+        ) : null}
+
         <View style={reportStyles.footer} fixed>
           <Text>BVB Referee Coach · Day {dayNumber} digest · {refereeName(referee)}</Text>
           <Text>Generated {formatDateTime(new Date())}</Text>
@@ -1397,11 +1404,11 @@ function RefereeDayDigestDocument({ referee, tournament, dayNumber, digest }) {
   )
 }
 
-export async function generateRefereeDayDigestPDF({ referee, tournament, dayNumber, digest }) {
-  return pdf(<RefereeDayDigestDocument referee={referee} tournament={tournament} dayNumber={dayNumber} digest={digest} />).toBlob()
+export async function generateRefereeDayDigestPDF({ referee, tournament, dayNumber, digest, coachComment }) {
+  return pdf(<RefereeDayDigestDocument referee={referee} tournament={tournament} dayNumber={dayNumber} digest={digest} coachComment={coachComment} />).toBlob()
 }
 
-function RefereeTournamentDigestDocument({ referee, tournament, evolution, advice }) {
+function RefereeTournamentDigestDocument({ referee, tournament, evolution, advice, coachComment }) {
   const ev = evolution.evolution
   return (
     <Document>
@@ -1458,6 +1465,13 @@ function RefereeTournamentDigestDocument({ referee, tournament, evolution, advic
         <Text style={{ fontSize: 10, color: DARK_GRAY, lineHeight: 1.4, marginBottom: 4 }}>{advice.summary}</Text>
         {advice.advice ? <Text style={{ fontSize: 10, color: DARK_GRAY, lineHeight: 1.4 }}>{advice.advice}</Text> : null}
 
+        {coachComment ? (
+          <View wrap={false}>
+            <Text style={reportStyles.sectionTitle}>Final coach comment</Text>
+            <Text style={{ fontSize: 10, color: DARK_GRAY, lineHeight: 1.4 }}>{coachComment}</Text>
+          </View>
+        ) : null}
+
         <View style={reportStyles.footer} fixed>
           <Text>BVB Referee Coach · Tournament evaluation · {refereeName(referee)}</Text>
           <Text>Generated {formatDateTime(new Date())}</Text>
@@ -1467,8 +1481,8 @@ function RefereeTournamentDigestDocument({ referee, tournament, evolution, advic
   )
 }
 
-export async function generateRefereeTournamentDigestPDF({ referee, tournament, evolution, advice }) {
-  return pdf(<RefereeTournamentDigestDocument referee={referee} tournament={tournament} evolution={evolution} advice={advice} />).toBlob()
+export async function generateRefereeTournamentDigestPDF({ referee, tournament, evolution, advice, coachComment }) {
+  return pdf(<RefereeTournamentDigestDocument referee={referee} tournament={tournament} evolution={evolution} advice={advice} coachComment={coachComment} />).toBlob()
 }
 
 // ════════════════════════════════════════════════════════════════════════════

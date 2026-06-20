@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
-import { CalendarRange, Wand2, MessageCircle, Trophy, AlertTriangle, Users } from 'lucide-react'
+import { CalendarRange, Wand2, MessageCircle, Trophy, AlertTriangle, Users, RotateCcw } from 'lucide-react'
 
 import { Header } from '../components/layout/Header'
 import { toast } from '../components/ui/Toast'
@@ -139,8 +139,20 @@ export default function ScheduleDesignations() {
     } catch (e) { toast.error('Errore: ' + (e?.message || '')) } finally { setSlotBusy(null) }
   }
 
-  async function setRef(matchId, refId) {
-    const prev = assignMap[matchId]
+  const [confirmReset, setConfirmReset] = useState(false)
+  async function resetDay() {
+    if (!matches.length) return
+    if (!confirmReset) { setConfirmReset(true); setTimeout(() => setConfirmReset(false), 4000); return }
+    setConfirmReset(false)
+    setBusy(true)
+    try {
+      await trackSave(() => designationService.deleteByMatches(matches.map((m) => m.id)))
+      setAssignMap((prev) => { const next = { ...prev }; matches.forEach((m) => { delete next[m.id] }); return next })
+      toast.success(`Designazioni Day ${day} azzerate`)
+    } catch (e) { toast.error('Errore: ' + (e?.message || '')) } finally { setBusy(false) }
+  }
+
+  async function setRef(matchId, refId) {    const prev = assignMap[matchId]
     setAssignMap((m) => ({ ...m, [matchId]: refId || undefined }))
     try {
       if (refId) await trackSave(() => designationService.upsert({ match_id: matchId, referee_id: refId, role: 'R1' }))
@@ -233,6 +245,13 @@ export default function ScheduleDesignations() {
               className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold border border-gray-300 text-gray-700 disabled:opacity-50"
             >
               <MessageCircle size={16} /> WhatsApp generale
+            </button>
+            <button
+              onClick={resetDay}
+              disabled={busy || !matches.length}
+              className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold border disabled:opacity-50 ${confirmReset ? 'bg-red-600 text-white border-red-600' : 'bg-white text-red-600 border-red-300'}`}
+            >
+              <RotateCcw size={16} /> {confirmReset ? 'Confermi? Azzera' : 'Reset designazioni'}
             </button>
           </div>
 

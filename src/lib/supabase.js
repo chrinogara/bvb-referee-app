@@ -92,6 +92,9 @@ export const designationService = {
       .single(),
 
   delete: (id) => supabase.from('designations').delete().eq('id', id),
+
+  deleteByMatches: (matchIds) =>
+    supabase.from('designations').delete().in('match_id', matchIds),
 }
 
 // ─── Evaluations ─────────────────────────────────────────────────────────────

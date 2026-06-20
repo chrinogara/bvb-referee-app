@@ -227,6 +227,10 @@ export function refereeDayDigest(evals) {
     count: sorted.length,
     averages: evalAverages(sorted),
     matches: sorted.map((e) => ({
+      id: e.id,
+      tournament_id: e.tournament_id,
+      day_number: e.day_number,
+      evaluated_at: e.evaluated_at,
       label: e.match_description || '—',
       role: e.role || 'R1',
       overall: e.overall_score,

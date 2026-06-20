@@ -4,6 +4,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useReferees } from '../hooks/useReferees'
 import { useTournaments } from '../hooks/useTournaments'
 import { useEvaluations } from '../hooks/useEvaluations'
+import { evaluationService } from '../lib/supabase'
 import { courtAssignmentService } from '../lib/supabase'
 import { useAppStore } from '../store/appStore'
 import { CRITERIA, computeScore, SCORE_LABELS, getGrade } from '../lib/scoring'
@@ -26,6 +27,7 @@ import {
   Download,
   Share2,
   Save,
+  Pencil,
   CheckCircle,
   Search,
   X,
@@ -620,6 +622,37 @@ export default function Evaluate() {
   const [pdfBlob, setPdfBlob] = useState(null)
   const [generatingPdf, setGeneratingPdf] = useState(false)
 
+  // ── Edit mode: load an existing evaluation when ?evalId=… is present ────────
+  const editingEvalId = searchParams.get('evalId') || null
+  const [origMatchDesc, setOrigMatchDesc] = useState(null)
+  const [editLoading, setEditLoading] = useState(!!editingEvalId)
+  useEffect(() => {
+    if (!editingEvalId) return
+    let cancelled = false
+    ;(async () => {
+      try {
+        const { data: e } = await evaluationService.getById(editingEvalId)
+        if (cancelled || !e) return
+        setRefereeId(e.referee_id)
+        setRole(e.role || 'R1')
+        if (e.tournament_id) setTournamentId(e.tournament_id)
+        if (e.day_number) setDayNumber(e.day_number)
+        setOrigMatchDesc(e.match_description || null)
+        setCriteriaData(Object.fromEntries(CRITERIA.map((c) => [c.key, {
+          score: e[`score_${c.key}`] ?? null,
+          repeat: !!e[`repeat_${c.key}`],
+          note: e[`note_${c.key}`] || '',
+        }])))
+        setGeneralNotes(e.general_notes || '')
+      } catch {
+        toast.error('Could not load the evaluation to edit')
+      } finally {
+        if (!cancelled) setEditLoading(false)
+      }
+    })()
+    return () => { cancelled = true }
+  }, [editingEvalId]) // eslint-disable-line
+
   // ── Validation errors ───────────────────────────────────────────────────────
   const [errors, setErrors] = useState({})
 
@@ -631,7 +664,7 @@ export default function Evaluate() {
   useEffect(() => {
     if (wipMountedRef.current) return
     wipMountedRef.current = true
-    if (searchParams.get('refereeId')) return
+    if (searchParams.get('refereeId') || editingEvalId) return
     try {
       const last = JSON.parse(localStorage.getItem(LAST_WIP_KEY) || 'null')
       if (!last || !last.refereeId) return
@@ -645,7 +678,7 @@ export default function Evaluate() {
 
   // Restore (or clear) the scorecard whenever the evaluation context changes
   useEffect(() => {
-    if (savedEval || !refereeId) return
+    if (savedEval || !refereeId || editingEvalId) return
     skipNextSaveRef.current = true // don't let the next autosave write stale data
     try {
       const raw = localStorage.getItem(wipKey(tournamentId, dayNumber, refereeId, role))
@@ -665,7 +698,7 @@ export default function Evaluate() {
 
   // Autosave the in-progress draft on every change
   useEffect(() => {
-    if (savedEval || !refereeId) return
+    if (savedEval || !refereeId || editingEvalId) return
     if (skipNextSaveRef.current) { skipNextSaveRef.current = false; return }
     const key = wipKey(tournamentId, dayNumber, refereeId, role)
     try {
@@ -767,8 +800,15 @@ export default function Evaluate() {
       evaluated_at: new Date().toISOString(),
     }
 
+    // Edit mode: keep the original match label and timestamp (don't reorder).
+    if (editingEvalId) {
+      payload.match_description = origMatchDesc
+      delete payload.evaluated_at
+    }
+
     // Offline fallback
     if (!navigator.onLine) {
+      if (editingEvalId) { toast.error('Editing an evaluation needs a connection'); return }
       const draftKey = `eval_${Date.now()}`
       saveDraft(draftKey, payload)
       clearWipDraft()
@@ -778,7 +818,9 @@ export default function Evaluate() {
 
     setSaving(true)
     try {
-      const saved = await trackSave(() => create(payload))
+      const saved = editingEvalId
+        ? await trackSave(() => evaluationService.update(editingEvalId, payload))
+        : await trackSave(() => create(payload))
       setSavedEval(saved)
       clearWipDraft()
 
@@ -869,13 +911,23 @@ export default function Evaluate() {
   return (
     <div className="flex flex-col h-full bg-gray-50">
       <Header
-        title="New Evaluation"
+        title={editingEvalId ? 'Edit Evaluation' : 'New Evaluation'}
         subtitle="Rate a referee's performance"
       />
 
       {/* Scrollable content — padded for sticky bottom bar */}
       <div className="flex-1 overflow-y-auto pb-40 lg:pb-28">
         <div className="max-w-lg mx-auto px-4 py-5 space-y-4">
+
+          {editingEvalId && (
+            <div className="flex items-start gap-3 p-3 rounded-xl bg-amber-500/10 border border-amber-500/30">
+              <Pencil size={18} className="text-amber-600 shrink-0 mt-0.5" />
+              <div className="text-sm text-amber-800">
+                <b>Editing an existing evaluation.</b> Changes update this evaluation and flow automatically into the day digest and the end-of-tournament summary.
+                {editLoading && <span className="block text-xs mt-0.5 text-amber-700">Loading…</span>}
+              </div>
+            </div>
+          )}
 
           {/* ── Section 1: Match Context ──────────────────────────────────── */}
           <Card>
@@ -1156,7 +1208,7 @@ export default function Evaluate() {
                 ) : (
                   <>
                     <Save size={18} />
-                    Save Evaluation
+                    {editingEvalId ? 'Update Evaluation' : 'Save Evaluation'}
                   </>
                 )}
               </Button>

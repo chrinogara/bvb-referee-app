@@ -116,6 +116,13 @@ export const evaluationService = {
       .eq('tournament_id', tournamentId)
       .order('evaluated_at', { ascending: false }),
 
+  getById: (id) =>
+    supabase
+      .from('evaluations')
+      .select('*, referees(*), matches(*), tournaments(*)')
+      .eq('id', id)
+      .single(),
+
   create: (data) => supabase.from('evaluations').insert(data).select().single(),
 
   update: (id, data) =>

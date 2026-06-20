@@ -12,6 +12,7 @@ import {
   Star,
   ChevronUp,
   ChevronDown,
+  Pencil,
   Award,
   FileText,
   ExternalLink,
@@ -67,6 +68,7 @@ function DigestPanel({ tournament, evals }) {
   const dayEvals = useMemo(() => evals.filter((e) => (e.day_number || 1) === day), [evals, day])
   const byRef = useMemo(() => refMapFromEvals(dayEvals), [dayEvals])
   const [busy, setBusy] = useState(null)
+  const [openRef, setOpenRef] = useState(null)
 
   async function downloadFor(refId) {
     const { referee, evals: re } = byRef[refId]
@@ -102,20 +104,44 @@ function DigestPanel({ tournament, evals }) {
         ) : ids.map((id) => {
           const { referee, evals: re } = byRef[id]
           const dig = refereeDayDigest(re)
+          const isOpen = openRef === id
           return (
-            <div key={id} className="flex items-center justify-between gap-3 p-3 bg-gray-50 rounded-xl">
-              <div className="min-w-0">
-                <div className="text-sm font-semibold text-gray-900 truncate">{refereeName(referee)}</div>
-                <div className="text-xs text-gray-500">{dig.count} match{dig.count === 1 ? '' : 'es'} · day avg <b style={{ color: '#E85D26' }}>{dig.averages.overall?.toFixed(1) ?? '—'}</b></div>
+            <div key={id} className="bg-gray-50 rounded-xl overflow-hidden">
+              <div className="flex items-center justify-between gap-3 p-3">
+                <button className="min-w-0 flex items-center gap-2 text-left" onClick={() => setOpenRef(isOpen ? null : id)}>
+                  <ChevronDown size={14} className={`shrink-0 text-gray-400 transition-transform ${isOpen ? '' : '-rotate-90'}`} />
+                  <span className="min-w-0">
+                    <span className="block text-sm font-semibold text-gray-900 truncate">{refereeName(referee)}</span>
+                    <span className="block text-xs text-gray-500">{dig.count} match{dig.count === 1 ? '' : 'es'} · day avg <b style={{ color: '#E85D26' }}>{dig.averages.overall?.toFixed(1) ?? '—'}</b></span>
+                  </span>
+                </button>
+                <div className="flex items-center gap-2 shrink-0">
+                  <Button variant="outline" size="xs" onClick={() => downloadFor(id)} disabled={busy === id}>
+                    <FileText size={12} /> {busy === id ? '…' : 'PDF'}
+                  </Button>
+                  <Button variant="outline" size="xs" onClick={() => whatsappFor(id)}>
+                    <MessageCircle size={12} /> WhatsApp
+                  </Button>
+                </div>
               </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <Button variant="outline" size="xs" onClick={() => downloadFor(id)} disabled={busy === id}>
-                  <FileText size={12} /> {busy === id ? '…' : 'PDF'}
-                </Button>
-                <Button variant="outline" size="xs" onClick={() => whatsappFor(id)}>
-                  <MessageCircle size={12} /> WhatsApp
-                </Button>
-              </div>
+              {isOpen && (
+                <div className="px-3 pb-3 space-y-1.5">
+                  {dig.matches.map((m, mi) => (
+                    <div key={m.id || mi} className="flex items-center justify-between gap-2 bg-white border border-gray-200 rounded-lg px-3 py-2">
+                      <div className="min-w-0">
+                        <div className="text-xs font-semibold text-gray-800 truncate">{m.label}</div>
+                        <div className="text-[11px] text-gray-500">{m.role} · overall <b style={{ color: '#E85D26' }}>{m.overall?.toFixed(1) ?? '—'}</b></div>
+                      </div>
+                      {m.id && (
+                        <Link to={`/evaluate?evalId=${m.id}`}
+                          className="shrink-0 inline-flex items-center gap-1 text-xs font-bold rounded-lg border border-gray-300 px-2.5 py-1.5 text-gray-700 hover:bg-gray-100">
+                          <Pencil size={12} /> Edit
+                        </Link>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )
         })}

@@ -721,12 +721,21 @@ export default function Designations() {
   const isLastDay = dayNumber === totalDays
 
   // ─── Carico ────────────────────────────────────────────────────────────────
+  // Conta le partite per arbitro: round normali (giri) + finali (finalsRows).
+  // Reattivo: cambia a ogni swap di round e a ogni modifica delle finali.
   const load = useMemo(() => {
     const t = {}; rosterIds.forEach((id) => { t[id] = 0 })
     giri.forEach((g) => g.courts.forEach((id) => { if (id != null) t[id] = (t[id] || 0) + 1 }))
+    finalsRows.forEach((r) => { if (r.referee_id != null) t[r.referee_id] = (t[r.referee_id] || 0) + 1 })
     return t
-  }, [giri, rosterIds])
+  }, [giri, rosterIds, finalsRows])
   const maxLoad = Math.max(1, ...Object.values(load))
+  // Arbitri da mostrare nel workload: presenti + eventuali arbitri di finale non in roster
+  const workloadIds = useMemo(() => {
+    const ids = [...rosterIds]
+    finalsRows.forEach((r) => { if (r.referee_id && !ids.includes(r.referee_id)) ids.push(r.referee_id) })
+    return ids
+  }, [rosterIds, finalsRows])
 
   // ─── Azioni condivise (WhatsApp / Copy / PDF) ──────────────────────────────
   const flatAssignments = useMemo(() => {
@@ -1083,11 +1092,13 @@ export default function Designations() {
           )}
 
           {/* Referee workload */}
-          {giri.length > 0 && (
+          {(giri.length > 0 || finalsRows.length > 0) && (
             <div className="px-4 mt-4">
-              <div className="text-sm font-bold uppercase tracking-wide text-gray-600 mb-2">Referee workload ({giri.length} rounds)</div>
+              <div className="text-sm font-bold uppercase tracking-wide text-gray-600 mb-2">
+                Referee workload ({giri.length} round{giri.length === 1 ? '' : 's'}{finalsRows.length > 0 ? ' + finals' : ''})
+              </div>
               <div className="rounded-2xl bg-white border border-gray-200 p-3 space-y-2">
-                {rosterIds.map((id) => {
+                {workloadIds.map((id) => {
                   const t = load[id] || 0
                   return (
                     <div key={id} className="flex items-center gap-3">

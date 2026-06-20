@@ -14,7 +14,6 @@ import Tournaments from './pages/Tournaments'
 import TournamentDetail from './pages/TournamentDetail'
 import Assignments from './pages/Designations'   // file kept as Designations.jsx (label = Assignments)
 import Briefing from './pages/Briefing'
-import LiveCourts from './pages/LiveCourts'
 import Evaluate from './pages/Evaluate'
 import Reports from './pages/Reports'
 import RcReport from './pages/RcReport'
@@ -60,7 +59,6 @@ export default function App() {
             {/* Legacy URLs */}
             <Route path="/designations"     element={<Navigate to="/assignments" replace />} />
             <Route path="/assignments"      element={<Assignments />} />
-            <Route path="/live-courts"      element={<LiveCourts />} />
             <Route path="/evaluate"         element={<Evaluate />} />
             <Route path="/reports"          element={<Reports />} />
             <Route path="/rc-report"        element={<RcReport />} />

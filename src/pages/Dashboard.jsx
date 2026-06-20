@@ -14,7 +14,6 @@ import {
   BarChart3,
   ClipboardCheck,
   BookOpen,
-  Monitor,
 } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 
@@ -214,11 +213,10 @@ export default function Dashboard() {
         {/* ── Quick actions ── */}
         <div>
           <h2 className="font-display text-lg font-bold uppercase tracking-wide text-gray-600 mb-2">Azioni rapide</h2>
-          <div className="grid grid-cols-4 gap-2">
+          <div className="grid grid-cols-3 gap-2">
             {[
               { to: '/briefing',    icon: BookOpen,    label: 'Briefing' },
               { to: '/assignments', icon: CalendarDays, label: 'Assignments' },
-              { to: '/live-courts', icon: Monitor,     label: 'Live Courts' },
               { to: '/assistant',   icon: BarChart3,   label: 'Rules AI' },
             ].map(({ to, icon: Icon, label }) => (
               <Link key={to} to={to} className="rounded-2xl bg-white border border-gray-200 shadow-sm py-3 flex flex-col items-center gap-1 active:bg-gray-50">

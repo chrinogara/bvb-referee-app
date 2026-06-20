@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import { LayoutDashboard, Trophy, ClipboardCheck, Monitor, FileText } from 'lucide-react'
+import { LayoutDashboard, Trophy, ClipboardCheck, FileText } from 'lucide-react'
 import { cn } from '../../lib/utils'
 
 // Bottom navigation for mobile/tablet (hidden on desktop where the Sidebar is shown).
@@ -8,7 +8,6 @@ const ITEMS = [
   { to: '/dashboard',   icon: LayoutDashboard, label: 'Home' },
   { to: '/tournaments', icon: Trophy,          label: 'Tournaments' },
   { to: '/evaluate',    icon: ClipboardCheck,  label: 'Evaluate', accent: true },
-  { to: '/live-courts', icon: Monitor,         label: 'Live' },
   { to: '/reports',     icon: FileText,        label: 'Reports' },
 ]
 

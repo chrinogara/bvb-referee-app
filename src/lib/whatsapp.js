@@ -277,7 +277,7 @@ function _hhmm(t) {
 export function buildScheduleGeneralMessage({ tournamentName, dayLabel, matches, refNameById }) {
   const L = []
   L.push(`🏐 *${tournamentName || 'Torneo'} — ${dayLabel || ''}*`.trim())
-  L.push('_designazioni arbitri_')
+  L.push('_Assignments_')
   let curr = null
   for (const m of matches) {
     const t = _hhmm(m.scheduled_time)
@@ -314,7 +314,7 @@ export function buildRefereeScheduleMessage({ referee, tournamentName, dayLabel,
 export function buildSlotScheduleMessage({ tournamentName, dayLabel, slotTime, matches, refNameById }) {
   const L = []
   L.push(`🏐 *${tournamentName || 'Torneo'} — ${dayLabel || ''}*`.trim())
-  L.push(`_designazioni · ${_hhmm(slotTime)}_`)
+  L.push(`_Assignments · ${_hhmm(slotTime)}_`)
   L.push('')
   for (const m of matches) {
     const star = m.is_final ? '🏆 ' : ''

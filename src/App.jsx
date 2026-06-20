@@ -13,6 +13,7 @@ import RefereeProfile from './pages/RefereeProfile'
 import Tournaments from './pages/Tournaments'
 import TournamentDetail from './pages/TournamentDetail'
 import Assignments from './pages/Designations'   // file kept as Designations.jsx (label = Assignments)
+import ScheduleDesignations from './pages/ScheduleDesignations'
 import Briefing from './pages/Briefing'
 import Evaluate from './pages/Evaluate'
 import Reports from './pages/Reports'
@@ -59,6 +60,7 @@ export default function App() {
             {/* Legacy URLs */}
             <Route path="/designations"     element={<Navigate to="/assignments" replace />} />
             <Route path="/assignments"      element={<Assignments />} />
+            <Route path="/schedule-assign"  element={<ScheduleDesignations />} />
             <Route path="/evaluate"         element={<Evaluate />} />
             <Route path="/reports"          element={<Reports />} />
             <Route path="/rc-report"        element={<RcReport />} />

@@ -12,6 +12,7 @@ import {
   BookOpen,
   FileBox,
   Stethoscope,
+  CalendarRange,
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { useAppStore } from '../../store/appStore'
@@ -22,6 +23,7 @@ const NAV = [
   { to: '/referees',     icon: Users,           label: 'Referees' },
   { to: '/tournaments',  icon: Trophy,          label: 'Tournaments' },
   { to: '/assignments',  icon: Calendar,        label: 'Assignments' },
+  { to: '/schedule-assign', icon: CalendarRange,   label: 'Schedule' },
   { to: '/evaluate',     icon: ClipboardCheck,  label: 'Evaluate', accent: true },
   { to: '/reports',      icon: FileText,        label: 'Reports' },
   { to: '/mto',          icon: Stethoscope,     label: 'MTO · BV-15' },

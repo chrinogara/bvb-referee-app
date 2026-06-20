@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import { LayoutDashboard, Trophy, ClipboardCheck, FileText } from 'lucide-react'
+import { LayoutDashboard, Trophy, ClipboardCheck, FileText, CalendarRange } from 'lucide-react'
 import { cn } from '../../lib/utils'
 
 // Bottom navigation for mobile/tablet (hidden on desktop where the Sidebar is shown).
@@ -9,6 +9,7 @@ const ITEMS = [
   { to: '/tournaments', icon: Trophy,          label: 'Tournaments' },
   { to: '/evaluate',    icon: ClipboardCheck,  label: 'Evaluate', accent: true },
   { to: '/reports',     icon: FileText,        label: 'Reports' },
+  { to: '/schedule-assign', icon: CalendarRange, label: 'Schedule' },
 ]
 
 export function BottomNav() {

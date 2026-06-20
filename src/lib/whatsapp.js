@@ -261,3 +261,59 @@ export function shareTournamentDigestToReferee(args) {
   if (phone) window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, '_blank', 'noopener,noreferrer')
   else shareToWhatsApp(msg)
 }
+
+// ─── Schedule-based designations (finals/bracket day) ─────────────────────────
+// Helpers
+function _serShort(m) { return m.series === 'PRO' ? 'PRO' : 'CH' }
+function _genLabel(m) { return m.gender === 'M' ? 'Heren' : 'Dames' }
+function _matchTag(m) { return `${_serShort(m)} ${_genLabel(m)} ${m.round || ''}`.trim() }
+function _hhmm(t) {
+  if (!t) return ''
+  try { return new Date(t).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' }) }
+  catch { return String(t).slice(11, 16) }
+}
+
+/** General broadcast: full day designations grouped by time slot. */
+export function buildScheduleGeneralMessage({ tournamentName, dayLabel, matches, refNameById }) {
+  const L = []
+  L.push(`🏐 *${tournamentName || 'Torneo'} — ${dayLabel || ''}*`.trim())
+  L.push('_designazioni arbitri_')
+  let curr = null
+  for (const m of matches) {
+    const t = _hhmm(m.scheduled_time)
+    if (t !== curr) { curr = t; L.push(''); L.push(`*${t}*`) }
+    const star = m.is_final ? '🏆 ' : ''
+    const ref = refNameById[m.id] || '—'
+    L.push(`${star}C${m.court} · #${m.match_number} ${_matchTag(m)} → *${ref}*`)
+  }
+  L.push('')
+  L.push('Buon lavoro a tutti — RC')
+  return L.join('\n')
+}
+
+/** Individual message for one referee: only their matches. */
+export function buildRefereeScheduleMessage({ referee, tournamentName, dayLabel, matches }) {
+  const name = referee?.first_name || ''
+  const L = []
+  L.push(`🏐 *${tournamentName || 'Torneo'} — ${dayLabel || ''}*`.trim())
+  L.push(`Ciao *${name}*, ecco le tue partite:`.trim())
+  L.push('')
+  for (const m of matches) {
+    const star = m.is_final ? '🏆 ' : '⏰ '
+    L.push(`${star}*${_hhmm(m.scheduled_time)}* — Campo ${m.court} · #${m.match_number} ${_matchTag(m)}`)
+  }
+  L.push('')
+  L.push(`Totale: *${matches.length}* partit${matches.length === 1 ? 'a' : 'e'}.`)
+  L.push('In bocca al lupo! — RC')
+  return L.join('\n')
+}
+
+export function shareScheduleGeneral(args) {
+  shareToWhatsApp(buildScheduleGeneralMessage(args))
+}
+export function shareRefereeSchedule(args) {
+  const msg = buildRefereeScheduleMessage(args)
+  const phone = normalizePhone(args.referee?.phone)
+  if (phone) window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, '_blank', 'noopener,noreferrer')
+  else shareToWhatsApp(msg)
+}

@@ -180,6 +180,14 @@ export default function ScheduleDesignations() {
     [rosterByName, matches, assignMap]
   )
 
+  // Workload a barre: TUTTI gli arbitri presenti, ordinati per n° partite (desc).
+  const workloadBars = useMemo(() => {
+    const rows = roster.map((r) => ({ r, n: workload[r.id] || 0 }))
+    rows.sort((a, b) => (b.n - a.n) || refereeName(a.r).localeCompare(refereeName(b.r)))
+    const max = Math.max(1, ...rows.map((x) => x.n))
+    return { rows, max }
+  }, [roster, workload])
+
   return (
     <div className="flex flex-col h-full">
       <Header title="Schedule Designations" subtitle={tournament?.name} />
@@ -323,10 +331,30 @@ export default function ScheduleDesignations() {
             </div>
           ))}
 
+          {/* Referee workload (barre) — aggiornato in tempo reale ad ogni designazione */}
+          {roster.length > 0 && (
+            <div>
+              <div className="text-sm font-bold uppercase tracking-wide text-gray-600 mb-2">
+                Referee workload · {matches.length} partite
+              </div>
+              <div className="rounded-2xl bg-white border border-gray-200 p-3 space-y-2">
+                {workloadBars.rows.map(({ r, n }) => (
+                  <div key={r.id} className="flex items-center gap-3">
+                    <span className="w-28 text-sm font-semibold shrink-0 truncate">{refereeName(r)}</span>
+                    <div className="flex-1 bg-gray-100 rounded-full h-5 overflow-hidden">
+                      <div className="h-full rounded-full" style={{ width: `${(n / workloadBars.max) * 100}%`, background: NAVY }} />
+                    </div>
+                    <span className="text-sm font-bold tabular-nums w-6 text-right">{n}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Workload */}
           {refsWithMatches.length > 0 && (
             <div>
-              <div className="text-sm font-bold uppercase tracking-wide text-gray-600 mb-1.5">Workload + WhatsApp individuale</div>
+              <div className="text-sm font-bold uppercase tracking-wide text-gray-600 mb-1.5">WhatsApp individuale</div>
               <div className="rounded-2xl bg-white border border-gray-200 divide-y divide-gray-100 overflow-hidden">
                 {refsWithMatches.map((r) => (
                   <div key={r.id} className="flex items-center gap-3 p-3">

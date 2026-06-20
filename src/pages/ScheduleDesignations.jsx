@@ -8,8 +8,8 @@ import { useTournaments } from '../hooks/useTournaments'
 import { useTournamentRanking } from '../hooks/useRanking'
 import { matchService, attendanceService, designationService } from '../lib/supabase'
 import { trackSave } from '../lib/saveTracker'
-import { autoAssignSchedule, findSlotConflicts } from '../lib/scheduleAssign'
-import { shareScheduleGeneral, shareRefereeSchedule } from '../lib/whatsapp'
+import { autoAssignSchedule, autoAssignSlot, findSlotConflicts } from '../lib/scheduleAssign'
+import { shareScheduleGeneral, shareSlotSchedule, shareRefereeSchedule } from '../lib/whatsapp'
 import { refereeName } from '../lib/utils'
 
 const NAVY = '#2D3270'
@@ -111,6 +111,7 @@ export default function ScheduleDesignations() {
 
   // ── Actions ──────────────────────────────────────────────────────────────────
   const [busy, setBusy] = useState(false)
+  const [slotBusy, setSlotBusy] = useState(null)
   async function generate() {
     if (!matches.length) { toast.error('Nessuna partita per questa giornata — carica prima il calendario'); return }
     if (!rankedRoster.length) { toast.error('Nessun arbitro disponibile'); return }
@@ -122,6 +123,20 @@ export default function ScheduleDesignations() {
       setAssignMap(a)
       toast.success(`Designazioni generate (${rows.length} partite)`)
     } catch (e) { toast.error('Errore: ' + (e?.message || '')) } finally { setBusy(false) }
+  }
+
+  async function generateSlot(slotKey) {
+    if (!rankedRoster.length) { toast.error('Nessun arbitro disponibile'); return }
+    const slotMatches = matches.filter((m) => (m.scheduled_time || `m${m.match_number}`) === slotKey)
+    if (!slotMatches.length) return
+    setSlotBusy(slotKey)
+    try {
+      const a = autoAssignSlot(matches, slotKey, rankedRoster, assignMap)
+      const rows = slotMatches.filter((m) => a[m.id]).map((m) => ({ match_id: m.id, referee_id: a[m.id], role: 'R1' }))
+      await trackSave(() => Promise.all(rows.map((row) => designationService.upsert(row))))
+      setAssignMap((prev) => ({ ...prev, ...a }))
+      toast.success(`Fascia ${hhmm(slotMatches[0].scheduled_time)} · ${rows.length} designazioni`)
+    } catch (e) { toast.error('Errore: ' + (e?.message || '')) } finally { setSlotBusy(null) }
   }
 
   async function setRef(matchId, refId) {
@@ -138,6 +153,10 @@ export default function ScheduleDesignations() {
   function sendGeneral() {
     if (!matches.length) return
     shareScheduleGeneral({ tournamentName: tournament?.name, dayLabel: `Day ${day}`, matches, refNameById })
+  }
+  function sendSlot(slot) {
+    if (!slot?.items?.length) return
+    shareSlotSchedule({ tournamentName: tournament?.name, dayLabel: `Day ${day}`, slotTime: slot.time, matches: slot.items, refNameById })
   }
   function sendIndividual(ref) {
     const mine = matches.filter((m) => assignMap[m.id] === ref.id).sort(byTime)
@@ -254,7 +273,25 @@ export default function ScheduleDesignations() {
           {/* Matches grouped by time slot */}
           {slots.map((slot) => (
             <div key={slot.time}>
-              <div className="text-sm font-bold uppercase tracking-wide text-gray-600 mb-1.5">{hhmm(slot.time)}</div>
+              <div className="flex items-center justify-between mb-1.5 gap-2">
+                <div className="text-sm font-bold uppercase tracking-wide text-gray-600">{hhmm(slot.time)}</div>
+                <div className="flex gap-1.5 shrink-0">
+                  <button
+                    onClick={() => generateSlot(slot.time)}
+                    disabled={slotBusy === slot.time || !rankedRoster.length}
+                    className="inline-flex items-center gap-1 text-xs font-bold rounded-lg px-2.5 py-1.5 text-white disabled:opacity-50"
+                    style={{ background: ORANGE }}
+                  >
+                    <Wand2 size={12} /> {slotBusy === slot.time ? '…' : 'Genera'}
+                  </button>
+                  <button
+                    onClick={() => sendSlot(slot)}
+                    className="inline-flex items-center gap-1 text-xs font-bold rounded-lg border border-gray-300 px-2.5 py-1.5 text-gray-700 hover:bg-gray-100"
+                  >
+                    <MessageCircle size={12} /> WhatsApp
+                  </button>
+                </div>
+              </div>
               <div className="rounded-2xl bg-white border border-gray-200 divide-y divide-gray-100 overflow-hidden">
                 {slot.items.map((m) => {
                   const conflict = conflicts.has(m.id)

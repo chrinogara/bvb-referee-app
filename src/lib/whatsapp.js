@@ -308,6 +308,26 @@ export function buildRefereeScheduleMessage({ referee, tournamentName, dayLabel,
   return L.join('\n')
 }
 
+/** Message for a SINGLE time slot: only the matches starting at that time. */
+export function buildSlotScheduleMessage({ tournamentName, dayLabel, slotTime, matches, refNameById }) {
+  const L = []
+  L.push(`🏐 *${tournamentName || 'Torneo'} — ${dayLabel || ''}*`.trim())
+  L.push(`_designazioni · ${_hhmm(slotTime)}_`)
+  L.push('')
+  for (const m of matches) {
+    const star = m.is_final ? '🏆 ' : ''
+    const ref = (refNameById && refNameById[m.id]) || '—'
+    L.push(`${star}C${m.court} · #${m.match_number} ${_matchTag(m)} → *${ref}*`)
+  }
+  L.push('')
+  L.push('Buon lavoro — RC')
+  return L.join('\n')
+}
+
+export function shareSlotSchedule(args) {
+  shareToWhatsApp(buildSlotScheduleMessage(args))
+}
+
 export function shareScheduleGeneral(args) {
   shareToWhatsApp(buildScheduleGeneralMessage(args))
 }

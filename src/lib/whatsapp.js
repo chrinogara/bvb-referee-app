@@ -287,7 +287,8 @@ export function buildScheduleGeneralMessage({ tournamentName, dayLabel, matches,
     L.push(`${star}C${m.court} · #${m.match_number} ${_matchTag(m)} → *${ref}*`)
   }
   L.push('')
-  L.push('Buon lavoro a tutti — RC')
+  L.push('Christian Nogara')
+  L.push('CEV Referee Coach')
   return L.join('\n')
 }
 
@@ -304,7 +305,8 @@ export function buildRefereeScheduleMessage({ referee, tournamentName, dayLabel,
   }
   L.push('')
   L.push(`Totale: *${matches.length}* partit${matches.length === 1 ? 'a' : 'e'}.`)
-  L.push('In bocca al lupo! — RC')
+  L.push('Christian Nogara')
+  L.push('CEV Referee Coach')
   return L.join('\n')
 }
 
@@ -320,7 +322,8 @@ export function buildSlotScheduleMessage({ tournamentName, dayLabel, slotTime, m
     L.push(`${star}C${m.court} · #${m.match_number} ${_matchTag(m)} → *${ref}*`)
   }
   L.push('')
-  L.push('Buon lavoro — RC')
+  L.push('Christian Nogara')
+  L.push('CEV Referee Coach')
   return L.join('\n')
 }
 

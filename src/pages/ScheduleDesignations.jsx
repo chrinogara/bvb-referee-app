@@ -81,6 +81,9 @@ export default function ScheduleDesignations() {
   const avgById = useMemo(() => {
     const m = {}; (ranking || []).forEach((r) => { m[r.id] = r.avg_score ?? -1 }); return m
   }, [ranking])
+  const rankInfo = useMemo(() => {
+    const m = {}; (ranking || []).forEach((r) => { m[r.id] = { avg: r.avg_score, count: r.total_evaluations || 0 } }); return m
+  }, [ranking])
   const rankedRoster = useMemo(
     () => [...roster].sort((a, b) => (avgById[b.id] ?? -1) - (avgById[a.id] ?? -1) || refereeName(a).localeCompare(refereeName(b))),
     [roster, avgById]
@@ -218,6 +221,36 @@ export default function ScheduleDesignations() {
             </div>
           )}
 
+          {/* Classifica cumulata torneo (base meritocratica per le finali) */}
+          {rankedRoster.length > 0 && (
+            <div>
+              <div className="text-sm font-bold uppercase tracking-wide text-gray-600 mb-1.5">
+                Classifica cumulata torneo · {usingPresent ? 'presenti' : 'tutti'}
+              </div>
+              <div className="rounded-2xl bg-white border border-gray-200 divide-y divide-gray-100 overflow-hidden">
+                {rankedRoster.map((r, i) => {
+                  const info = rankInfo[r.id]
+                  const top = i < 4
+                  return (
+                    <div key={r.id} className="flex items-center gap-3 px-3 py-2">
+                      <span className="w-5 text-sm font-bold tabular-nums" style={{ color: top ? ORANGE : '#9ca3af' }}>{i + 1}</span>
+                      <span className="flex-1 text-sm font-semibold text-gray-900 truncate flex items-center gap-1.5">
+                        {top && <Trophy size={12} style={{ color: ORANGE }} />}
+                        {refereeName(r)}
+                      </span>
+                      <span className="text-xs tabular-nums text-gray-500">
+                        {info && info.avg != null ? `${info.avg.toFixed(1)} · ${info.count} val.` : 'no val.'}
+                      </span>
+                    </div>
+                  )
+                })}
+              </div>
+              <div className="mt-1 text-[11px] text-gray-400">
+                I primi 4 (🏆) sono i candidati alle finali, in base alla media cumulata sull'intero torneo (Day 1 + Day 2).
+              </div>
+            </div>
+          )}
+
           {/* Matches grouped by time slot */}
           {slots.map((slot) => (
             <div key={slot.time}>
@@ -240,7 +273,11 @@ export default function ScheduleDesignations() {
                         className={`shrink-0 w-36 rounded-lg border px-2 py-1.5 text-sm ${conflict ? 'border-red-400 bg-red-50 text-red-700' : 'border-gray-300'}`}
                       >
                         <option value="">— arbitro —</option>
-                        {rosterByName.map((r) => <option key={r.id} value={r.id}>{refereeName(r)}</option>)}
+                        {rosterByName.map((r) => {
+                          const info = rankInfo[r.id]
+                          const suffix = info && info.avg != null ? ` · ${info.avg.toFixed(1)}` : ''
+                          return <option key={r.id} value={r.id}>{refereeName(r)}{suffix}</option>
+                        })}
                       </select>
                     </div>
                   )
@@ -256,7 +293,12 @@ export default function ScheduleDesignations() {
               <div className="rounded-2xl bg-white border border-gray-200 divide-y divide-gray-100 overflow-hidden">
                 {refsWithMatches.map((r) => (
                   <div key={r.id} className="flex items-center gap-3 p-3">
-                    <span className="flex-1 text-sm font-semibold text-gray-900 truncate">{refereeName(r)}</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-semibold text-gray-900 truncate">{refereeName(r)}</div>
+                      {rankInfo[r.id]?.avg != null && (
+                        <div className="text-[11px] text-gray-400">media {rankInfo[r.id].avg.toFixed(1)} · {rankInfo[r.id].count} val.</div>
+                      )}
+                    </div>
                     <span className="text-sm font-bold tabular-nums" style={{ color: NAVY }}>{workload[r.id] || 0}</span>
                     <button
                       onClick={() => sendIndividual(r)}

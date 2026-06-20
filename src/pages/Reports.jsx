@@ -130,7 +130,7 @@ function DigestPanel({ tournament, evals }) {
   }
   function whatsappFor(refId) {
     const { referee, evals: re } = byRef[refId]
-    shareDayDigestToReferee({ referee, tournament, dayNumber: day, digest: refereeDayDigest(re) })
+    shareDayDigestToReferee({ referee, tournament, dayNumber: day, digest: refereeDayDigest(re), coachComment: notes[`${refId}:${day}`] })
   }
 
   const ids = Object.keys(byRef)
@@ -229,7 +229,7 @@ function FinalPanel({ tournament, evals }) {
   }
   function whatsappFor(refId) {
     const { referee, evals: re } = byRef[refId]
-    shareTournamentDigestToReferee({ referee, tournament, evolution: refereeEvolution(re), advice: refereeTournamentAdvice(re) })
+    shareTournamentDigestToReferee({ referee, tournament, evolution: refereeEvolution(re), advice: refereeTournamentAdvice(re), coachComment: notes[`${refId}:0`] })
   }
 
   return (

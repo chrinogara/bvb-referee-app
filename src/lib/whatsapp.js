@@ -208,7 +208,7 @@ const DIG_CRIT = [
 function fmt1(n) { return n == null ? '—' : Number(n).toFixed(1) }
 
 /** Concise evening day-digest message for the referee (full detail in the PDF). */
-export function buildDayDigestMessage({ referee, tournament, dayNumber, digest }) {
+export function buildDayDigestMessage({ referee, tournament, dayNumber, digest, coachComment }) {
   const name = referee?.first_name || ''
   const L = []
   L.push(`Hi ${name},`.trim())
@@ -217,6 +217,7 @@ export function buildDayDigestMessage({ referee, tournament, dayNumber, digest }
   L.push('')
   L.push(`Day average: *${fmt1(digest.averages.overall)}/5*`)
   for (const [k, label] of DIG_CRIT) L.push(`• ${label}: ${fmt1(digest.averages.criteria[k])}`)
+  if (coachComment) { L.push(''); L.push(`*Coach comment:* ${coachComment}`) }
   L.push('')
   L.push('Full breakdown in the PDF I’m sending you. Rest well — see you tomorrow!')
   L.push('— RC')
@@ -224,7 +225,7 @@ export function buildDayDigestMessage({ referee, tournament, dayNumber, digest }
 }
 
 /** Concise end-of-tournament message for the referee (full detail in the PDF). */
-export function buildTournamentDigestMessage({ referee, tournament, evolution, advice }) {
+export function buildTournamentDigestMessage({ referee, tournament, evolution, advice, coachComment }) {
   const name = referee?.first_name || ''
   const ev = evolution.evolution
   const L = []
@@ -240,6 +241,7 @@ export function buildTournamentDigestMessage({ referee, tournament, evolution, a
   L.push('')
   if (advice?.summary) L.push(advice.summary)
   if (advice?.advice) { L.push(''); L.push(advice.advice) }
+  if (coachComment) { L.push(''); L.push(`*Final coach comment:* ${coachComment}`) }
   L.push('')
   L.push('Full report in the PDF attached. Thanks for your work this tournament!')
   L.push('— RC')

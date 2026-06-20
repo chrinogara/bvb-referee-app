@@ -660,6 +660,15 @@ export default function RefereeProfile() {
                         </div>
                         <button
                           type="button"
+                          onClick={() => navigate(`/evaluate?evalId=${ev.id}`)}
+                          className="p-1.5 rounded-lg hover:bg-amber-100 text-gray-500 hover:text-amber-700 transition-colors"
+                          aria-label="Edit evaluation"
+                          title="Edit this evaluation (scores and notes)"
+                        >
+                          <Pencil size={13} />
+                        </button>
+                        <button
+                          type="button"
                           onClick={async () => {
                             const lang = await requestLanguage()
                             if (!lang) return

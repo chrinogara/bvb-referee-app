@@ -517,6 +517,19 @@ function LiveScoreBar({ scores, repeats }) {
   )
 }
 
+// ─── In-progress draft persistence (resume an evaluation after leaving) ───────
+// Salva la valutazione in corso in locale, così uscendo dalla pagina e tornando
+// si ritrova esattamente dov'era. La bozza è legata al contesto (torneo+giorno+
+// arbitro+ruolo) e viene cancellata al salvataggio definitivo.
+const LAST_WIP_KEY = 'bvb_eval_wip_last'
+const wipKey = (t, d, r, ro) => `bvb_eval_wip::${t || '-'}::${d || '-'}::${r}::${ro}`
+function evalHasContent(cd, gn) {
+  return Boolean(
+    (gn && gn.trim()) ||
+    CRITERIA.some((c) => cd[c.key].score || cd[c.key].repeat || (cd[c.key].note && cd[c.key].note.trim()))
+  )
+}
+
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function Evaluate() {
@@ -609,6 +622,68 @@ export default function Evaluate() {
   // ── Validation errors ───────────────────────────────────────────────────────
   const [errors, setErrors] = useState({})
 
+  // ── Resume in-progress evaluation (draft persistence) ───────────────────────
+  const skipNextSaveRef = useRef(false)
+  const wipMountedRef = useRef(false)
+
+  // On mount: if no referee came from the URL, resume the last in-progress draft
+  useEffect(() => {
+    if (wipMountedRef.current) return
+    wipMountedRef.current = true
+    if (searchParams.get('refereeId')) return
+    try {
+      const last = JSON.parse(localStorage.getItem(LAST_WIP_KEY) || 'null')
+      if (!last || !last.refereeId) return
+      if (!localStorage.getItem(wipKey(last.tournamentId, last.dayNumber, last.refereeId, last.role))) return
+      if (last.tournamentId) setTournamentId(last.tournamentId)
+      if (last.dayNumber) setDayNumber(last.dayNumber)
+      if (last.role) setRole(last.role)
+      setRefereeId(last.refereeId) // triggers the restore effect below
+    } catch { /* ignore */ }
+  }, []) // eslint-disable-line
+
+  // Restore (or clear) the scorecard whenever the evaluation context changes
+  useEffect(() => {
+    if (savedEval || !refereeId) return
+    skipNextSaveRef.current = true // don't let the next autosave write stale data
+    try {
+      const raw = localStorage.getItem(wipKey(tournamentId, dayNumber, refereeId, role))
+      if (raw) {
+        const d = JSON.parse(raw)
+        if (d.criteriaData) setCriteriaData(d.criteriaData)
+        setGeneralNotes(d.generalNotes || '')
+        if (d.courtNumber != null) setCourtNumber(d.courtNumber)
+        if (d.roundNumber != null) setRoundNumber(d.roundNumber)
+        if (d.pickMode) setPickMode(d.pickMode)
+      } else {
+        setCriteriaData(Object.fromEntries(CRITERIA.map((c) => [c.key, { score: null, repeat: false, note: '' }])))
+        setGeneralNotes('')
+      }
+    } catch { /* ignore */ }
+  }, [refereeId, role, tournamentId, dayNumber]) // eslint-disable-line
+
+  // Autosave the in-progress draft on every change
+  useEffect(() => {
+    if (savedEval || !refereeId) return
+    if (skipNextSaveRef.current) { skipNextSaveRef.current = false; return }
+    const key = wipKey(tournamentId, dayNumber, refereeId, role)
+    try {
+      if (evalHasContent(criteriaData, generalNotes)) {
+        localStorage.setItem(key, JSON.stringify({ criteriaData, generalNotes, courtNumber, roundNumber, pickMode, updatedAt: Date.now() }))
+        localStorage.setItem(LAST_WIP_KEY, JSON.stringify({ tournamentId, dayNumber, refereeId, role }))
+      } else {
+        localStorage.removeItem(key)
+      }
+    } catch { /* ignore */ }
+  }, [criteriaData, generalNotes, courtNumber, roundNumber, pickMode, refereeId, role, tournamentId, dayNumber, savedEval]) // eslint-disable-line
+
+  function clearWipDraft() {
+    try {
+      localStorage.removeItem(wipKey(tournamentId, dayNumber, refereeId, role))
+      localStorage.removeItem(LAST_WIP_KEY)
+    } catch { /* ignore */ }
+  }
+
   // ── Score snapshot for live preview ────────────────────────────────────────
   const scores = useMemo(
     () =>
@@ -695,6 +770,7 @@ export default function Evaluate() {
     if (!navigator.onLine) {
       const draftKey = `eval_${Date.now()}`
       saveDraft(draftKey, payload)
+      clearWipDraft()
       toast('Saved offline — will sync when connected', 'info', 4500)
       return
     }
@@ -703,6 +779,7 @@ export default function Evaluate() {
     try {
       const saved = await create(payload)
       setSavedEval(saved)
+      clearWipDraft()
 
       // Persist last-used values
       if (tournamentId) setLastTournamentId(tournamentId)

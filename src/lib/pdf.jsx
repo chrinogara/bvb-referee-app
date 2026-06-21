@@ -18,8 +18,8 @@ const LIGHT_GRAY = '#F8F9FA'
 const DARK_GRAY = '#374151'
 const MED_GRAY = '#6B7280'
 
-// Logo BBT come badge in alto a destra, DENTRO l'header (disegnato sopra la banda blu)
-const LOGO_STYLE = { position: 'absolute', top: 0, right: 0, width: 84 }
+// Logo BBT bianco su trasparente: si fonde con la banda navy dell'header (nessun riquadro)
+const LOGO_STYLE = { position: 'absolute', top: 2, right: 0, width: 104 }
 function HeaderLogo() {
   return <Image src={BBT_LOGO} style={LOGO_STYLE} />
 }

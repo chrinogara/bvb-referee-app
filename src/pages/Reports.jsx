@@ -45,6 +45,7 @@ import {
   downloadPDF,
 } from '../lib/pdf'
 import { refereeDayDigest, refereeEvolution, refereeTournamentAdvice } from '../lib/report'
+import { translateToEnglish } from '../lib/anthropic'
 import { shareDayDigestToReferee, shareTournamentDigestToReferee } from '../lib/whatsapp'
 
 // ─── Per-referee digest panels (evening day + end of tournament) ──────────────
@@ -79,12 +80,23 @@ function useSummaryNotes(tournamentId) {
 function CoachCommentBox({ value, label, onSave }) {
   const [text, setText] = useState(value || '')
   const [saving, setSaving] = useState(false)
+  const [translating, setTranslating] = useState(false)
   const [dirty, setDirty] = useState(false)
   useEffect(() => { setText(value || ''); setDirty(false) }, [value])
   async function commit() {
     if (!dirty) return
+    let finalText = text.trim()
+    // Traduzione automatica IT->EN (come nelle valutazioni), silenziosa se offline/errore
+    if (finalText && (typeof navigator === 'undefined' || navigator.onLine !== false)) {
+      setTranslating(true)
+      try {
+        const en = await translateToEnglish(finalText)
+        if (en && en.trim() && en.trim() !== finalText) { finalText = en.trim(); setText(finalText) }
+      } catch (e) { /* mantieni originale */ }
+      finally { setTranslating(false) }
+    }
     setSaving(true)
-    try { await onSave(text); setDirty(false); toast.success('Coach comment saved') }
+    try { await onSave(finalText); setDirty(false); toast.success('Coach comment saved') }
     catch (e) { toast.error('Save failed: ' + (e?.message || '')) }
     finally { setSaving(false) }
   }
@@ -101,7 +113,8 @@ function CoachCommentBox({ value, label, onSave }) {
         placeholder="Coach's overall comment…"
         className="w-full text-sm rounded-lg border border-gray-300 px-2.5 py-2 focus:outline-none focus:ring-2 focus:ring-amber-300 bg-white"
       />
-      {saving && <div className="text-[11px] text-gray-400 mt-0.5">Saving…</div>}
+      {translating && <div className="text-[11px] text-gray-400 mt-0.5">Translating…</div>}
+      {saving && !translating && <div className="text-[11px] text-gray-400 mt-0.5">Saving…</div>}
     </div>
   )
 }

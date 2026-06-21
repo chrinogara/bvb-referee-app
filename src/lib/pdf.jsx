@@ -18,10 +18,10 @@ const LIGHT_GRAY = '#F8F9FA'
 const DARK_GRAY = '#374151'
 const MED_GRAY = '#6B7280'
 
-// Logo BBT come badge bianco fisso in alto a destra (su header navy)
-const LOGO_FIXED = { position: 'absolute', top: 13, right: 35, width: 84 }
+// Logo BBT come badge in alto a destra, DENTRO l'header (disegnato sopra la banda blu)
+const LOGO_STYLE = { position: 'absolute', top: 0, right: 0, width: 84 }
 function HeaderLogo() {
-  return <Image src={BBT_LOGO} fixed style={LOGO_FIXED} />
+  return <Image src={BBT_LOGO} style={LOGO_STYLE} />
 }
 
 const styles = StyleSheet.create({
@@ -266,12 +266,12 @@ function EvaluationDocument({ evaluation, referee, match, tournament, lang = 'en
   return (
     <Document>
       <Page size="A4" style={styles.page}>
-        <HeaderLogo />
         {/* Header */}
         <View style={styles.header}>
           <Text style={styles.headerTitle}>{t.evalTitle}</Text>
           <Text style={styles.headerSubtitle}>Belgian Beach Tour 2026</Text>
           <View style={styles.headerAccent} />
+          <HeaderLogo />
         </View>
 
         {/* Match Info */}
@@ -908,13 +908,13 @@ function EvaluationsSummaryDocument({ tournament, evaluations, refereeStats }) {
   return (
     <Document>
       <Page size="A4" style={rcStyles.page}>
-        <HeaderLogo />
         <View style={rcStyles.header}>
           <Text style={rcStyles.headerTitle}>REFEREE EVALUATIONS SUMMARY</Text>
           <Text style={rcStyles.headerSubtitle}>
             {tournament?.name} · {tournament?.start_date && formatDate(tournament.start_date)}
           </Text>
           <View style={rcStyles.headerAccent} />
+          <HeaderLogo />
         </View>
 
         <Text style={rcStyles.sectionTitle}>Per-Referee Statistics</Text>
@@ -1384,11 +1384,11 @@ function RefereeDayDigestDocument({ referee, tournament, dayNumber, digest, coac
   return (
     <Document>
       <Page size="A4" style={reportStyles.page}>
-        <HeaderLogo />
         <View style={reportStyles.header}>
           <Text style={reportStyles.headerTitle}>DAY {dayNumber} — EVALUATION DIGEST</Text>
           <Text style={reportStyles.headerSubtitle}>{refereeName(referee)}{tournament?.name ? ` · ${tournament.name}` : ''}</Text>
           <View style={reportStyles.headerAccent} />
+          <HeaderLogo />
         </View>
 
         <Text style={reportStyles.sectionTitle}>Day average ({digest.count} match{digest.count === 1 ? '' : 'es'})</Text>
@@ -1424,11 +1424,11 @@ function RefereeTournamentDigestDocument({ referee, tournament, evolution, advic
   return (
     <Document>
       <Page size="A4" style={reportStyles.page}>
-        <HeaderLogo />
         <View style={reportStyles.header}>
           <Text style={reportStyles.headerTitle}>TOURNAMENT EVALUATION</Text>
           <Text style={reportStyles.headerSubtitle}>{refereeName(referee)}{tournament?.name ? ` · ${tournament.name}` : ''}</Text>
           <View style={reportStyles.headerAccent} />
+          <HeaderLogo />
         </View>
 
         <Text style={reportStyles.sectionTitle}>Tournament average ({evolution.count} match{evolution.count === 1 ? '' : 'es'})</Text>
@@ -1503,11 +1503,11 @@ function RefereeMultiDayDigestDocument({ referee, tournament, dayDigests }) {
   return (
     <Document>
       <Page size="A4" style={reportStyles.page}>
-        <HeaderLogo />
         <View style={reportStyles.header}>
           <Text style={reportStyles.headerTitle}>EVALUATION REPORT</Text>
           <Text style={reportStyles.headerSubtitle}>{refereeName(referee)}{tournament?.name ? ` · ${tournament.name}` : ''}</Text>
           <View style={reportStyles.headerAccent} />
+          <HeaderLogo />
         </View>
 
         {dayDigests.map((d, i) => (

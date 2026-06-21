@@ -383,21 +383,21 @@ export default function ScheduleDesignations() {
                         <div className="text-xs text-gray-400 truncate">{m.team1} vs {m.team2}</div>
                       </div>
                       {two ? (
-                        <div className="shrink-0 w-40 flex flex-col gap-1">
+                        <div className="shrink-0 flex flex-col gap-1 items-end">
                           <div className="flex items-center gap-1.5">
-                            <span className="text-[10px] font-bold text-gray-400 w-4">R1</span>
+                            <span className="text-[10px] font-bold text-gray-400 w-4 text-right">R1</span>
                             <select
                               value={assignMap[m.id] || ''}
                               onChange={(e) => setRef(m.id, e.target.value)}
-                              className={`flex-1 rounded-lg border px-2 py-1.5 text-sm ${conflict ? 'border-red-400 bg-red-50 text-red-700' : 'border-gray-300'}`}
+                              className={`w-36 min-w-0 rounded-lg border px-2 py-1.5 text-sm ${conflict ? 'border-red-400 bg-red-50 text-red-700' : 'border-gray-300'}`}
                             >{opts}</select>
                           </div>
                           <div className="flex items-center gap-1.5">
-                            <span className="text-[10px] font-bold text-gray-400 w-4">R2</span>
+                            <span className="text-[10px] font-bold text-gray-400 w-4 text-right">R2</span>
                             <select
                               value={assignR2[m.id] || ''}
                               onChange={(e) => setRef2(m.id, e.target.value)}
-                              className={`flex-1 rounded-lg border px-2 py-1.5 text-sm ${r2Dup ? 'border-red-400 bg-red-50 text-red-700' : 'border-gray-300'}`}
+                              className={`w-36 min-w-0 rounded-lg border px-2 py-1.5 text-sm ${r2Dup ? 'border-red-400 bg-red-50 text-red-700' : 'border-gray-300'}`}
                             >{opts}</select>
                           </div>
                         </div>

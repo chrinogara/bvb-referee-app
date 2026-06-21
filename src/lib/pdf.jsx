@@ -4,17 +4,25 @@ import {
   Page,
   Text,
   View,
+  Image,
   StyleSheet,
   pdf,
 } from '@react-pdf/renderer'
 import { formatDate, formatDateTime, refereeName } from './utils'
 import { CRITERIA, getGrade } from './scoring'
+import { BBT_LOGO } from './logo'
 
 const NAVY = '#2D3270'
 const ORANGE = '#E85D26'
 const LIGHT_GRAY = '#F8F9FA'
 const DARK_GRAY = '#374151'
 const MED_GRAY = '#6B7280'
+
+// Logo BBT come badge bianco fisso in alto a destra (su header navy)
+const LOGO_FIXED = { position: 'absolute', top: 13, right: 35, width: 84 }
+function HeaderLogo() {
+  return <Image src={BBT_LOGO} fixed style={LOGO_FIXED} />
+}
 
 const styles = StyleSheet.create({
   page: {
@@ -258,6 +266,7 @@ function EvaluationDocument({ evaluation, referee, match, tournament, lang = 'en
   return (
     <Document>
       <Page size="A4" style={styles.page}>
+        <HeaderLogo />
         {/* Header */}
         <View style={styles.header}>
           <Text style={styles.headerTitle}>{t.evalTitle}</Text>
@@ -899,6 +908,7 @@ function EvaluationsSummaryDocument({ tournament, evaluations, refereeStats }) {
   return (
     <Document>
       <Page size="A4" style={rcStyles.page}>
+        <HeaderLogo />
         <View style={rcStyles.header}>
           <Text style={rcStyles.headerTitle}>REFEREE EVALUATIONS SUMMARY</Text>
           <Text style={rcStyles.headerSubtitle}>
@@ -1374,6 +1384,7 @@ function RefereeDayDigestDocument({ referee, tournament, dayNumber, digest, coac
   return (
     <Document>
       <Page size="A4" style={reportStyles.page}>
+        <HeaderLogo />
         <View style={reportStyles.header}>
           <Text style={reportStyles.headerTitle}>DAY {dayNumber} — EVALUATION DIGEST</Text>
           <Text style={reportStyles.headerSubtitle}>{refereeName(referee)}{tournament?.name ? ` · ${tournament.name}` : ''}</Text>
@@ -1413,6 +1424,7 @@ function RefereeTournamentDigestDocument({ referee, tournament, evolution, advic
   return (
     <Document>
       <Page size="A4" style={reportStyles.page}>
+        <HeaderLogo />
         <View style={reportStyles.header}>
           <Text style={reportStyles.headerTitle}>TOURNAMENT EVALUATION</Text>
           <Text style={reportStyles.headerSubtitle}>{refereeName(referee)}{tournament?.name ? ` · ${tournament.name}` : ''}</Text>
@@ -1483,6 +1495,51 @@ function RefereeTournamentDigestDocument({ referee, tournament, evolution, advic
 
 export async function generateRefereeTournamentDigestPDF({ referee, tournament, evolution, advice, coachComment }) {
   return pdf(<RefereeTournamentDigestDocument referee={referee} tournament={tournament} evolution={evolution} advice={advice} coachComment={coachComment} />).toBlob()
+}
+
+// PDF combinato: tutte le valutazioni di ogni giornata (Day 1 + Day 2 …) in un unico file,
+// con la nota finale del coach per ciascuna giornata.
+function RefereeMultiDayDigestDocument({ referee, tournament, dayDigests }) {
+  return (
+    <Document>
+      <Page size="A4" style={reportStyles.page}>
+        <HeaderLogo />
+        <View style={reportStyles.header}>
+          <Text style={reportStyles.headerTitle}>EVALUATION REPORT</Text>
+          <Text style={reportStyles.headerSubtitle}>{refereeName(referee)}{tournament?.name ? ` · ${tournament.name}` : ''}</Text>
+          <View style={reportStyles.headerAccent} />
+        </View>
+
+        {dayDigests.map((d, i) => (
+          <View key={d.dayNumber} break={i > 0}>
+            <Text style={reportStyles.sectionTitle}>Day {d.dayNumber} — average ({d.digest.count} match{d.digest.count === 1 ? '' : 'es'})</Text>
+            <AvgStrip averages={d.digest.averages} label={`Day ${d.dayNumber} avg`} />
+
+            <Text style={reportStyles.sectionTitle}>Day {d.dayNumber} — matches</Text>
+            <MatchesTable matches={d.digest.matches} />
+
+            <MatchNotes matches={d.digest.matches} />
+
+            {d.coachComment ? (
+              <View wrap={false}>
+                <Text style={reportStyles.sectionTitle}>Coach comment — Day {d.dayNumber}</Text>
+                <Text style={{ fontSize: 10, color: DARK_GRAY, lineHeight: 1.4 }}>{d.coachComment}</Text>
+              </View>
+            ) : null}
+          </View>
+        ))}
+
+        <View style={reportStyles.footer} fixed>
+          <Text>BVB Referee Coach · Full evaluation report · {refereeName(referee)}</Text>
+          <Text>Generated {formatDateTime(new Date())}</Text>
+        </View>
+      </Page>
+    </Document>
+  )
+}
+
+export async function generateRefereeMultiDayDigestPDF({ referee, tournament, dayDigests }) {
+  return pdf(<RefereeMultiDayDigestDocument referee={referee} tournament={tournament} dayDigests={dayDigests} />).toBlob()
 }
 
 // ════════════════════════════════════════════════════════════════════════════

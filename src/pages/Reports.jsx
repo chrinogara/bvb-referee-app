@@ -39,6 +39,7 @@ import {
   generateEvaluationsSummaryPDF,
   generateRcReportPDF,
   generateRefereeDayDigestPDF,
+  generateRefereeMultiDayDigestPDF,
   generateRefereeTournamentDigestPDF,
   generateBV15PDF,
   downloadPDF,
@@ -133,6 +134,23 @@ function DigestPanel({ tournament, evals }) {
     shareDayDigestToReferee({ referee, tournament, dayNumber: day, digest: refereeDayDigest(re), coachComment: notes[`${refId}:${day}`] })
   }
 
+  async function downloadCombined(refId) {
+    const referee = byRef[refId]?.referee
+    if (!referee) return
+    const re = evals.filter((e) => e.referee_id === refId)
+    const dayNums = [...new Set(re.map((e) => e.day_number || 1))].sort((a, b) => a - b)
+    const dayDigests = dayNums.map((d) => ({
+      dayNumber: d,
+      digest: refereeDayDigest(re.filter((e) => (e.day_number || 1) === d)),
+      coachComment: notes[`${refId}:${d}`],
+    }))
+    setBusy(refId + ':all')
+    try {
+      const blob = await generateRefereeMultiDayDigestPDF({ referee, tournament, dayDigests })
+      downloadPDF(blob, `BVB_Full_${refereeName(referee).replace(/\s+/g, '_')}.pdf`)
+    } catch (e) { toast.error('PDF failed: ' + e.message) } finally { setBusy(null) }
+  }
+
   const ids = Object.keys(byRef)
   return (
     <Card>
@@ -167,6 +185,9 @@ function DigestPanel({ tournament, evals }) {
                 <div className="flex items-center gap-2 shrink-0">
                   <Button variant="outline" size="xs" onClick={() => downloadFor(id)} disabled={busy === id}>
                     <FileText size={12} /> {busy === id ? '…' : 'PDF'}
+                  </Button>
+                  <Button variant="outline" size="xs" onClick={() => downloadCombined(id)} disabled={busy === id + ':all'}>
+                    <FileText size={12} /> {busy === id + ':all' ? '…' : 'D1+D2'}
                   </Button>
                   <Button variant="outline" size="xs" onClick={() => whatsappFor(id)}>
                     <MessageCircle size={12} /> WhatsApp

@@ -5,7 +5,7 @@ import { useReferees } from '../hooks/useReferees'
 import { useTournaments } from '../hooks/useTournaments'
 import { useEvaluations } from '../hooks/useEvaluations'
 import { evaluationService } from '../lib/supabase'
-import { courtAssignmentService } from '../lib/supabase'
+import { courtAssignmentService, matchService, designationService } from '../lib/supabase'
 import { useAppStore } from '../store/appStore'
 import { CRITERIA, computeScore, SCORE_LABELS, getGrade } from '../lib/scoring'
 import { generateEvaluationPDF, downloadPDF, sharePDFWhatsApp } from '../lib/pdf'
@@ -34,6 +34,23 @@ import {
   Languages,
   BookMarked,
 } from 'lucide-react'
+
+// ─── Schedule game helpers (per "By game" picker) ────────────────────────────
+function hhmm(t) {
+  if (!t) return ''
+  const s = String(t)
+  const m = s.match(/(\d{1,2}):(\d{2})/)
+  return m ? `${m[1].padStart(2, '0')}:${m[2]}` : s
+}
+function gameTag(m) {
+  const ser = m.series === 'PRO' ? 'PRO' : 'CH'
+  const gen = m.gender === 'M' ? 'Heren' : 'Dames'
+  return `${ser} ${gen}${m.round ? ` ${m.round}` : ''}`.trim()
+}
+function gameLabel(m) {
+  const teams = m.team1 && m.team2 ? ` · ${m.team1} / ${m.team2}` : ''
+  return `#${m.match_number} · ${gameTag(m)} · ${hhmm(m.scheduled_time)} · C${m.court}${teams}`
+}
 
 // ─── Score button color map ───────────────────────────────────────────────────
 
@@ -572,9 +589,16 @@ export default function Evaluate() {
   }
 
   // ── Round-aware selection (mirrors Assignments) ─────────────────────────────
-  const [pickMode, setPickMode] = useState('round') // 'round' | 'manual'
+  const [pickMode, setPickMode] = useState('match') // 'match' (schedule games) | 'round' | 'manual'
   const [assignments, setAssignments] = useState([]) // court_assignments rows for the day
   const [loadingAssign, setLoadingAssign] = useState(false)
+
+  // ── Schedule games selection (gare + designazioni da Schedule) ──────────────
+  const [schedMatches, setSchedMatches] = useState([])   // matches table rows for the day
+  const [schedAssign, setSchedAssign] = useState({})     // { [match_id]: { referee_id, referee } }
+  const [loadingSched, setLoadingSched] = useState(false)
+  const [schedMatch, setSchedMatch] = useState(null)     // selected match object (drives the label)
+  const [schedMatchId, setSchedMatchId] = useState(null) // persisted id (WIP restore)
 
   // Load the day's assignments whenever tournament/day changes
   useEffect(() => {
@@ -589,7 +613,46 @@ export default function Evaluate() {
     return () => { alive = false }
   }, [tournamentId, dayNumber])
 
-  // Group assignments into rounds: { [session_order]: [{court, referee_id}] }
+  // Load the day's schedule games + their schedule designations (1 ref per game)
+  useEffect(() => {
+    let alive = true
+    if (!tournamentId || !dayNumber) { setSchedMatches([]); setSchedAssign({}); return }
+    setLoadingSched(true)
+    Promise.all([
+      matchService.getByTournament(tournamentId),
+      designationService.getByTournament(tournamentId),
+    ])
+      .then(([mRes, dRes]) => {
+        if (!alive) return
+        const mts = (mRes.data || [])
+          .filter((m) => (m.day_number || 1) === dayNumber)
+          .sort((a, b) => (a.scheduled_time || '').localeCompare(b.scheduled_time || '') || (a.match_number || 0) - (b.match_number || 0))
+        setSchedMatches(mts)
+        const map = {}
+        for (const d of dRes.data || []) {
+          if (d.role && d.role !== 'R1') continue
+          map[d.match_id] = { referee_id: d.referee_id, referee: d.referees || null }
+        }
+        setSchedAssign(map)
+      })
+      .catch(() => { if (alive) { setSchedMatches([]); setSchedAssign({}) } })
+      .finally(() => { if (alive) setLoadingSched(false) })
+    return () => { alive = false }
+  }, [tournamentId, dayNumber])
+
+  // Re-link the selected schedule match after WIP restore (when matches load)
+  useEffect(() => {
+    if (schedMatchId && !schedMatch && schedMatches.length) {
+      const m = schedMatches.find((x) => x.id === schedMatchId)
+      if (m) setSchedMatch(m)
+    }
+  }, [schedMatchId, schedMatch, schedMatches])
+
+  // Only the games that have a designated referee, for the picker
+  const designatedGames = useMemo(
+    () => schedMatches.filter((m) => schedAssign[m.id]?.referee_id),
+    [schedMatches, schedAssign]
+  )
   const rounds = useMemo(() => {
     const FINALS = 99
     const bySession = {}
@@ -688,6 +751,7 @@ export default function Evaluate() {
         setGeneralNotes(d.generalNotes || '')
         if (d.courtNumber != null) setCourtNumber(d.courtNumber)
         if (d.roundNumber != null) setRoundNumber(d.roundNumber)
+        if (d.schedMatchId != null) setSchedMatchId(d.schedMatchId)
         if (d.pickMode) setPickMode(d.pickMode)
       } else {
         setCriteriaData(Object.fromEntries(CRITERIA.map((c) => [c.key, { score: null, repeat: false, note: '' }])))
@@ -703,13 +767,13 @@ export default function Evaluate() {
     const key = wipKey(tournamentId, dayNumber, refereeId, role)
     try {
       if (evalHasContent(criteriaData, generalNotes)) {
-        localStorage.setItem(key, JSON.stringify({ criteriaData, generalNotes, courtNumber, roundNumber, pickMode, updatedAt: Date.now() }))
+        localStorage.setItem(key, JSON.stringify({ criteriaData, generalNotes, courtNumber, roundNumber, schedMatchId, pickMode, updatedAt: Date.now() }))
         localStorage.setItem(LAST_WIP_KEY, JSON.stringify({ tournamentId, dayNumber, refereeId, role }))
       } else {
         localStorage.removeItem(key)
       }
     } catch { /* ignore */ }
-  }, [criteriaData, generalNotes, courtNumber, roundNumber, pickMode, refereeId, role, tournamentId, dayNumber, savedEval]) // eslint-disable-line
+  }, [criteriaData, generalNotes, courtNumber, roundNumber, schedMatchId, pickMode, refereeId, role, tournamentId, dayNumber, savedEval]) // eslint-disable-line
 
   function clearWipDraft() {
     try {
@@ -746,8 +810,9 @@ export default function Evaluate() {
     }
   }
 
-  // ── Match label (round + court) ──────────────────────────────────────────────
+  // ── Match label (schedule game · round · court) ─────────────────────────────
   function matchLabel() {
+    if (schedMatch) return gameLabel(schedMatch)
     if (roundNumber) return `Round ${roundNumber}${courtNumber ? ` · Court ${courtNumber}` : ''}`
     return courtNumber ? `Court ${courtNumber}` : null
   }
@@ -937,13 +1002,17 @@ export default function Evaluate() {
               </h2>
             </CardHeader>
             <CardBody className="space-y-4">
-              {/* Pick mode: by round (from assignments) or manual */}
-              <div className="grid grid-cols-2 gap-2">
-                {[['round', 'By round'], ['manual', 'Manual']].map(([m, label]) => (
+              {/* Pick mode: by schedule game, by round (assignments), or manual */}
+              <div className="grid grid-cols-3 gap-2">
+                {[['match', 'By game'], ['round', 'By round'], ['manual', 'Manual']].map(([m, label]) => (
                   <button
                     key={m}
                     type="button"
-                    onClick={() => setPickMode(m)}
+                    onClick={() => {
+                      setPickMode(m)
+                      if (m !== 'match') { setSchedMatch(null); setSchedMatchId(null) }
+                      if (m !== 'round') setRoundNumber(null)
+                    }}
                     className={cn(
                       'py-2 rounded-lg text-sm font-bold transition-all duration-150',
                       pickMode === m
@@ -955,6 +1024,68 @@ export default function Evaluate() {
                   </button>
                 ))}
               </div>
+
+              {/* ── By-game picker: gare reali dalle Schedule Designations ── */}
+              {pickMode === 'match' && (
+                <div className="space-y-2">
+                  {!tournamentId ? (
+                    <p className="text-xs text-gray-500">Select a tournament below to load its games.</p>
+                  ) : loadingSched ? (
+                    <p className="text-xs text-gray-400">Loading games…</p>
+                  ) : designatedGames.length === 0 ? (
+                    <p className="text-xs text-gray-500">No designated games for this day yet. Assign referees in Schedule, or use By round / Manual.</p>
+                  ) : (
+                    <div className="flex flex-col gap-1">
+                      <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+                        Tap the game to evaluate its referee
+                      </label>
+                      <div className="space-y-1.5 max-h-80 overflow-y-auto pr-1">
+                        {designatedGames.map((m) => {
+                          const a = schedAssign[m.id]
+                          const ref = a?.referee || referees.find((r) => r.id === a?.referee_id)
+                          const selected = schedMatch?.id === m.id
+                          return (
+                            <button
+                              key={m.id}
+                              type="button"
+                              onClick={() => {
+                                setSchedMatch(m)
+                                setSchedMatchId(m.id)
+                                setRefereeId(a.referee_id)
+                                setCourtNumber(m.court)
+                                setRoundNumber(null)
+                                setRole('R1')
+                                setErrors((p) => { const n = { ...p }; delete n.refereeId; return n })
+                              }}
+                              className={cn(
+                                'w-full text-left px-3 py-2 rounded-xl border transition-all duration-150',
+                                selected
+                                  ? 'bg-[#2D3270] text-white border-[#2D3270] ring-2 ring-[#2D3270]/30'
+                                  : 'bg-white text-gray-800 border-gray-200 hover:border-gray-300'
+                              )}
+                            >
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="text-sm font-bold truncate">
+                                  {m.is_final ? '🏆 ' : ''}#{m.match_number} · C{m.court} · {hhmm(m.scheduled_time)}
+                                </span>
+                                <span className={cn('text-[11px] font-bold uppercase shrink-0', selected ? 'text-white/80' : 'text-[#E85D26]')}>
+                                  {gameTag(m)}
+                                </span>
+                              </div>
+                              <div className={cn('text-xs truncate', selected ? 'text-white/70' : 'text-gray-400')}>
+                                {m.team1 && m.team2 ? `${m.team1} / ${m.team2}` : '—'}
+                              </div>
+                              <div className={cn('text-xs font-semibold mt-0.5', selected ? 'text-white' : 'text-[#2D3270]')}>
+                                Ref: {ref ? refereeName(ref) : '—'}
+                              </div>
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* ── By-round picker: mirrors the Assignments rounds ── */}
               {pickMode === 'round' && (
@@ -1007,6 +1138,7 @@ export default function Evaluate() {
                                     setRefereeId(row.referee_id)
                                     setCourtNumber(row.court)
                                     setRole('R1')
+                                    setSchedMatch(null); setSchedMatchId(null)
                                     setErrors((p) => { const n = { ...p }; delete n.refereeId; return n })
                                   }}
                                   className={cn(
@@ -1041,6 +1173,7 @@ export default function Evaluate() {
                   onChange={(id) => {
                     setRefereeId(id)
                     setRoundNumber(null)
+                    setSchedMatch(null); setSchedMatchId(null)
                     setErrors((p) => { const n = { ...p }; delete n.refereeId; return n })
                   }}
                   error={errors.refereeId}

@@ -19,6 +19,10 @@ const SECTION = 1
 function serShort(m) { return m.series === 'PRO' ? 'PRO' : 'CH' }
 function genLabel(m) { return m.gender === 'M' ? 'Heren' : 'Dames' }
 function matchTag(m) { return `${serShort(m)} ${genLabel(m)} ${m.round || ''}`.trim() }
+// 2 arbitri (R1 + R2): tutte le finali + le semifinali PRO
+function needsTwoRefs(m) {
+  return !!m.is_final || (m.series === 'PRO' && /semi/i.test(m.round || ''))
+}
 function hhmm(t) {
   if (!t) return '—'
   try { return new Date(t).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' }) }
@@ -93,21 +97,35 @@ export default function ScheduleDesignations() {
 
   // ── Existing designations ────────────────────────────────────────────────────
   const [assignMap, setAssignMap] = useState({})
+  const [assignR2, setAssignR2] = useState({})
   const loadDes = useCallback(async () => {
-    if (!tournamentId) { setAssignMap({}); return }
+    if (!tournamentId) { setAssignMap({}); setAssignR2({}); return }
     const { data } = await designationService.getByTournament(tournamentId)
-    const m = {}; (data || []).forEach((d) => { if (d.role === 'R1' && d.match_id) m[d.match_id] = d.referee_id })
-    setAssignMap(m)
+    const m = {}, m2 = {}
+    ;(data || []).forEach((d) => {
+      if (!d.match_id) return
+      if (d.role === 'R2') m2[d.match_id] = d.referee_id
+      else m[d.match_id] = d.referee_id
+    })
+    setAssignMap(m); setAssignR2(m2)
   }, [tournamentId])
   useEffect(() => { loadDes() }, [loadDes])
 
   const conflicts = useMemo(() => findSlotConflicts(matches, assignMap), [matches, assignMap])
   const workload = useMemo(() => {
-    const w = {}; matches.forEach((m) => { const r = assignMap[m.id]; if (r) w[r] = (w[r] || 0) + 1 }); return w
-  }, [matches, assignMap])
+    const w = {}
+    matches.forEach((m) => {
+      const r1 = assignMap[m.id]; if (r1) w[r1] = (w[r1] || 0) + 1
+      const r2 = assignR2[m.id]; if (r2) w[r2] = (w[r2] || 0) + 1
+    })
+    return w
+  }, [matches, assignMap, assignR2])
   const refNameById = useMemo(() => {
     const m = {}; matches.forEach((mt) => { const r = assignMap[mt.id]; if (r && refById[r]) m[mt.id] = refereeName(refById[r]) }); return m
   }, [matches, assignMap, refById])
+  const ref2NameById = useMemo(() => {
+    const m = {}; matches.forEach((mt) => { const r = assignR2[mt.id]; if (r && refById[r]) m[mt.id] = refereeName(refById[r]) }); return m
+  }, [matches, assignR2, refById])
 
   // ── Actions ──────────────────────────────────────────────────────────────────
   const [busy, setBusy] = useState(false)
@@ -148,6 +166,7 @@ export default function ScheduleDesignations() {
     try {
       await trackSave(() => designationService.deleteByMatches(matches.map((m) => m.id)))
       setAssignMap((prev) => { const next = { ...prev }; matches.forEach((m) => { delete next[m.id] }); return next })
+      setAssignR2((prev) => { const next = { ...prev }; matches.forEach((m) => { delete next[m.id] }); return next })
       toast.success(`Designazioni Day ${day} azzerate`)
     } catch (e) { toast.error('Errore: ' + (e?.message || '')) } finally { setBusy(false) }
   }
@@ -162,16 +181,36 @@ export default function ScheduleDesignations() {
     }
   }
 
+  async function setRef2(matchId, refId) {
+    const prev = assignR2[matchId]
+    setAssignR2((m) => ({ ...m, [matchId]: refId || undefined }))
+    try {
+      if (refId) await trackSave(() => designationService.upsert({ match_id: matchId, referee_id: refId, role: 'R2' }))
+    } catch (e) {
+      setAssignR2((m) => ({ ...m, [matchId]: prev }))
+      toast.error('Errore salvataggio: ' + (e?.message || ''))
+    }
+  }
+
   function sendGeneral() {
     if (!matches.length) return
-    shareScheduleGeneral({ tournamentName: tournament?.name, dayLabel: `Day ${day}`, matches, refNameById })
+    shareScheduleGeneral({ tournamentName: tournament?.name, dayLabel: `Day ${day}`, matches, refNameById, ref2NameById })
   }
   function sendSlot(slot) {
     if (!slot?.items?.length) return
-    shareSlotSchedule({ tournamentName: tournament?.name, dayLabel: `Day ${day}`, slotTime: slot.time, matches: slot.items, refNameById })
+    shareSlotSchedule({ tournamentName: tournament?.name, dayLabel: `Day ${day}`, slotTime: slot.time, matches: slot.items, refNameById, ref2NameById })
   }
   function sendIndividual(ref) {
-    const mine = matches.filter((m) => assignMap[m.id] === ref.id).sort(byTime)
+    const mine = matches
+      .filter((m) => assignMap[m.id] === ref.id || assignR2[m.id] === ref.id)
+      .sort(byTime)
+      .map((m) => {
+        if (!needsTwoRefs(m)) return m
+        const isR1 = assignMap[m.id] === ref.id
+        const partnerId = isR1 ? assignR2[m.id] : assignMap[m.id]
+        const partner = partnerId && refById[partnerId] ? refereeName(refById[partnerId]) : null
+        return { ...m, _role: isR1 ? 'R1' : 'R2', _partner: partner }
+      })
     if (!mine.length) { toast.error('Nessuna partita per questo arbitro'); return }
     shareRefereeSchedule({ referee: ref, tournamentName: tournament?.name, dayLabel: `Day ${day}`, matches: mine })
   }
@@ -188,8 +227,8 @@ export default function ScheduleDesignations() {
   }, [matches])
 
   const refsWithMatches = useMemo(
-    () => rosterByName.filter((r) => matches.some((m) => assignMap[m.id] === r.id)),
-    [rosterByName, matches, assignMap]
+    () => rosterByName.filter((r) => matches.some((m) => assignMap[m.id] === r.id || assignR2[m.id] === r.id)),
+    [rosterByName, matches, assignMap, assignR2]
   )
 
   // Workload a barre: TUTTI gli arbitri presenti, ordinati per n° partite (desc).
@@ -322,6 +361,18 @@ export default function ScheduleDesignations() {
               <div className="rounded-2xl bg-white border border-gray-200 divide-y divide-gray-100 overflow-hidden">
                 {slot.items.map((m) => {
                   const conflict = conflicts.has(m.id)
+                  const two = needsTwoRefs(m)
+                  const r2Dup = two && assignR2[m.id] && assignR2[m.id] === assignMap[m.id]
+                  const opts = (
+                    <>
+                      <option value="">— arbitro —</option>
+                      {rosterByName.map((r) => {
+                        const info = rankInfo[r.id]
+                        const suffix = info && info.avg != null ? ` · ${info.avg.toFixed(1)}` : ''
+                        return <option key={r.id} value={r.id}>{refereeName(r)}{suffix}</option>
+                      })}
+                    </>
+                  )
                   return (
                     <div key={m.id} className="flex items-center gap-3 p-3">
                       <div className="min-w-0 flex-1">
@@ -331,18 +382,32 @@ export default function ScheduleDesignations() {
                         </div>
                         <div className="text-xs text-gray-400 truncate">{m.team1} vs {m.team2}</div>
                       </div>
-                      <select
-                        value={assignMap[m.id] || ''}
-                        onChange={(e) => setRef(m.id, e.target.value)}
-                        className={`shrink-0 w-36 rounded-lg border px-2 py-1.5 text-sm ${conflict ? 'border-red-400 bg-red-50 text-red-700' : 'border-gray-300'}`}
-                      >
-                        <option value="">— arbitro —</option>
-                        {rosterByName.map((r) => {
-                          const info = rankInfo[r.id]
-                          const suffix = info && info.avg != null ? ` · ${info.avg.toFixed(1)}` : ''
-                          return <option key={r.id} value={r.id}>{refereeName(r)}{suffix}</option>
-                        })}
-                      </select>
+                      {two ? (
+                        <div className="shrink-0 w-40 flex flex-col gap-1">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[10px] font-bold text-gray-400 w-4">R1</span>
+                            <select
+                              value={assignMap[m.id] || ''}
+                              onChange={(e) => setRef(m.id, e.target.value)}
+                              className={`flex-1 rounded-lg border px-2 py-1.5 text-sm ${conflict ? 'border-red-400 bg-red-50 text-red-700' : 'border-gray-300'}`}
+                            >{opts}</select>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[10px] font-bold text-gray-400 w-4">R2</span>
+                            <select
+                              value={assignR2[m.id] || ''}
+                              onChange={(e) => setRef2(m.id, e.target.value)}
+                              className={`flex-1 rounded-lg border px-2 py-1.5 text-sm ${r2Dup ? 'border-red-400 bg-red-50 text-red-700' : 'border-gray-300'}`}
+                            >{opts}</select>
+                          </div>
+                        </div>
+                      ) : (
+                        <select
+                          value={assignMap[m.id] || ''}
+                          onChange={(e) => setRef(m.id, e.target.value)}
+                          className={`shrink-0 w-36 rounded-lg border px-2 py-1.5 text-sm ${conflict ? 'border-red-400 bg-red-50 text-red-700' : 'border-gray-300'}`}
+                        >{opts}</select>
+                      )}
                     </div>
                   )
                 })}

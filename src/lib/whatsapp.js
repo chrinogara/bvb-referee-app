@@ -274,7 +274,7 @@ function _hhmm(t) {
 }
 
 /** General broadcast: full day designations grouped by time slot. */
-export function buildScheduleGeneralMessage({ tournamentName, dayLabel, matches, refNameById }) {
+export function buildScheduleGeneralMessage({ tournamentName, dayLabel, matches, refNameById, ref2NameById }) {
   const L = []
   L.push(`🏐 *${tournamentName || 'Torneo'} — ${dayLabel || ''}*`.trim())
   L.push('_Assignments_')
@@ -284,7 +284,9 @@ export function buildScheduleGeneralMessage({ tournamentName, dayLabel, matches,
     if (t !== curr) { curr = t; L.push(''); L.push(`*${t}*`) }
     const star = m.is_final ? '🏆 ' : ''
     const ref = refNameById[m.id] || '—'
-    L.push(`${star}C${m.court} · #${m.match_number} ${_matchTag(m)} → *${ref}*`)
+    const ref2 = ref2NameById && ref2NameById[m.id]
+    const head = `${star}C${m.court} · #${m.match_number} ${_matchTag(m)}`
+    L.push(ref2 ? `${head} → R1: *${ref}* · R2: *${ref2}*` : `${head} → *${ref}*`)
   }
   L.push('')
   L.push('Christian Nogara')
@@ -301,7 +303,8 @@ export function buildRefereeScheduleMessage({ referee, tournamentName, dayLabel,
   L.push('')
   for (const m of matches) {
     const star = m.is_final ? '🏆 ' : '⏰ '
-    L.push(`${star}*${_hhmm(m.scheduled_time)}* — Campo ${m.court} · #${m.match_number} ${_matchTag(m)}`)
+    const roleP = m._role ? ` · _${m._role}${m._partner ? ` con ${m._partner}` : ''}_` : ''
+    L.push(`${star}*${_hhmm(m.scheduled_time)}* — Campo ${m.court} · #${m.match_number} ${_matchTag(m)}${roleP}`)
   }
   L.push('')
   L.push(`Totale: *${matches.length}* partit${matches.length === 1 ? 'a' : 'e'}.`)
@@ -311,7 +314,7 @@ export function buildRefereeScheduleMessage({ referee, tournamentName, dayLabel,
 }
 
 /** Message for a SINGLE time slot: only the matches starting at that time. */
-export function buildSlotScheduleMessage({ tournamentName, dayLabel, slotTime, matches, refNameById }) {
+export function buildSlotScheduleMessage({ tournamentName, dayLabel, slotTime, matches, refNameById, ref2NameById }) {
   const L = []
   L.push(`🏐 *${tournamentName || 'Torneo'} — ${dayLabel || ''}*`.trim())
   L.push(`_Assignments · ${_hhmm(slotTime)}_`)
@@ -319,7 +322,9 @@ export function buildSlotScheduleMessage({ tournamentName, dayLabel, slotTime, m
   for (const m of matches) {
     const star = m.is_final ? '🏆 ' : ''
     const ref = (refNameById && refNameById[m.id]) || '—'
-    L.push(`${star}C${m.court} · #${m.match_number} ${_matchTag(m)} → *${ref}*`)
+    const ref2 = ref2NameById && ref2NameById[m.id]
+    const head = `${star}C${m.court} · #${m.match_number} ${_matchTag(m)}`
+    L.push(ref2 ? `${head} → R1: *${ref}* · R2: *${ref2}*` : `${head} → *${ref}*`)
   }
   L.push('')
   L.push('Christian Nogara')

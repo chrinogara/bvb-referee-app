@@ -19,9 +19,9 @@ const SECTION = 1
 function serShort(m) { return m.series === 'PRO' ? 'PRO' : 'CH' }
 function genLabel(m) { return m.gender === 'M' ? 'Heren' : 'Dames' }
 function matchTag(m) { return `${serShort(m)} ${genLabel(m)} ${m.round || ''}`.trim() }
-// 2 arbitri (R1 + R2): solo PRO (semifinali e finali PRO)
+// 2 arbitri (R1 + R2): tutte le finali (PRO e Challenge) + le semifinali PRO
 function needsTwoRefs(m) {
-  return m.series === 'PRO' && (!!m.is_final || /semi/i.test(m.round || ''))
+  return !!m.is_final || (m.series === 'PRO' && /semi/i.test(m.round || ''))
 }
 function hhmm(t) {
   if (!t) return '—'

@@ -1418,7 +1418,7 @@ function MatchNotes({ matches }) {
   )
 }
 
-function RefereeDayDigestDocument({ referee, tournament, dayNumber, digest, coachComment }) {
+function RefereeDayDigestDocument({ referee, tournament, dayNumber, digest, coachComment, finalNote }) {
   return (
     <Document>
       <Page size="A4" style={reportStyles.page}>
@@ -1444,6 +1444,13 @@ function RefereeDayDigestDocument({ referee, tournament, dayNumber, digest, coac
           </View>
         ) : null}
 
+        {finalNote ? (
+          <View wrap={false}>
+            <Text style={reportStyles.sectionTitle}>Final note</Text>
+            <Text style={{ fontSize: 10, color: DARK_GRAY, lineHeight: 1.4 }}>{finalNote}</Text>
+          </View>
+        ) : null}
+
         <View style={reportStyles.footer} fixed>
           <Text>BVB Referee Coach · Day {dayNumber} digest · {refereeName(referee)}</Text>
           <Text>Generated {formatDateTime(new Date())}</Text>
@@ -1453,9 +1460,10 @@ function RefereeDayDigestDocument({ referee, tournament, dayNumber, digest, coac
   )
 }
 
-export async function generateRefereeDayDigestPDF({ referee, tournament, dayNumber, digest, coachComment }) {
+export async function generateRefereeDayDigestPDF({ referee, tournament, dayNumber, digest, coachComment, finalNote }) {
   const comment = await translateToEnglishSafe(coachComment)
-  return pdf(<RefereeDayDigestDocument referee={referee} tournament={tournament} dayNumber={dayNumber} digest={digest} coachComment={comment} />).toBlob()
+  const note = await translateToEnglishSafe(finalNote)
+  return pdf(<RefereeDayDigestDocument referee={referee} tournament={tournament} dayNumber={dayNumber} digest={digest} coachComment={comment} finalNote={note} />).toBlob()
 }
 
 function RefereeTournamentDigestDocument({ referee, tournament, evolution, advice, coachComment }) {
@@ -1567,6 +1575,13 @@ function RefereeMultiDayDigestDocument({ referee, tournament, dayDigests }) {
                 <Text style={{ fontSize: 10, color: DARK_GRAY, lineHeight: 1.4 }}>{d.coachComment}</Text>
               </View>
             ) : null}
+
+            {d.finalNote ? (
+              <View wrap={false}>
+                <Text style={reportStyles.sectionTitle}>Final note — Day {d.dayNumber}</Text>
+                <Text style={{ fontSize: 10, color: DARK_GRAY, lineHeight: 1.4 }}>{d.finalNote}</Text>
+              </View>
+            ) : null}
           </View>
         ))}
 
@@ -1581,7 +1596,11 @@ function RefereeMultiDayDigestDocument({ referee, tournament, dayDigests }) {
 
 export async function generateRefereeMultiDayDigestPDF({ referee, tournament, dayDigests }) {
   const translatedDigests = await Promise.all(
-    (dayDigests || []).map(async (d) => ({ ...d, coachComment: await translateToEnglishSafe(d.coachComment) }))
+    (dayDigests || []).map(async (d) => ({
+      ...d,
+      coachComment: await translateToEnglishSafe(d.coachComment),
+      finalNote: await translateToEnglishSafe(d.finalNote),
+    }))
   )
   return pdf(<RefereeMultiDayDigestDocument referee={referee} tournament={tournament} dayDigests={translatedDigests} />).toBlob()
 }

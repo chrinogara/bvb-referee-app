@@ -537,6 +537,11 @@ export default function RcReport() {
   // Per-referee manual overrides for the Strongest/Weakest lines in the cards.
   // Stored in localStorage per tournament: { top: { refId: {strongest, weakest} }, followup: {…} }
   const [cardNotes, setCardNotes] = useState({ top: {}, followup: {} })
+  // True when the on-screen report was restored from an unsaved local draft.
+  const [draftRestored, setDraftRestored] = useState(false)
+  // Tournament id the current `report` state belongs to — guards the draft
+  // auto-save against writing stale data while switching tournaments.
+  const loadedTournamentRef = useRef(null)
 
   // Auto-select closest tournament
   useEffect(() => {
@@ -555,19 +560,36 @@ export default function RcReport() {
     if (!tournamentId) return
     setLoading(true)
     const { data } = await rcReportService.getByTournament(tournamentId)
-    if (data) {
-      setReport({
-        ...EMPTY_REPORT,
-        ...data,
-        top_performer_ids: data.top_performer_ids || [],
-        followup_referee_ids: data.followup_referee_ids || [],
-      })
-      setLastSavedAt(data.updated_at)
-    } else {
-      setReport(EMPTY_REPORT)
-      setLastSavedAt(null)
-    }
-    setDirty(false)
+    const fromDb = data
+      ? {
+          ...EMPTY_REPORT,
+          ...data,
+          top_performer_ids: data.top_performer_ids || [],
+          followup_referee_ids: data.followup_referee_ids || [],
+        }
+      : EMPTY_REPORT
+    setLastSavedAt(data?.updated_at || null)
+
+    // Restore an unsaved local draft if it is newer than the saved DB version,
+    // so nothing is lost after a crash / unexpected close.
+    let restored = false
+    try {
+      const raw = localStorage.getItem(`rcReportDraft:${tournamentId}`)
+      if (raw) {
+        const draft = JSON.parse(raw)
+        const dbTime = data?.updated_at ? new Date(data.updated_at).getTime() : 0
+        const draftTime = draft?.savedAt ? new Date(draft.savedAt).getTime() : 0
+        if (draft?.report && draftTime > dbTime) {
+          setReport({ ...EMPTY_REPORT, ...draft.report })
+          restored = true
+        }
+      }
+    } catch { /* ignore malformed draft */ }
+
+    if (!restored) setReport(fromDb)
+    loadedTournamentRef.current = tournamentId
+    setDirty(restored)
+    setDraftRestored(restored)
     setLoading(false)
   }, [tournamentId])
 
@@ -583,6 +605,55 @@ export default function RcReport() {
       setCardNotes({ top: {}, followup: {} })
     }
   }, [tournamentId])
+
+  // Auto-save an unsaved draft to this device on every change, so work in
+  // progress survives a crash, power loss, or accidental close.
+  useEffect(() => {
+    if (!tournamentId || !dirty) return
+    // Don't persist while the report still belongs to a different tournament
+    // (e.g. mid switch) — that would write stale data under the wrong key.
+    if (loadedTournamentRef.current !== tournamentId) return
+    try {
+      localStorage.setItem(
+        `rcReportDraft:${tournamentId}`,
+        JSON.stringify({ report, savedAt: new Date().toISOString() })
+      )
+    } catch { /* ignore quota/availability errors */ }
+  }, [report, dirty, tournamentId])
+
+  // Warn before leaving the page while there are unsaved changes.
+  useEffect(() => {
+    if (!dirty) return
+    const handler = (e) => {
+      e.preventDefault()
+      e.returnValue = ''
+    }
+    window.addEventListener('beforeunload', handler)
+    return () => window.removeEventListener('beforeunload', handler)
+  }, [dirty])
+
+  function saveDraft() {
+    if (!tournamentId) {
+      toast.error('Select a tournament first')
+      return
+    }
+    try {
+      localStorage.setItem(
+        `rcReportDraft:${tournamentId}`,
+        JSON.stringify({ report, savedAt: new Date().toISOString() })
+      )
+      toast.success('Draft saved on this device')
+    } catch {
+      toast.error('Could not save draft on this device')
+    }
+  }
+
+  function discardDraft() {
+    if (!confirm('Discard the local draft and reload the last saved version?')) return
+    try { localStorage.removeItem(`rcReportDraft:${tournamentId}`) } catch { /* ignore */ }
+    setDraftRestored(false)
+    loadReport()
+  }
 
   function setField(key, value) {
     setReport((prev) => ({ ...prev, [key]: value }))
@@ -670,6 +741,9 @@ export default function RcReport() {
       if (error) throw new Error(error.message)
       setLastSavedAt(data.updated_at)
       setDirty(false)
+      setDraftRestored(false)
+      // The report is now persisted: drop the local draft.
+      try { localStorage.removeItem(`rcReportDraft:${tournamentId}`) } catch { /* ignore */ }
       toast.success('RC Report saved')
     } catch (err) {
       toast.error(err.message || 'Save failed')
@@ -730,9 +804,11 @@ export default function RcReport() {
   async function handleClear() {
     if (!confirm('Delete the entire RC report for this tournament? This cannot be undone.')) return
     await rcReportService.delete(tournamentId)
+    try { localStorage.removeItem(`rcReportDraft:${tournamentId}`) } catch { /* ignore */ }
     setReport(EMPTY_REPORT)
     setLastSavedAt(null)
     setDirty(false)
+    setDraftRestored(false)
     toast('Report cleared', 'info')
   }
 
@@ -1058,6 +1134,26 @@ export default function RcReport() {
               </Card>
             )}
 
+            {/* Restored draft notice */}
+            {draftRestored && (
+              <Card className="border-amber-300 bg-amber-50">
+                <CardBody className="flex items-start gap-3">
+                  <StickyNote size={18} className="text-amber-600 shrink-0 mt-0.5" />
+                  <div className="flex-1 text-sm">
+                    <p className="font-semibold text-amber-800 mb-0.5">Unsaved draft restored</p>
+                    <p className="text-xs text-amber-700">
+                      We recovered changes you had not saved to the cloud yet. Review them, then tap
+                      <span className="font-semibold"> Save</span> to store them. You can also discard the draft to
+                      go back to the last saved version.
+                    </p>
+                  </div>
+                  <Button variant="ghost" size="sm" onClick={discardDraft}>
+                    Discard
+                  </Button>
+                </CardBody>
+              </Card>
+            )}
+
             {/* Action bar */}
             <Card>
               <CardBody className="flex flex-wrap items-center justify-between gap-3">
@@ -1068,6 +1164,9 @@ export default function RcReport() {
                     ? `Last saved: ${formatDateTime(lastSavedAt)}`
                     : 'Not yet saved'}
                   {dirty && <Badge variant="amber" size="xs" className="ml-2">Unsaved</Badge>}
+                  <span className="block mt-0.5 text-[10px] text-gray-400">
+                    Your changes are auto-saved as a draft on this device while you type.
+                  </span>
                 </div>
                 <div className="flex gap-2">
                   {lastSavedAt && (
@@ -1075,6 +1174,14 @@ export default function RcReport() {
                       <Trash2 size={13} /> Clear
                     </Button>
                   )}
+                  <Button
+                    variant="ghost"
+                    size="md"
+                    onClick={saveDraft}
+                    title="Save a draft on this device (no cloud, no validation)"
+                  >
+                    <StickyNote size={14} /> Save Draft
+                  </Button>
                   <Button
                     variant="outline"
                     size="md"

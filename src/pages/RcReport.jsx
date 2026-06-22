@@ -21,7 +21,7 @@ import {
 import { Header } from '../components/layout/Header'
 import { Button } from '../components/ui/Button'
 import { Card, CardHeader, CardBody, CardTitle } from '../components/ui/Card'
-import { Input, Select, Textarea } from '../components/ui/Input'
+import { Select, Textarea } from '../components/ui/Input'
 import { Badge } from '../components/ui/Badge'
 import { toast } from '../components/ui/Toast'
 
@@ -125,6 +125,24 @@ function buildRefereeSummary(refId, tournamentEvals) {
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
+
+// Read-only stat cell: shows a value computed automatically from the tournament
+// data (referees assigned + their evaluations). Not editable on purpose.
+function AutoStat({ label, value }) {
+  return (
+    <div className="flex flex-col gap-1">
+      <span className="text-xs font-medium text-gray-600 uppercase tracking-wide flex items-center gap-1">
+        {label}
+        <span className="text-[9px] font-semibold text-[#2D3270] bg-[#2D3270]/10 px-1 py-px rounded">
+          AUTO
+        </span>
+      </span>
+      <div className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-lg font-bold text-[#2D3270]">
+        {value}
+      </div>
+    </div>
+  )
+}
 
 function RatingButtonGroup({ value, onChange }) {
   return (
@@ -495,6 +513,22 @@ export default function RcReport() {
     setDirty(true)
   }
 
+  // Team stats computed automatically from the tournament's referees and their
+  // evaluations — quantity, level breakdown (A/B/C) and how many were evaluated.
+  const teamStats = useMemo(() => {
+    const level = (r) => String(r?.ranking_level || '').trim().toUpperCase()
+    const evaluatedIds = new Set(
+      tournamentEvals.map((e) => e.referee_id).filter(Boolean)
+    )
+    return {
+      total: tournamentReferees.length,
+      levelA: tournamentReferees.filter((r) => level(r) === 'A').length,
+      levelB: tournamentReferees.filter((r) => level(r) === 'B').length,
+      levelC: tournamentReferees.filter((r) => level(r) === 'C').length,
+      evaluated: evaluatedIds.size,
+    }
+  }, [tournamentReferees, tournamentEvals])
+
   // Validate: BAD rating must have a note
   const validationErrors = useMemo(() => {
     const errs = []
@@ -528,6 +562,12 @@ export default function RcReport() {
         ...report,
         // Tournament level is computed from tournament, store the label
         tournament_level: tournamentLevelLabel(tournament),
+        // Refereeing team stats are computed automatically from the tournament data
+        total_referees: teamStats.total,
+        referees_a_level: teamStats.levelA,
+        referees_b_level: teamStats.levelB,
+        referees_c_level: teamStats.levelC,
+        observed_count: teamStats.evaluated,
       }
       for (const k of ['total_referees', 'referees_a_level', 'referees_b_level', 'referees_c_level', 'observed_count']) {
         payload[k] = payload[k] === '' || payload[k] == null ? null : Number(payload[k])
@@ -563,6 +603,12 @@ export default function RcReport() {
       const enriched = {
         ...report,
         tournament_level: tournamentLevelLabel(tournament),
+        // Refereeing team stats are computed automatically from the tournament data
+        total_referees: teamStats.total,
+        referees_a_level: teamStats.levelA,
+        referees_b_level: teamStats.levelB,
+        referees_c_level: teamStats.levelC,
+        observed_count: teamStats.evaluated,
         top_performers_details: report.top_performer_ids
           .map((id) => {
             const r = tournamentReferees.find((x) => x.id === id)
@@ -710,12 +756,17 @@ export default function RcReport() {
                   <CardTitle>Refereeing Team</CardTitle>
                 </div>
               </CardHeader>
-              <CardBody className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-                <Input label="Total Refs" type="number" min="0" value={report.total_referees ?? ''} onChange={(e) => setField('total_referees', e.target.value)} />
-                <Input label="Level A" type="number" min="0" value={report.referees_a_level ?? ''} onChange={(e) => setField('referees_a_level', e.target.value)} />
-                <Input label="Level B" type="number" min="0" value={report.referees_b_level ?? ''} onChange={(e) => setField('referees_b_level', e.target.value)} />
-                <Input label="Level C" type="number" min="0" value={report.referees_c_level ?? ''} onChange={(e) => setField('referees_c_level', e.target.value)} />
-                <Input label="Personally Observed" type="number" min="0" value={report.observed_count ?? ''} onChange={(e) => setField('observed_count', e.target.value)} />
+              <CardBody className="space-y-3">
+                <p className="text-[11px] text-gray-500">
+                  Computed automatically from the referees assigned to this tournament and their evaluations.
+                </p>
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                  <AutoStat label="Total Refs" value={teamStats.total} />
+                  <AutoStat label="Level A" value={teamStats.levelA} />
+                  <AutoStat label="Level B" value={teamStats.levelB} />
+                  <AutoStat label="Level C" value={teamStats.levelC} />
+                  <AutoStat label="Evaluated" value={teamStats.evaluated} />
+                </div>
               </CardBody>
             </Card>
 

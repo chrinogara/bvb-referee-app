@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useSearchParams, Link } from 'react-router-dom'
 import {
   ArrowLeft,
@@ -15,6 +15,7 @@ import {
   StickyNote,
   CheckCircle,
   X,
+  Languages,
 } from 'lucide-react'
 
 import { Header } from '../components/layout/Header'
@@ -27,6 +28,7 @@ import { toast } from '../components/ui/Toast'
 import { useTournaments, useTournamentReferees } from '../hooks/useTournaments'
 import { useEvaluations } from '../hooks/useEvaluations'
 import { rcReportService } from '../lib/supabase'
+import { translateToEnglish } from '../lib/anthropic'
 import { generateRcReportPDF, downloadPDF } from '../lib/pdf'
 import { CRITERIA } from '../lib/scoring'
 import { cn, formatDate, formatDateTime, refereeName, refereeInitials, scoreColor } from '../lib/utils'
@@ -146,6 +148,77 @@ function RatingButtonGroup({ value, onChange }) {
   )
 }
 
+// Drop-in replacement for <Textarea> that auto-translates whatever the user
+// writes (any language) into English — on blur (silent) and via a manual
+// "Translate" button. Keeps the same event-based onChange interface so it can
+// replace <Textarea> directly. This keeps the final PDF always in English,
+// matching the behaviour used across the rest of the app (see Evaluate page).
+function TranslatingTextarea({ label, value, onChange, placeholder, rows = 3, error }) {
+  const [busy, setBusy] = useState(false)
+  const focusValueRef = useRef('')
+
+  // Emit a value change using the same { target: { value } } shape as a textarea event.
+  function emit(next) {
+    onChange({ target: { value: next } })
+  }
+
+  async function runTranslate(text, { silent = false } = {}) {
+    const t = (text ?? value ?? '').trim()
+    if (!t || busy) return
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+      if (!silent) toast.error('Translation needs an internet connection')
+      return
+    }
+    setBusy(true)
+    try {
+      const en = await translateToEnglish(t)
+      if (en && en.trim() && en.trim() !== t) emit(en.trim())
+    } catch (err) {
+      console.error('translate error', err)
+      if (!silent) toast.error('Translation failed — please try again')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-1">
+      <div className="flex items-center justify-between">
+        {label && (
+          <label className="text-xs font-medium text-gray-600 uppercase tracking-wide">
+            {label}
+          </label>
+        )}
+        <div className="ml-auto flex items-center gap-2">
+          {busy && <span className="text-[10px] text-gray-400 animate-pulse">Translating…</span>}
+          <button
+            type="button"
+            onClick={() => runTranslate(value)}
+            disabled={busy || !value?.trim()}
+            title="Translate to English"
+            className="text-[10px] font-bold uppercase tracking-wide text-[#E85D26] flex items-center gap-1 disabled:opacity-40"
+          >
+            <Languages size={13} /> Translate
+          </button>
+        </div>
+      </div>
+      <Textarea
+        value={value || ''}
+        onChange={onChange}
+        onFocus={(e) => { focusValueRef.current = e.target.value }}
+        onBlur={(e) => {
+          const v = e.target.value
+          // Auto-translate only if the user actually typed something new.
+          if (v.trim() && v !== focusValueRef.current) runTranslate(v, { silent: true })
+        }}
+        placeholder={placeholder}
+        rows={rows}
+        error={error}
+      />
+    </div>
+  )
+}
+
 function OrganizationalField({ label, value, note, onChangeValue, onChangeNote }) {
   const needsNote = value === 'BAD'
   return (
@@ -159,7 +232,7 @@ function OrganizationalField({ label, value, note, onChangeValue, onChangeNote }
           <label className="flex items-center gap-1 text-[10px] font-semibold text-red-700 uppercase tracking-wide mb-1">
             <AlertTriangle size={10} /> Explanation required (rating: Bad)
           </label>
-          <Textarea
+          <TranslatingTextarea
             value={note || ''}
             onChange={(e) => onChangeNote(e.target.value)}
             placeholder="Why was it bad? Be specific so the issue can be addressed…"
@@ -619,7 +692,7 @@ export default function RcReport() {
                     </div>
                   </div>
                 </div>
-                <Textarea
+                <TranslatingTextarea
                   label="Weather Conditions"
                   value={report.weather_conditions}
                   onChange={(e) => setField('weather_conditions', e.target.value)}
@@ -664,13 +737,13 @@ export default function RcReport() {
                     onChange={(v) => setField('overall_performance', v)}
                   />
                 </div>
-                <Textarea
+                <TranslatingTextarea
                   label="Strengths Observed"
                   value={report.strengths}
                   onChange={(e) => setField('strengths', e.target.value)}
                   rows={4}
                 />
-                <Textarea
+                <TranslatingTextarea
                   label="Areas for Improvement"
                   value={report.areas_for_improvement}
                   onChange={(e) => setField('areas_for_improvement', e.target.value)}
@@ -754,13 +827,13 @@ export default function RcReport() {
                 </div>
               </CardHeader>
               <CardBody className="space-y-3">
-                <Textarea
+                <TranslatingTextarea
                   label="Notable Incidents"
                   value={report.incidents}
                   onChange={(e) => setField('incidents', e.target.value)}
                   rows={3}
                 />
-                <Textarea
+                <TranslatingTextarea
                   label="Protests Lodged"
                   value={report.protests}
                   onChange={(e) => setField('protests', e.target.value)}
@@ -778,19 +851,19 @@ export default function RcReport() {
                 </div>
               </CardHeader>
               <CardBody className="space-y-3">
-                <Textarea
+                <TranslatingTextarea
                   label="For the Referees"
                   value={report.recs_referees}
                   onChange={(e) => setField('recs_referees', e.target.value)}
                   rows={3}
                 />
-                <Textarea
+                <TranslatingTextarea
                   label="For the Organizers"
                   value={report.recs_organizers}
                   onChange={(e) => setField('recs_organizers', e.target.value)}
                   rows={3}
                 />
-                <Textarea
+                <TranslatingTextarea
                   label="For the RC Commission"
                   value={report.recs_rc_commission}
                   onChange={(e) => setField('recs_rc_commission', e.target.value)}
@@ -808,7 +881,7 @@ export default function RcReport() {
                 </div>
               </CardHeader>
               <CardBody>
-                <Textarea
+                <TranslatingTextarea
                   label="Closing Notes"
                   value={report.final_remarks}
                   onChange={(e) => setField('final_remarks', e.target.value)}

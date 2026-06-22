@@ -772,6 +772,7 @@ function RcReportDocument({ report, tournament }) {
             {tournament?.end_date ? formatDate(tournament.end_date) : ''}
           </Text>
           <View style={rcStyles.headerAccent} />
+          <HeaderLogo />
         </View>
 
         {/* 1. Tournament Context */}
@@ -903,7 +904,7 @@ function RcReportDocument({ report, tournament }) {
             <Text style={styles.footerText}>CEV Referee Coach</Text>
           </View>
           <Text style={styles.footerText}>
-            Report date: {report.report_date ? formatDate(report.report_date) : formatDate(new Date())}
+            Report date: {formatDate(new Date())}
           </Text>
         </View>
       </Page>

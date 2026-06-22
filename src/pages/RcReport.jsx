@@ -126,20 +126,47 @@ function buildRefereeSummary(refId, tournamentEvals) {
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
-// Read-only stat cell: shows a value computed automatically from the tournament
-// data (referees assigned + their evaluations). Not editable on purpose.
-function AutoStat({ label, value }) {
+// Returns the effective value of a team stat: the manual override if the user
+// set one, otherwise the value computed automatically from the tournament data.
+function pickStat(raw, auto) {
+  return raw == null || raw === '' ? auto : Number(raw)
+}
+
+// Stat cell that shows an automatically-computed value but stays editable: the
+// user can override it (add/remove manually) and reset back to the auto value.
+function EditableStat({ label, value, auto, onChange }) {
+  const shown = pickStat(value, auto)
+  const isManual = Number(shown) !== Number(auto)
   return (
     <div className="flex flex-col gap-1">
       <span className="text-xs font-medium text-gray-600 uppercase tracking-wide flex items-center gap-1">
         {label}
-        <span className="text-[9px] font-semibold text-[#2D3270] bg-[#2D3270]/10 px-1 py-px rounded">
-          AUTO
-        </span>
+        {isManual ? (
+          <button
+            type="button"
+            onClick={() => onChange(null)}
+            title="Reset to the auto-computed value"
+            className="text-[9px] font-semibold text-[#E85D26] bg-[#E85D26]/10 px-1 py-px rounded flex items-center gap-0.5"
+          >
+            MANUAL ↺
+          </button>
+        ) : (
+          <span className="text-[9px] font-semibold text-[#2D3270] bg-[#2D3270]/10 px-1 py-px rounded">
+            AUTO
+          </span>
+        )}
       </span>
-      <div className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-lg font-bold text-[#2D3270]">
-        {value}
-      </div>
+      <input
+        type="number"
+        min="0"
+        value={shown}
+        onChange={(e) => onChange(e.target.value)}
+        className={cn(
+          'bg-white border rounded-lg px-3 py-2 text-lg font-bold text-[#2D3270]',
+          'focus:outline-none focus:border-[#E85D26]/60 focus:ring-2 focus:ring-[#E85D26]/20 transition-colors',
+          isManual ? 'border-[#E85D26]/50' : 'border-gray-300'
+        )}
+      />
     </div>
   )
 }
@@ -517,15 +544,14 @@ export default function RcReport() {
   // evaluations — quantity, level breakdown (A/B/C) and how many were evaluated.
   const teamStats = useMemo(() => {
     const level = (r) => String(r?.ranking_level || '').trim().toUpperCase()
-    const evaluatedIds = new Set(
-      tournamentEvals.map((e) => e.referee_id).filter(Boolean)
-    )
     return {
       total: tournamentReferees.length,
       levelA: tournamentReferees.filter((r) => level(r) === 'A').length,
       levelB: tournamentReferees.filter((r) => level(r) === 'B').length,
       levelC: tournamentReferees.filter((r) => level(r) === 'C').length,
-      evaluated: evaluatedIds.size,
+      // Total evaluations recorded across all days (e.g. Day 1 + Day 2), not
+      // distinct referees — matches the number of evaluations actually done.
+      evaluated: tournamentEvals.length,
     }
   }, [tournamentReferees, tournamentEvals])
 
@@ -562,15 +588,13 @@ export default function RcReport() {
         ...report,
         // Tournament level is computed from tournament, store the label
         tournament_level: tournamentLevelLabel(tournament),
-        // Refereeing team stats are computed automatically from the tournament data
-        total_referees: teamStats.total,
-        referees_a_level: teamStats.levelA,
-        referees_b_level: teamStats.levelB,
-        referees_c_level: teamStats.levelC,
-        observed_count: teamStats.evaluated,
-      }
-      for (const k of ['total_referees', 'referees_a_level', 'referees_b_level', 'referees_c_level', 'observed_count']) {
-        payload[k] = payload[k] === '' || payload[k] == null ? null : Number(payload[k])
+        // Refereeing team stats: auto-computed from the tournament data, unless
+        // the user has manually overridden a value.
+        total_referees: pickStat(report.total_referees, teamStats.total),
+        referees_a_level: pickStat(report.referees_a_level, teamStats.levelA),
+        referees_b_level: pickStat(report.referees_b_level, teamStats.levelB),
+        referees_c_level: pickStat(report.referees_c_level, teamStats.levelC),
+        observed_count: pickStat(report.observed_count, teamStats.evaluated),
       }
       delete payload.id
       delete payload.created_at
@@ -603,12 +627,12 @@ export default function RcReport() {
       const enriched = {
         ...report,
         tournament_level: tournamentLevelLabel(tournament),
-        // Refereeing team stats are computed automatically from the tournament data
-        total_referees: teamStats.total,
-        referees_a_level: teamStats.levelA,
-        referees_b_level: teamStats.levelB,
-        referees_c_level: teamStats.levelC,
-        observed_count: teamStats.evaluated,
+        // Refereeing team stats: auto-computed unless manually overridden.
+        total_referees: pickStat(report.total_referees, teamStats.total),
+        referees_a_level: pickStat(report.referees_a_level, teamStats.levelA),
+        referees_b_level: pickStat(report.referees_b_level, teamStats.levelB),
+        referees_c_level: pickStat(report.referees_c_level, teamStats.levelC),
+        observed_count: pickStat(report.observed_count, teamStats.evaluated),
         top_performers_details: report.top_performer_ids
           .map((id) => {
             const r = tournamentReferees.find((x) => x.id === id)
@@ -758,14 +782,16 @@ export default function RcReport() {
               </CardHeader>
               <CardBody className="space-y-3">
                 <p className="text-[11px] text-gray-500">
-                  Computed automatically from the referees assigned to this tournament and their evaluations.
+                  Auto-computed from the tournament: referees assigned, their levels, and the total
+                  evaluations recorded across all days. You can override any value manually — tap the
+                  orange <span className="font-semibold text-[#E85D26]">MANUAL ↺</span> badge to reset to auto.
                 </p>
                 <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-                  <AutoStat label="Total Refs" value={teamStats.total} />
-                  <AutoStat label="Level A" value={teamStats.levelA} />
-                  <AutoStat label="Level B" value={teamStats.levelB} />
-                  <AutoStat label="Level C" value={teamStats.levelC} />
-                  <AutoStat label="Evaluated" value={teamStats.evaluated} />
+                  <EditableStat label="Total Refs" value={report.total_referees} auto={teamStats.total} onChange={(v) => setField('total_referees', v)} />
+                  <EditableStat label="Level A" value={report.referees_a_level} auto={teamStats.levelA} onChange={(v) => setField('referees_a_level', v)} />
+                  <EditableStat label="Level B" value={report.referees_b_level} auto={teamStats.levelB} onChange={(v) => setField('referees_b_level', v)} />
+                  <EditableStat label="Level C" value={report.referees_c_level} auto={teamStats.levelC} onChange={(v) => setField('referees_c_level', v)} />
+                  <EditableStat label="Evaluated" value={report.observed_count} auto={teamStats.evaluated} onChange={(v) => setField('observed_count', v)} />
                 </div>
               </CardBody>
             </Card>

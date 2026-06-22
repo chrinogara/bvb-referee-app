@@ -77,7 +77,7 @@ function useSummaryNotes(tournamentId) {
   return { notes, save }
 }
 
-function CoachCommentBox({ value, label, onSave }) {
+function CoachCommentBox({ value, label, onSave, savedMessage = 'Coach comment saved', placeholder = "Coach's overall comment…" }) {
   const [text, setText] = useState(value || '')
   const [saving, setSaving] = useState(false)
   const [translating, setTranslating] = useState(false)
@@ -96,7 +96,7 @@ function CoachCommentBox({ value, label, onSave }) {
       finally { setTranslating(false) }
     }
     setSaving(true)
-    try { await onSave(finalText); setDirty(false); toast.success('Coach comment saved') }
+    try { await onSave(finalText); setDirty(false); toast.success(savedMessage) }
     catch (e) { toast.error('Save failed: ' + (e?.message || '')) }
     finally { setSaving(false) }
   }
@@ -110,7 +110,7 @@ function CoachCommentBox({ value, label, onSave }) {
         onChange={(e) => { setText(e.target.value); setDirty(true) }}
         onBlur={commit}
         rows={2}
-        placeholder="Coach's overall comment…"
+        placeholder={placeholder}
         className="w-full text-sm rounded-lg border border-gray-300 px-2.5 py-2 focus:outline-none focus:ring-2 focus:ring-amber-300 bg-white"
       />
       {translating && <div className="text-[11px] text-gray-400 mt-0.5">Translating…</div>}
@@ -133,12 +133,23 @@ function DigestPanel({ tournament, evals }) {
   const [openRef, setOpenRef] = useState(null)
   const { notes, save: saveNote } = useSummaryNotes(tournament?.id)
 
+  // Day-level final note (one per day), stored on this device, added at the
+  // bottom of every Day digest PDF for that day.
+  const dayNoteKey = (d) => `rcDayFinalNote:${tournament?.id}:${d}`
+  const readDayFinalNote = (d) => {
+    try { return localStorage.getItem(dayNoteKey(d)) || '' } catch { return '' }
+  }
+  const [finalNote, setFinalNote] = useState('')
+  useEffect(() => {
+    setFinalNote(tournament?.id && day != null ? readDayFinalNote(day) : '')
+  }, [tournament?.id, day]) // eslint-disable-line
+
   async function downloadFor(refId) {
     const { referee, evals: re } = byRef[refId]
     setBusy(refId)
     try {
       const digest = refereeDayDigest(re)
-      const blob = await generateRefereeDayDigestPDF({ referee, tournament, dayNumber: day, digest, coachComment: notes[`${refId}:${day}`] })
+      const blob = await generateRefereeDayDigestPDF({ referee, tournament, dayNumber: day, digest, coachComment: notes[`${refId}:${day}`], finalNote: readDayFinalNote(day) })
       downloadPDF(blob, `BVB_Day${day}_${refereeName(referee).replace(/\s+/g, '_')}.pdf`)
     } catch (e) { toast.error('PDF failed: ' + e.message) } finally { setBusy(null) }
   }
@@ -156,6 +167,7 @@ function DigestPanel({ tournament, evals }) {
       dayNumber: d,
       digest: refereeDayDigest(re.filter((e) => (e.day_number || 1) === d)),
       coachComment: notes[`${refId}:${d}`],
+      finalNote: readDayFinalNote(d),
     }))
     setBusy(refId + ':all')
     try {
@@ -233,6 +245,21 @@ function DigestPanel({ tournament, evals }) {
             </div>
           )
         })}
+
+        {ids.length > 0 && (
+          <div className="mt-2 rounded-xl border border-[#E85D26]/30 bg-orange-50 p-3">
+            <CoachCommentBox
+              value={finalNote}
+              label={`Final note — Day ${day} (added at the bottom of every Day ${day} PDF)`}
+              placeholder="Your personal closing note for this day — appears under the evaluations in the PDF…"
+              savedMessage="Final note saved on this device"
+              onSave={(t) => {
+                setFinalNote(t)
+                try { localStorage.setItem(dayNoteKey(day), t) } catch { /* ignore */ }
+              }}
+            />
+          </div>
+        )}
       </CardBody>
     </Card>
   )

@@ -711,6 +711,13 @@ function RcReportDocument({ report, tournament }) {
   const RefereeRow = ({ entry }) => {
     const r = entry.referee
     const s = entry.summary
+    // Manual override wins over the auto-computed criterion label.
+    const strongest = entry.strongest?.trim()
+      ? entry.strongest.trim()
+      : s?.bestCriterion?.label || null
+    const weakest = entry.weakest?.trim()
+      ? entry.weakest.trim()
+      : s?.worstCriterion?.label || null
     return (
       <View
         wrap={false}
@@ -732,8 +739,14 @@ function RcReportDocument({ report, tournament }) {
           {s ? (
             <Text style={{ fontSize: 8.5, color: MED_GRAY, marginTop: 1 }}>
               {s.count} evals · avg {s.avg?.toFixed(2) ?? '—'} · best {s.best?.toFixed(1) ?? '—'} · {s.repeatCount} repeat fault{s.repeatCount !== 1 ? 's' : ''}
-              {s.bestCriterion ? ` · ✓ ${s.bestCriterion.label}` : ''}
-              {s.worstCriterion ? ` · ⚠ ${s.worstCriterion.label}` : ''}
+              {strongest ? ` · ✓ ${strongest}` : ''}
+              {weakest ? ` · ⚠ ${weakest}` : ''}
+            </Text>
+          ) : strongest || weakest ? (
+            <Text style={{ fontSize: 8.5, color: MED_GRAY, marginTop: 1 }}>
+              {strongest ? `✓ ${strongest}` : ''}
+              {strongest && weakest ? '   ' : ''}
+              {weakest ? `⚠ ${weakest}` : ''}
             </Text>
           ) : (
             <Text style={{ fontSize: 8.5, fontStyle: 'italic', color: MED_GRAY, marginTop: 1 }}>

@@ -264,6 +264,42 @@ function TranslatingTextarea({ label, value, onChange, placeholder, rows = 3, er
   )
 }
 
+// Editable Strongest / Weakest line inside a referee card. Shows the value
+// computed automatically from the evaluations, but lets the user override it
+// manually (with auto-translate to English, like the other notes). The override
+// is stored per tournament in localStorage and flows into the PDF.
+function CardCriterion({ label, value, auto, onChange }) {
+  const isManual = value != null && value !== ''
+  const effective = isManual ? value : auto
+  return (
+    <div className="space-y-0.5">
+      <div className="flex items-center gap-1">
+        <span className="text-gray-500 text-[9px] uppercase tracking-wide">{label}</span>
+        {isManual ? (
+          <button
+            type="button"
+            onClick={() => onChange('')}
+            title="Reset to the auto-computed value"
+            className="text-[8px] font-semibold text-[#E85D26] bg-[#E85D26]/10 px-1 rounded"
+          >
+            MANUAL ↺
+          </button>
+        ) : (
+          <span className="text-[8px] font-semibold text-[#2D3270] bg-[#2D3270]/10 px-1 rounded">
+            AUTO
+          </span>
+        )}
+      </div>
+      <TranslatingTextarea
+        value={effective}
+        onChange={(e) => onChange(e.target.value)}
+        rows={1}
+        placeholder={`${label} — write in any language`}
+      />
+    </div>
+  )
+}
+
 function OrganizationalField({ label, value, note, onChangeValue, onChangeNote }) {
   const needsNote = value === 'BAD'
   return (
@@ -289,7 +325,7 @@ function OrganizationalField({ label, value, note, onChangeValue, onChangeNote }
   )
 }
 
-function RefereeMultiSelect({ label, value = [], options, onChange, tournamentEvals }) {
+function RefereeMultiSelect({ label, value = [], options, onChange, tournamentEvals, notes = {}, onNote }) {
   const [picking, setPicking] = useState(false)
 
   function toggle(refId) {
@@ -360,28 +396,27 @@ function RefereeMultiSelect({ label, value = [], options, onChange, tournamentEv
                           {summary.repeatCount}
                         </div>
                       </div>
-                      {summary.bestCriterion && (
-                        <div className="col-span-2 sm:col-span-2">
-                          <div className="text-gray-500 text-[9px] uppercase tracking-wide">Strongest</div>
-                          <div className="text-emerald-700 font-medium leading-tight truncate">
-                            {summary.bestCriterion.label} ({summary.bestCriterion.avg.toFixed(1)})
-                          </div>
-                        </div>
-                      )}
-                      {summary.worstCriterion && (
-                        <div className="col-span-2 sm:col-span-2">
-                          <div className="text-gray-500 text-[9px] uppercase tracking-wide">Weakest</div>
-                          <div className="text-red-700 font-medium leading-tight truncate">
-                            {summary.worstCriterion.label} ({summary.worstCriterion.avg.toFixed(1)})
-                          </div>
-                        </div>
-                      )}
                     </div>
                   ) : (
                     <p className="text-[11px] text-gray-500 mt-1 italic">
                       No evaluations recorded for this tournament yet.
                     </p>
                   )}
+                  {/* Editable Strongest / Weakest (auto by default, manual override + translation) */}
+                  <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <CardCriterion
+                      label="Strongest"
+                      value={notes?.[r.id]?.strongest}
+                      auto={summary?.bestCriterion ? `${summary.bestCriterion.label} (${summary.bestCriterion.avg.toFixed(1)})` : ''}
+                      onChange={(v) => onNote?.(r.id, 'strongest', v)}
+                    />
+                    <CardCriterion
+                      label="Weakest"
+                      value={notes?.[r.id]?.weakest}
+                      auto={summary?.worstCriterion ? `${summary.worstCriterion.label} (${summary.worstCriterion.avg.toFixed(1)})` : ''}
+                      onChange={(v) => onNote?.(r.id, 'weakest', v)}
+                    />
+                  </div>
                 </div>
                 <button
                   type="button"
@@ -499,6 +534,9 @@ export default function RcReport() {
   const [downloading, setDownloading] = useState(false)
   const [dirty, setDirty] = useState(false)
   const [lastSavedAt, setLastSavedAt] = useState(null)
+  // Per-referee manual overrides for the Strongest/Weakest lines in the cards.
+  // Stored in localStorage per tournament: { top: { refId: {strongest, weakest} }, followup: {…} }
+  const [cardNotes, setCardNotes] = useState({ top: {}, followup: {} })
 
   // Auto-select closest tournament
   useEffect(() => {
@@ -535,9 +573,37 @@ export default function RcReport() {
 
   useEffect(() => { loadReport() }, [loadReport])
 
+  // Load the per-referee card overrides for this tournament from localStorage.
+  useEffect(() => {
+    if (!tournamentId) { setCardNotes({ top: {}, followup: {} }); return }
+    try {
+      const raw = localStorage.getItem(`rcReportCardNotes:${tournamentId}`)
+      setCardNotes(raw ? JSON.parse(raw) : { top: {}, followup: {} })
+    } catch {
+      setCardNotes({ top: {}, followup: {} })
+    }
+  }, [tournamentId])
+
   function setField(key, value) {
     setReport((prev) => ({ ...prev, [key]: value }))
     setDirty(true)
+  }
+
+  // Set/clear a manual Strongest/Weakest override and persist it to localStorage.
+  function setCardNote(section, refId, field, value) {
+    setCardNotes((prev) => {
+      const sec = { ...(prev[section] || {}) }
+      const cur = { ...(sec[refId] || {}) }
+      if (value == null || value === '') delete cur[field]
+      else cur[field] = value
+      if (Object.keys(cur).length === 0) delete sec[refId]
+      else sec[refId] = cur
+      const next = { ...prev, [section]: sec }
+      try {
+        if (tournamentId) localStorage.setItem(`rcReportCardNotes:${tournamentId}`, JSON.stringify(next))
+      } catch { /* ignore quota/availability errors */ }
+      return next
+    })
   }
 
   // Team stats computed automatically from the tournament's referees and their
@@ -637,14 +703,16 @@ export default function RcReport() {
           .map((id) => {
             const r = tournamentReferees.find((x) => x.id === id)
             const s = buildRefereeSummary(id, tournamentEvals)
-            return r ? { referee: r, summary: s } : null
+            const ov = cardNotes.top?.[id] || {}
+            return r ? { referee: r, summary: s, strongest: ov.strongest, weakest: ov.weakest } : null
           })
           .filter(Boolean),
         followup_referees_details: report.followup_referee_ids
           .map((id) => {
             const r = tournamentReferees.find((x) => x.id === id)
             const s = buildRefereeSummary(id, tournamentEvals)
-            return r ? { referee: r, summary: s } : null
+            const ov = cardNotes.followup?.[id] || {}
+            return r ? { referee: r, summary: s, strongest: ov.strongest, weakest: ov.weakest } : null
           })
           .filter(Boolean),
       }
@@ -844,6 +912,8 @@ export default function RcReport() {
                   options={tournamentReferees}
                   onChange={(v) => setField('top_performer_ids', v)}
                   tournamentEvals={tournamentEvals}
+                  notes={cardNotes.top}
+                  onNote={(refId, field, val) => setCardNote('top', refId, field, val)}
                 />
                 <RefereeMultiSelect
                   label="Referees Needing Follow-up"
@@ -851,6 +921,8 @@ export default function RcReport() {
                   options={tournamentReferees}
                   onChange={(v) => setField('followup_referee_ids', v)}
                   tournamentEvals={tournamentEvals}
+                  notes={cardNotes.followup}
+                  onNote={(refId, field, val) => setCardNote('followup', refId, field, val)}
                 />
               </CardBody>
             </Card>

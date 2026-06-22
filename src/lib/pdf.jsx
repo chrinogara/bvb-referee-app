@@ -807,7 +807,7 @@ function RcReportDocument({ report, tournament }) {
               <Text style={rcStyles.inlineValue}>{report.referees_c_level ?? '—'}</Text>
             </View>
             <View style={rcStyles.inlineCell}>
-              <Text style={rcStyles.inlineLabel}>Personally Observed</Text>
+              <Text style={rcStyles.inlineLabel}>Evaluated</Text>
               <Text style={rcStyles.inlineValue}>{report.observed_count ?? '—'}</Text>
             </View>
           </View>

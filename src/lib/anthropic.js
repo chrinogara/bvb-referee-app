@@ -216,6 +216,37 @@ export async function translateToEnglish(text) {
   return out || trimmed
 }
 
+// Best-effort translation to English: returns the original text on any failure
+// (missing API key, offline, API error) so PDF generation never breaks.
+export async function translateToEnglishSafe(text) {
+  const trimmed = (text || '').trim()
+  if (!trimmed) return text
+  if (!API_KEY) return text
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) return text
+  try {
+    const en = await translateToEnglish(trimmed)
+    return (en && en.trim()) || text
+  } catch {
+    return text
+  }
+}
+
+// Translate selected string fields of an object to English (best-effort, in
+// parallel). Returns a shallow copy; empty / non-string fields are left as-is.
+// Used right before generating report PDFs so any leftover Italian becomes
+// English regardless of how the data was entered or saved.
+export async function translateFieldsToEnglish(obj, keys) {
+  if (!obj) return obj
+  const out = { ...obj }
+  await Promise.all(
+    keys.map(async (k) => {
+      const v = obj[k]
+      if (typeof v === 'string' && v.trim()) out[k] = await translateToEnglishSafe(v)
+    })
+  )
+  return out
+}
+
 // ─── Rule reference lookup (for evaluation notes) ────────────────────────────
 // Given a short evaluation observation, returns a concise rule reference drawn
 // from the loaded Rulebook + Casebook + Guidelines (no web, documents only).

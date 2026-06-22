@@ -11,6 +11,7 @@ import {
 import { formatDate, formatDateTime, refereeName } from './utils'
 import { CRITERIA, getGrade } from './scoring'
 import { BBT_LOGO } from './logo'
+import { translateFieldsToEnglish, translateToEnglishSafe } from './anthropic'
 
 const NAVY = '#2D3270'
 const ORANGE = '#E85D26'
@@ -912,8 +913,25 @@ function RcReportDocument({ report, tournament }) {
   )
 }
 
+const RC_TEXT_FIELDS = [
+  'weather_conditions', 'strengths', 'areas_for_improvement',
+  'court_conditions_note', 'equipment_quality_note', 'scheduling_note', 'hospitality_note',
+  'incidents', 'protests',
+  'recs_referees', 'recs_organizers', 'recs_rc_commission', 'final_remarks',
+]
+
 export async function generateRcReportPDF(report, tournament) {
-  const blob = await pdf(<RcReportDocument report={report} tournament={tournament} />).toBlob()
+  // Safety net: translate any leftover non-English free text to English so the
+  // final PDF is always in English, regardless of how it was entered/saved.
+  let translated = await translateFieldsToEnglish(report, RC_TEXT_FIELDS)
+  const translateDetails = async (arr) =>
+    Promise.all((arr || []).map((e) => translateFieldsToEnglish(e, ['strongest', 'weakest'])))
+  translated = {
+    ...translated,
+    top_performers_details: await translateDetails(report.top_performers_details),
+    followup_referees_details: await translateDetails(report.followup_referees_details),
+  }
+  const blob = await pdf(<RcReportDocument report={translated} tournament={tournament} />).toBlob()
   return blob
 }
 
@@ -1088,9 +1106,15 @@ export async function generateDesignationPDF({
 // ─── Evaluation PDF (existing) ────────────────────────────────────────────────
 
 export async function generateEvaluationPDF(evaluation, referee, match, tournament, lang = 'en') {
+  // The notes are meant to be in English (the app translates them on input);
+  // translate again here as a safety net so no Italian leaks into the PDF.
+  const ev = await translateFieldsToEnglish(evaluation, [
+    'note_positioning', 'note_signals', 'note_attitude',
+    'note_captain_comm', 'note_presentation', 'general_notes',
+  ])
   const blob = await pdf(
     <EvaluationDocument
-      evaluation={evaluation}
+      evaluation={ev}
       referee={referee}
       match={match}
       tournament={tournament}
@@ -1430,7 +1454,8 @@ function RefereeDayDigestDocument({ referee, tournament, dayNumber, digest, coac
 }
 
 export async function generateRefereeDayDigestPDF({ referee, tournament, dayNumber, digest, coachComment }) {
-  return pdf(<RefereeDayDigestDocument referee={referee} tournament={tournament} dayNumber={dayNumber} digest={digest} coachComment={coachComment} />).toBlob()
+  const comment = await translateToEnglishSafe(coachComment)
+  return pdf(<RefereeDayDigestDocument referee={referee} tournament={tournament} dayNumber={dayNumber} digest={digest} coachComment={comment} />).toBlob()
 }
 
 function RefereeTournamentDigestDocument({ referee, tournament, evolution, advice, coachComment }) {
@@ -1508,7 +1533,9 @@ function RefereeTournamentDigestDocument({ referee, tournament, evolution, advic
 }
 
 export async function generateRefereeTournamentDigestPDF({ referee, tournament, evolution, advice, coachComment }) {
-  return pdf(<RefereeTournamentDigestDocument referee={referee} tournament={tournament} evolution={evolution} advice={advice} coachComment={coachComment} />).toBlob()
+  const comment = await translateToEnglishSafe(coachComment)
+  const advice2 = advice ? await translateFieldsToEnglish(advice, ['summary', 'advice']) : advice
+  return pdf(<RefereeTournamentDigestDocument referee={referee} tournament={tournament} evolution={evolution} advice={advice2} coachComment={comment} />).toBlob()
 }
 
 // PDF combinato: tutte le valutazioni di ogni giornata (Day 1 + Day 2 …) in un unico file,
@@ -1553,7 +1580,10 @@ function RefereeMultiDayDigestDocument({ referee, tournament, dayDigests }) {
 }
 
 export async function generateRefereeMultiDayDigestPDF({ referee, tournament, dayDigests }) {
-  return pdf(<RefereeMultiDayDigestDocument referee={referee} tournament={tournament} dayDigests={dayDigests} />).toBlob()
+  const translatedDigests = await Promise.all(
+    (dayDigests || []).map(async (d) => ({ ...d, coachComment: await translateToEnglishSafe(d.coachComment) }))
+  )
+  return pdf(<RefereeMultiDayDigestDocument referee={referee} tournament={tournament} dayDigests={translatedDigests} />).toBlob()
 }
 
 // ════════════════════════════════════════════════════════════════════════════

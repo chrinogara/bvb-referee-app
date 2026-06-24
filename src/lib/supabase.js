@@ -179,6 +179,26 @@ export const rcReportService = {
     supabase.from('rc_reports').delete().eq('tournament_id', tournamentId),
 }
 
+// ─── Day Reports (1 per tournament+day: coach observations + incident log) ────
+export const dayReportService = {
+  get: (tournamentId, dayNumber) =>
+    supabase
+      .from('day_reports')
+      .select('*')
+      .eq('tournament_id', tournamentId)
+      .eq('day_number', dayNumber)
+      .maybeSingle(),
+
+  upsert: (data) =>
+    supabase
+      .from('day_reports')
+      .upsert({ ...data, updated_at: new Date().toISOString() }, {
+        onConflict: 'tournament_id,day_number',
+      })
+      .select()
+      .single(),
+}
+
 // ─── Briefings (1 per tournament, structured sections) ──────────────────────
 export const briefingService = {
   getByTournament: (tournamentId) =>

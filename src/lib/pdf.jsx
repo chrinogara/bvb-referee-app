@@ -1605,6 +1605,72 @@ export async function generateRefereeMultiDayDigestPDF({ referee, tournament, da
   return pdf(<RefereeMultiDayDigestDocument referee={referee} tournament={tournament} dayDigests={translatedDigests} />).toBlob()
 }
 
+// ─── Coach Day Report (osservazioni + registro problemi partite senza arbitro) ─
+const drStyles = StyleSheet.create({
+  body: { fontSize: 10, color: DARK_GRAY, lineHeight: 1.45, marginBottom: 4 },
+  incident: { borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 6, padding: 8, marginBottom: 8 },
+  incHead: { fontSize: 10, fontFamily: 'Helvetica-Bold', color: NAVY, marginBottom: 4 },
+  incRow: { flexDirection: 'row', marginBottom: 2 },
+  incLabel: { width: 56, fontSize: 9, fontFamily: 'Helvetica-Bold', color: MED_GRAY },
+  incVal: { flex: 1, fontSize: 9.5, color: DARK_GRAY, lineHeight: 1.4 },
+})
+
+function CoachDayReportDocument({ tournament, dayNumber, report }) {
+  const inc = report?.incidents || []
+  return (
+    <Document>
+      <Page size="A4" style={reportStyles.page}>
+        <View style={reportStyles.header}>
+          <Text style={reportStyles.headerTitle}>DAY REPORT</Text>
+          <Text style={reportStyles.headerSubtitle}>{tournament?.name || ''}{dayNumber ? ` · Day ${dayNumber}` : ''}</Text>
+          <View style={reportStyles.headerAccent} />
+          <HeaderLogo />
+        </View>
+
+        <Text style={reportStyles.sectionTitle}>What went well</Text>
+        <Text style={drStyles.body}>{report?.went_well || '—'}</Text>
+
+        <Text style={reportStyles.sectionTitle}>What needs improvement</Text>
+        <Text style={drStyles.body}>{report?.to_improve || '—'}</Text>
+
+        <Text style={reportStyles.sectionTitle}>Incidents — self-refereed matches</Text>
+        {inc.length === 0 ? (
+          <Text style={drStyles.body}>No incidents reported.</Text>
+        ) : (
+          inc.map((it, i) => (
+            <View key={i} style={drStyles.incident} wrap={false}>
+              <Text style={drStyles.incHead}>#{i + 1}{it.court ? ` · ${it.court}` : ''}</Text>
+              <View style={drStyles.incRow}><Text style={drStyles.incLabel}>Problem</Text><Text style={drStyles.incVal}>{it.problem || '—'}</Text></View>
+              <View style={drStyles.incRow}><Text style={drStyles.incLabel}>Action</Text><Text style={drStyles.incVal}>{it.action || '—'}</Text></View>
+              <View style={drStyles.incRow}><Text style={drStyles.incLabel}>Rule</Text><Text style={drStyles.incVal}>{it.rule || '—'}</Text></View>
+            </View>
+          ))
+        )}
+
+        <View style={reportStyles.footer} fixed>
+          <Text>BVB Referee Coach · Day report{dayNumber ? ` · Day ${dayNumber}` : ''}</Text>
+          <Text>Generated {formatDateTime(new Date())}</Text>
+        </View>
+      </Page>
+    </Document>
+  )
+}
+
+export async function generateCoachDayReportPDF({ tournament, dayNumber, report }) {
+  const r = report || {}
+  const tReport = {
+    went_well: await translateToEnglishSafe(r.went_well),
+    to_improve: await translateToEnglishSafe(r.to_improve),
+    incidents: await Promise.all((r.incidents || []).map(async (it) => ({
+      court: it.court || '',
+      problem: await translateToEnglishSafe(it.problem),
+      action: await translateToEnglishSafe(it.action),
+      rule: it.rule || '',
+    }))),
+  }
+  return pdf(<CoachDayReportDocument tournament={tournament} dayNumber={dayNumber} report={tReport} />).toBlob()
+}
+
 // ════════════════════════════════════════════════════════════════════════════
 //  CEV BV-15 — Medical Injury Time-Out / Injury Forfeit (official form)
 //  Faithful black/white reproduction of the official © CEV 2019 form, filled in.

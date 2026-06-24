@@ -20,6 +20,9 @@ import {
   MessageCircle,
   Minus,
   Stethoscope,
+  Plus,
+  Trash2,
+  Wand2,
 } from 'lucide-react'
 
 import { Header } from '../components/layout/Header'
@@ -31,7 +34,7 @@ import { toast } from '../components/ui/Toast'
 
 import { useTournaments } from '../hooks/useTournaments'
 import { useRanking } from '../hooks/useRanking'
-import { evaluationService, rcReportService, mtoService, summaryNoteService } from '../lib/supabase'
+import { evaluationService, rcReportService, mtoService, summaryNoteService, dayReportService } from '../lib/supabase'
 import { trackSave } from '../lib/saveTracker'
 import { CRITERIA, getGrade } from '../lib/scoring'
 import { cn, formatDate, refereeName, levelColor, scoreColor } from '../lib/utils'
@@ -41,11 +44,12 @@ import {
   generateRefereeDayDigestPDF,
   generateRefereeMultiDayDigestPDF,
   generateRefereeTournamentDigestPDF,
+  generateCoachDayReportPDF,
   generateBV15PDF,
   downloadPDF,
 } from '../lib/pdf'
 import { refereeDayDigest, refereeEvolution, refereeTournamentAdvice } from '../lib/report'
-import { translateToEnglish } from '../lib/anthropic'
+import { translateToEnglish, lookupRuleReference } from '../lib/anthropic'
 import { shareDayDigestToReferee, shareTournamentDigestToReferee } from '../lib/whatsapp'
 
 // ─── Per-referee digest panels (evening day + end of tournament) ──────────────
@@ -443,6 +447,162 @@ function PodiumSpot({ entry, rank }) {
   )
 }
 
+// ─── Day Report ───────────────────────────────────────────────────────────────
+function dayCountOf(tournament) {
+  if (!tournament?.start_date) return 2
+  const s = new Date(tournament.start_date)
+  const e = new Date(tournament.end_date || tournament.start_date)
+  const n = Math.round((e - s) / 86400000) + 1
+  return Math.max(1, Math.min(n, 10))
+}
+
+// Textarea che traduce in inglese su blur (come i coach comment)
+function TranslatingTextarea({ value, onCommit, rows = 3, placeholder }) {
+  const [text, setText] = useState(value || '')
+  const [translating, setTranslating] = useState(false)
+  const [dirty, setDirty] = useState(false)
+  useEffect(() => { setText(value || ''); setDirty(false) }, [value])
+  async function commit() {
+    if (!dirty) return
+    let out = text.trim()
+    if (out && (typeof navigator === 'undefined' || navigator.onLine !== false)) {
+      setTranslating(true)
+      try { const en = await translateToEnglish(out); if (en && en.trim() && en.trim() !== out) { out = en.trim(); setText(out) } }
+      catch { /* keep original */ } finally { setTranslating(false) }
+    }
+    setDirty(false)
+    onCommit(out)
+  }
+  return (
+    <div>
+      <textarea value={text} onChange={(e) => { setText(e.target.value); setDirty(true) }} onBlur={commit} rows={rows} placeholder={placeholder}
+        className="w-full text-sm rounded-lg border border-gray-300 px-2.5 py-2 focus:outline-none focus:ring-2 focus:ring-amber-300 bg-white" />
+      {translating && <div className="text-[11px] text-gray-400 mt-0.5">Translating…</div>}
+    </div>
+  )
+}
+
+function DayReportPanel({ tournament }) {
+  const dayCount = dayCountOf(tournament)
+  const [day, setDay] = useState(1)
+  useEffect(() => { setDay(1) }, [tournament?.id])
+  const [report, setReport] = useState({ went_well: '', to_improve: '', incidents: [] })
+  const [loading, setLoading] = useState(false)
+  const [savingPdf, setSavingPdf] = useState(false)
+  const [ruleBusy, setRuleBusy] = useState(null)
+
+  useEffect(() => {
+    let alive = true
+    if (!tournament?.id) { setReport({ went_well: '', to_improve: '', incidents: [] }); return }
+    setLoading(true)
+    dayReportService.get(tournament.id, day)
+      .then(({ data }) => { if (alive) setReport(data ? { went_well: data.went_well || '', to_improve: data.to_improve || '', incidents: data.incidents || [] } : { went_well: '', to_improve: '', incidents: [] }) })
+      .catch(() => { if (alive) setReport({ went_well: '', to_improve: '', incidents: [] }) })
+      .finally(() => { if (alive) setLoading(false) })
+    return () => { alive = false }
+  }, [tournament?.id, day])
+
+  async function save(next) {
+    setReport(next)
+    if (!tournament?.id) return
+    try { await trackSave(() => dayReportService.upsert({ tournament_id: tournament.id, day_number: day, ...next })) }
+    catch (e) { toast.error('Save failed: ' + (e?.message || '')) }
+  }
+  const withIncident = (i, key, v) => ({ ...report, incidents: report.incidents.map((it, idx) => (idx === i ? { ...it, [key]: v } : it)) })
+
+  async function suggestRule(i) {
+    const problem = (report.incidents[i]?.problem || '').trim()
+    if (!problem) { toast.info('Write the problem first'); return }
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) { toast.error('Rule lookup needs internet'); return }
+    setRuleBusy(i)
+    try {
+      const ref = await lookupRuleReference(problem)
+      if (ref && ref.trim()) save(withIncident(i, 'rule', ref.trim()))
+      else toast.info('No rule reference found')
+    } catch (e) { toast.error(e.message || 'Rule lookup failed') } finally { setRuleBusy(null) }
+  }
+
+  async function downloadPdf() {
+    setSavingPdf(true)
+    try {
+      const blob = await generateCoachDayReportPDF({ tournament, dayNumber: day, report })
+      downloadPDF(blob, `BVB_DayReport_${(tournament?.name || 'tournament').replace(/\s+/g, '_')}_Day${day}.pdf`)
+    } catch (e) { toast.error('PDF failed: ' + e.message) } finally { setSavingPdf(false) }
+  }
+
+  if (!tournament) return <Card><CardBody><p className="text-sm text-gray-500">Select a tournament.</p></CardBody></Card>
+
+  return (
+    <Card>
+      <CardHeader className="flex items-center justify-between flex-wrap gap-2">
+        <CardTitle className="flex items-center gap-2"><ClipboardList size={14} /> Day report</CardTitle>
+        <div className="flex items-center gap-2">
+          <div className="flex gap-1">
+            {Array.from({ length: dayCount }, (_, k) => k + 1).map((d) => (
+              <button key={d} onClick={() => setDay(d)} className={cn('px-2.5 py-1 rounded-lg text-xs font-bold', day === d ? 'bg-[#2D3270] text-white' : 'bg-gray-100 text-gray-500 hover:text-gray-800')}>Day {d}</button>
+            ))}
+          </div>
+          <Button variant="outline" size="xs" onClick={downloadPdf} disabled={savingPdf}><FileText size={12} /> {savingPdf ? '…' : 'PDF'}</Button>
+        </div>
+      </CardHeader>
+      <CardBody className="space-y-4">
+        {loading ? <p className="text-xs text-gray-400">Loading…</p> : (
+          <>
+            <div>
+              <div className="text-[11px] font-bold uppercase tracking-wide text-gray-500 mb-1">What went well</div>
+              <TranslatingTextarea value={report.went_well} onCommit={(v) => save({ ...report, went_well: v })} rows={3} placeholder="What worked well during the day…" />
+            </div>
+            <div>
+              <div className="text-[11px] font-bold uppercase tracking-wide text-gray-500 mb-1">What needs improvement</div>
+              <TranslatingTextarea value={report.to_improve} onCommit={(v) => save({ ...report, to_improve: v })} rows={3} placeholder="What should be fixed or improved…" />
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <div className="text-[11px] font-bold uppercase tracking-wide text-gray-500">Incidents — self-refereed matches</div>
+                <Button variant="outline" size="xs" onClick={() => save({ ...report, incidents: [...(report.incidents || []), { court: '', problem: '', action: '', rule: '' }] })}><Plus size={12} /> Add</Button>
+              </div>
+              {(report.incidents || []).length === 0 ? (
+                <p className="text-xs text-gray-400">No incidents. Tap "Add" to log a problem you had to solve in a match played without a referee.</p>
+              ) : (
+                <div className="space-y-3">
+                  {report.incidents.map((it, i) => (
+                    <div key={i} className="rounded-xl border border-gray-200 p-3 space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <input value={it.court || ''} onChange={(e) => setReport(withIncident(i, 'court', e.target.value))} onBlur={() => save(report)} placeholder="Court / match (e.g. C3 · 14:00)"
+                          className="flex-1 text-sm rounded-lg border border-gray-300 px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-amber-300" />
+                        <button onClick={() => save({ ...report, incidents: report.incidents.filter((_, idx) => idx !== i) })} className="shrink-0 p-1.5 rounded-lg text-red-500 hover:bg-red-50"><Trash2 size={14} /></button>
+                      </div>
+                      <div>
+                        <div className="text-[10px] font-bold uppercase text-gray-400 mb-0.5">Problem</div>
+                        <TranslatingTextarea value={it.problem} onCommit={(v) => save(withIncident(i, 'problem', v))} rows={2} placeholder="What happened…" />
+                      </div>
+                      <div>
+                        <div className="text-[10px] font-bold uppercase text-gray-400 mb-0.5">Action taken</div>
+                        <TranslatingTextarea value={it.action} onCommit={(v) => save(withIncident(i, 'action', v))} rows={2} placeholder="How you solved it…" />
+                      </div>
+                      <div>
+                        <div className="flex items-center justify-between mb-0.5">
+                          <div className="text-[10px] font-bold uppercase text-gray-400">Rule reference</div>
+                          <button onClick={() => suggestRule(i)} disabled={ruleBusy === i} className="flex items-center gap-1 text-[11px] font-semibold text-[#2D3270] hover:underline disabled:opacity-50">
+                            <Wand2 size={12} /> {ruleBusy === i ? 'Searching…' : 'Suggest rule'}
+                          </button>
+                        </div>
+                        <input value={it.rule || ''} onChange={(e) => setReport(withIncident(i, 'rule', e.target.value))} onBlur={() => save(report)} placeholder="e.g. Rule 9.1.2 — double touch…"
+                          className="w-full text-sm rounded-lg border border-gray-300 px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-amber-300" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </>
+        )}
+      </CardBody>
+    </Card>
+  )
+}
+
 // ─── Ranking Table Row ────────────────────────────────────────────────────────
 
 function RankingRow({ entry, rank }) {
@@ -674,6 +834,7 @@ export default function Reports() {
             { id: 'season',     label: 'Season Ranking', icon: Trophy },
             { id: 'tournament', label: 'Tournament Report', icon: BarChart3 },
             { id: 'digest',     label: 'Day digest', icon: CalendarDays },
+            { id: 'dayreport',  label: 'Day Report', icon: ClipboardList },
             { id: 'final',      label: 'Tournament eval', icon: Award },
           ].map(({ id, label, icon: Icon }) => (
             <button
@@ -1080,6 +1241,31 @@ export default function Reports() {
               <div className="h-24 bg-gray-50 rounded-xl animate-pulse" />
             ) : (
               <DigestPanel tournament={tournaments.find((t) => t.id === selectedTournamentId)} evals={tournamentEvals} />
+            )}
+          </>
+        )}
+
+        {/* ── DAY REPORT (osservazioni giornata + problemi partite senza arbitro) ── */}
+        {activeSection === 'dayreport' && (
+          <>
+            <select
+              value={selectedTournamentId}
+              onChange={(e) => setSelectedTournamentId(e.target.value)}
+              className={cn(
+                'w-full bg-white border border-gray-300 rounded-xl px-3 py-2.5',
+                'text-gray-900 text-sm appearance-none',
+                'focus:outline-none focus:border-[#E85D26]/60 focus:ring-1 focus:ring-[#E85D26]/30 transition-colors'
+              )}
+            >
+              <option value="">Select tournament…</option>
+              {tournaments.map((t) => (
+                <option key={t.id} value={t.id}>{t.name} — {formatDate(t.start_date)}</option>
+              ))}
+            </select>
+            {!selectedTournamentId ? (
+              <p className="text-sm text-gray-500 text-center py-8">Select a tournament to write the day report.</p>
+            ) : (
+              <DayReportPanel tournament={tournaments.find((t) => t.id === selectedTournamentId)} />
             )}
           </>
         )}

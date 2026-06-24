@@ -608,14 +608,26 @@ function DayReportPanel({ tournament }) {
 function LegendEditor() {
   const [open, setOpen] = useState(false)
   const [vals, setVals] = useState(() => readLegendOverrides())
-  function setVal(k, v) { setVals((p) => ({ ...p, [k]: v })) }
+  const [dirty, setDirty] = useState({})
+  const [translating, setTranslating] = useState(null)
+  function setVal(k, v) { setVals((p) => ({ ...p, [k]: v })); setDirty((d) => ({ ...d, [k]: true })) }
+  async function commitField(k) {
+    if (!dirty[k]) return
+    let v = (vals[k] || '').trim()
+    if (v && (typeof navigator === 'undefined' || navigator.onLine !== false)) {
+      setTranslating(k)
+      try { const en = await translateToEnglish(v); if (en && en.trim() && en.trim() !== v) { v = en.trim(); setVals((p) => ({ ...p, [k]: v })) } }
+      catch { /* keep original */ } finally { setTranslating(null) }
+    }
+    setDirty((d) => ({ ...d, [k]: false }))
+  }
   function save() {
     const clean = {}
     for (const k of LEGEND_ORDER) { const v = (vals[k] || '').trim(); if (v) clean[k] = v }
     saveLegend(clean)
     toast.success('Legend saved')
   }
-  function reset() { resetLegend(); setVals(readLegendOverrides()); toast.success('Legend reset to defaults') }
+  function reset() { resetLegend(); setVals(readLegendOverrides()); setDirty({}); toast.success('Legend reset to defaults') }
   return (
     <Card>
       <button onClick={() => setOpen((o) => !o)} className="w-full flex items-center justify-between px-4 py-3 text-left">
@@ -624,12 +636,15 @@ function LegendEditor() {
       </button>
       {open && (
         <CardBody className="space-y-2 pt-0">
-          <p className="text-xs text-gray-500">Printed at the bottom of every referee PDF. Leave a field blank to keep the default. Applies to all tournaments.</p>
+          <p className="text-xs text-gray-500">Printed at the bottom of every referee PDF. If you write in Italian it is translated to English automatically when you leave the field. Leave blank to keep the default. Applies to all tournaments.</p>
           {LEGEND_ORDER.map((k) => (
             <div key={k} className="flex items-center gap-2">
               <span className="w-12 shrink-0 text-xs font-bold text-[#2D3270]">{k}</span>
-              <input value={vals[k] || ''} onChange={(e) => setVal(k, e.target.value)} placeholder={LEGEND_DEFAULTS[k]}
-                className="flex-1 text-sm rounded-lg border border-gray-300 px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-amber-300" />
+              <div className="flex-1">
+                <input value={vals[k] || ''} onChange={(e) => setVal(k, e.target.value)} onBlur={() => commitField(k)} placeholder={LEGEND_DEFAULTS[k]}
+                  className="w-full text-sm rounded-lg border border-gray-300 px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-amber-300" />
+                {translating === k && <div className="text-[11px] text-gray-400 mt-0.5">Translating…</div>}
+              </div>
             </div>
           ))}
           <div className="flex gap-2 pt-1">

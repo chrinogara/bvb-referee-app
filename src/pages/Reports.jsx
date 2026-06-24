@@ -50,6 +50,7 @@ import {
 } from '../lib/pdf'
 import { refereeDayDigest, refereeEvolution, refereeTournamentAdvice } from '../lib/report'
 import { translateToEnglish, lookupRuleReference } from '../lib/anthropic'
+import { LEGEND_ORDER, LEGEND_DEFAULTS, readLegendOverrides, saveLegend, resetLegend } from '../lib/criteriaLegend'
 import { shareDayDigestToReferee, shareTournamentDigestToReferee } from '../lib/whatsapp'
 
 // ─── Per-referee digest panels (evening day + end of tournament) ──────────────
@@ -599,6 +600,44 @@ function DayReportPanel({ tournament }) {
           </>
         )}
       </CardBody>
+    </Card>
+  )
+}
+
+// ─── Score abbreviations legend editor (localStorage, applies to all PDFs) ─────
+function LegendEditor() {
+  const [open, setOpen] = useState(false)
+  const [vals, setVals] = useState(() => readLegendOverrides())
+  function setVal(k, v) { setVals((p) => ({ ...p, [k]: v })) }
+  function save() {
+    const clean = {}
+    for (const k of LEGEND_ORDER) { const v = (vals[k] || '').trim(); if (v) clean[k] = v }
+    saveLegend(clean)
+    toast.success('Legend saved')
+  }
+  function reset() { resetLegend(); setVals(readLegendOverrides()); toast.success('Legend reset to defaults') }
+  return (
+    <Card>
+      <button onClick={() => setOpen((o) => !o)} className="w-full flex items-center justify-between px-4 py-3 text-left">
+        <span className="flex items-center gap-2 text-sm font-semibold text-gray-900"><Pencil size={14} /> Score abbreviations (legend)</span>
+        {open ? <ChevronUp size={16} className="text-gray-400" /> : <ChevronDown size={16} className="text-gray-400" />}
+      </button>
+      {open && (
+        <CardBody className="space-y-2 pt-0">
+          <p className="text-xs text-gray-500">Printed at the bottom of every referee PDF. Leave a field blank to keep the default. Applies to all tournaments.</p>
+          {LEGEND_ORDER.map((k) => (
+            <div key={k} className="flex items-center gap-2">
+              <span className="w-12 shrink-0 text-xs font-bold text-[#2D3270]">{k}</span>
+              <input value={vals[k] || ''} onChange={(e) => setVal(k, e.target.value)} placeholder={LEGEND_DEFAULTS[k]}
+                className="flex-1 text-sm rounded-lg border border-gray-300 px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-amber-300" />
+            </div>
+          ))}
+          <div className="flex gap-2 pt-1">
+            <Button variant="primary" size="sm" onClick={save}>Save</Button>
+            <Button variant="outline" size="sm" onClick={reset}>Reset to defaults</Button>
+          </div>
+        </CardBody>
+      )}
     </Card>
   )
 }
@@ -1240,7 +1279,10 @@ export default function Reports() {
             ) : loadingEvals ? (
               <div className="h-24 bg-gray-50 rounded-xl animate-pulse" />
             ) : (
-              <DigestPanel tournament={tournaments.find((t) => t.id === selectedTournamentId)} evals={tournamentEvals} />
+              <div className="space-y-4">
+                <LegendEditor />
+                <DigestPanel tournament={tournaments.find((t) => t.id === selectedTournamentId)} evals={tournamentEvals} />
+              </div>
             )}
           </>
         )}

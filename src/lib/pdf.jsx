@@ -11,6 +11,7 @@ import {
 import { formatDate, formatDateTime, refereeName } from './utils'
 import { CRITERIA, getGrade } from './scoring'
 import { BBT_LOGO } from './logo'
+import { readLegend, LEGEND_ORDER } from './criteriaLegend'
 import { translateFieldsToEnglish, translateToEnglishSafe } from './anthropic'
 
 const NAVY = '#2D3270'
@@ -1341,6 +1342,30 @@ import { DIGEST_CRITERIA } from './report'
 
 const CRIT_SHORT = { positioning: 'POS', signals: 'SIG', attitude: 'ATT', captain_comm: 'CAP', presentation: 'PRE' }
 
+// Legenda delle sigle dei punteggi, stampata in fondo ai PDF di valutazione
+const legendStyles = StyleSheet.create({
+  box: { marginTop: 12, paddingTop: 8, borderTopWidth: 1, borderTopColor: '#E5E7EB' },
+  title: { fontSize: 8.5, fontFamily: 'Helvetica-Bold', color: MED_GRAY, textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 4 },
+  row: { flexDirection: 'row', marginBottom: 1.5 },
+  abbr: { width: 46, fontSize: 8.5, fontFamily: 'Helvetica-Bold', color: NAVY },
+  desc: { flex: 1, fontSize: 8.5, color: MED_GRAY },
+})
+
+function CriteriaLegend() {
+  const L = readLegend()
+  return (
+    <View style={legendStyles.box} wrap={false}>
+      <Text style={legendStyles.title}>Score abbreviations</Text>
+      {LEGEND_ORDER.map((k) => (
+        <View key={k} style={legendStyles.row}>
+          <Text style={legendStyles.abbr}>{k}</Text>
+          <Text style={legendStyles.desc}>{L[k]}</Text>
+        </View>
+      ))}
+    </View>
+  )
+}
+
 function fmt(n) { return n == null ? '—' : Number(n).toFixed(1) }
 function signed(n) { return n == null ? '—' : (n > 0 ? `+${n.toFixed(1)}` : n.toFixed(1)) }
 function trendWord(n) { if (n == null) return ''; if (n >= 0.3) return 'improving'; if (n <= -0.3) return 'declining'; return 'stable' }
@@ -1451,6 +1476,8 @@ function RefereeDayDigestDocument({ referee, tournament, dayNumber, digest, coac
           </View>
         ) : null}
 
+        <CriteriaLegend />
+
         <View style={reportStyles.footer} fixed>
           <Text>BVB Referee Coach · Day {dayNumber} digest · {refereeName(referee)}</Text>
           <Text>Generated {formatDateTime(new Date())}</Text>
@@ -1531,6 +1558,8 @@ function RefereeTournamentDigestDocument({ referee, tournament, evolution, advic
           </View>
         ) : null}
 
+        <CriteriaLegend />
+
         <View style={reportStyles.footer} fixed>
           <Text>BVB Referee Coach · Tournament evaluation · {refereeName(referee)}</Text>
           <Text>Generated {formatDateTime(new Date())}</Text>
@@ -1584,6 +1613,8 @@ function RefereeMultiDayDigestDocument({ referee, tournament, dayDigests }) {
             ) : null}
           </View>
         ))}
+
+        <CriteriaLegend />
 
         <View style={reportStyles.footer} fixed>
           <Text>BVB Referee Coach · Full evaluation report · {refereeName(referee)}</Text>

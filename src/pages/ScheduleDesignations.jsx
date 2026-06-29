@@ -9,7 +9,7 @@ import { useTournamentRanking } from '../hooks/useRanking'
 import { matchService, attendanceService, designationService } from '../lib/supabase'
 import { trackSave } from '../lib/saveTracker'
 import { autoAssignSchedule, autoAssignSlot, findSlotConflicts, needsTwoRefs } from '../lib/scheduleAssign'
-import { ensureWolvertemReferees } from '../lib/wolvertemSetup'
+import { ensureWolvertemReferees, loadWolvertemMatches, computeWolvertemRefCount } from '../lib/wolvertemSetup'
 import { shareScheduleGeneral, shareSlotSchedule, shareRefereeSchedule } from '../lib/whatsapp'
 import { refereeName } from '../lib/utils'
 
@@ -57,10 +57,13 @@ export default function ScheduleDesignations() {
   const [day, setDay] = useState(null)
   useEffect(() => { if (days.length && !days.includes(day)) setDay(days[days.length - 1]) }, [days]) // eslint-disable-line
 
-  const matches = useMemo(
-    () => allMatches.filter((m) => (m.day_number || 1) === day).sort(byTime),
-    [allMatches, day]
-  )
+  const matches = useMemo(() => {
+    const wolv = /wolvertem/i.test(tournament?.name || '')
+    return allMatches
+      .filter((m) => (m.day_number || 1) === day)
+      .map((m) => (m.referees_needed != null ? m : (wolv ? { ...m, referees_needed: computeWolvertemRefCount(m) } : m)))
+      .sort(byTime)
+  }, [allMatches, day, tournament])
   const dayNeedsRefs = useMemo(() => matches.some((m) => m.referees_needed !== 0), [matches])
 
   // ── Referees + presence ──────────────────────────────────────────────────────
@@ -80,7 +83,7 @@ export default function ScheduleDesignations() {
   const usingPresent = presentRefs.length > 0
   const roster = usingPresent ? presentRefs : allRefs
   const isWolvertem = /wolvertem/i.test(tournament?.name || '')
-  const needsRefFix = isWolvertem && (allRefs.length < 6 || allRefs.some((r) => !r.phone))
+  const needsSetup = isWolvertem && (allRefs.length < 6 || allMatches.length === 0)
 
   const avgById = useMemo(() => {
     const m = {}; (ranking || []).forEach((r) => { m[r.id] = r.avg_score ?? -1 }); return m
@@ -135,9 +138,10 @@ export default function ScheduleDesignations() {
     if (!tournamentId) return
     setFixing(true)
     try {
-      const { linked, created } = await ensureWolvertemReferees(tournamentId)
-      await loadAtt()
-      toast.success(`Arbitri sistemati: ${linked} collegati${created ? `, ${created} creati` : ''}`)
+      const { linked } = await ensureWolvertemReferees(tournamentId)
+      const added = await loadWolvertemMatches(tournamentId)
+      await Promise.all([loadAtt(), loadMatches()])
+      toast.success(`Wolvertem pronto: ${linked} arbitri${added ? `, ${added} partite caricate` : ''}`)
     } catch (e) { toast.error('Errore: ' + (e?.message || '')) } finally { setFixing(false) }
   }
   async function generate() {
@@ -288,10 +292,10 @@ export default function ScheduleDesignations() {
         </div>
 
         <div className="max-w-2xl mx-auto px-4 py-4 space-y-4">
-          {needsRefFix && (
+          {needsSetup && (
             <div className="flex flex-col sm:flex-row sm:items-center gap-2 p-3 rounded-xl bg-amber-50 border border-amber-300 text-amber-800 text-sm">
               <div className="flex-1 flex items-center gap-2">
-                <AlertTriangle size={16} /> Mancano arbitri o numeri a Wolvertem. Tocca per aggiungere i 6 arbitri con i loro numeri WhatsApp.
+                <AlertTriangle size={16} /> Configurazione Wolvertem incompleta. Tocca per caricare i 6 arbitri (con numeri WhatsApp) e le partite di sabato e domenica.
               </div>
               <button
                 onClick={fixWolvertem}
@@ -299,7 +303,7 @@ export default function ScheduleDesignations() {
                 className="shrink-0 inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
                 style={{ background: ORANGE }}
               >
-                <Users size={16} /> {fixing ? 'Sistemo…' : 'Sistema i 6 arbitri'}
+                <Users size={16} /> {fixing ? 'Configuro…' : 'Configura Wolvertem'}
               </button>
             </div>
           )}

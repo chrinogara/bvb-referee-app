@@ -21,6 +21,7 @@ function genLabel(m) { return m.gender === 'M' ? 'Heren' : 'Dames' }
 function matchTag(m) { return `${serShort(m)} ${genLabel(m)} ${m.round || ''}`.trim() }
 // 2 arbitri (R1 + R2): tutte le finali (PRO e Challenge) + le semifinali PRO
 function needsTwoRefs(m) {
+  if (m.referees_needed != null) return m.referees_needed >= 2
   return !!m.is_final || (m.series === 'PRO' && /semi/i.test(m.round || ''))
 }
 function hhmm(t) {

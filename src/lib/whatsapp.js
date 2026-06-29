@@ -78,24 +78,24 @@ export async function shareToWhatsApp(message) {
 }
 
 /**
- * Open WhatsApp directed to a specific phone number.
- * On mobile: uses navigator.share() — no encoding issues.
- * On desktop: opens wa.me/<phone> URL.
+ * Open WhatsApp directed to a specific phone number (opens the referee's personal chat).
+ * Always uses wa.me/<phone> — navigator.share() cannot target a specific contact.
+ * On iOS Safari uses location.href to ensure the WhatsApp deep link opens correctly.
  */
-export async function shareToWhatsAppPhone(phone, message) {
-  if (navigator.share) {
-    try {
-      await navigator.share({ text: message })
-      return
-    } catch (err) {
-      if (err?.name === 'AbortError') return
-    }
-  }
+export function shareToWhatsAppPhone(phone, message) {
   const p = normalizePhone(phone)
-  const url = p
-    ? `https://wa.me/${p}?text=${encodeURIComponent(message)}`
-    : `https://wa.me/?text=${encodeURIComponent(message)}`
-  window.open(url, '_blank', 'noopener,noreferrer')
+  if (!p) {
+    shareToWhatsApp(message)
+    return
+  }
+  const url = `https://wa.me/${p}?text=${encodeURIComponent(message)}`
+  // iOS Safari handles wa.me deep links better with location.href than window.open
+  const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent)
+  if (isIOS) {
+    window.location.href = url
+  } else {
+    window.open(url, '_blank', 'noopener,noreferrer')
+  }
 }
 
 /** Copy message to clipboard. */
@@ -158,7 +158,7 @@ export function buildEvaluationMessage({ referee, evaluation, tournament, lang =
 /** Open WhatsApp with an evaluation pre-filled, addressed to the referee's phone. */
 export async function shareEvaluationToReferee({ referee, evaluation, tournament, lang = 'en' }) {
   const msg = buildEvaluationMessage({ referee, evaluation, tournament, lang })
-  await shareToWhatsAppPhone(referee?.phone, msg)
+  shareToWhatsAppPhone(referee?.phone, msg)
 }
 
 /** Build a per-referee personalized assignments message (DM). */
@@ -218,7 +218,7 @@ export function buildPersonalMessage({ referee, tournament, dayNumber, assignmen
 /** Open WhatsApp with a referee's personal assignments, addressed to their phone. */
 export async function sharePersonalToReferee({ referee, tournament, dayNumber, assignments, lang = 'en', rounds = null }) {
   const msg = buildPersonalMessage({ referee, tournament, dayNumber, assignments, lang, rounds })
-  await shareToWhatsAppPhone(referee?.phone, msg)
+  shareToWhatsAppPhone(referee?.phone, msg)
 }
 
 // ─── Per-referee digests (evening day + end of tournament) ───────────────────
@@ -274,12 +274,12 @@ export function buildTournamentDigestMessage({ referee, tournament, evolution, a
 
 export async function shareDayDigestToReferee(args) {
   const msg = buildDayDigestMessage(args)
-  await shareToWhatsAppPhone(args.referee?.phone, msg)
+  shareToWhatsAppPhone(args.referee?.phone, msg)
 }
 
 export async function shareTournamentDigestToReferee(args) {
   const msg = buildTournamentDigestMessage(args)
-  await shareToWhatsAppPhone(args.referee?.phone, msg)
+  shareToWhatsAppPhone(args.referee?.phone, msg)
 }
 
 // ─── Schedule-based designations (finals/bracket day) ─────────────────────────
@@ -359,7 +359,7 @@ export async function shareSlotSchedule(args) {
 /** Send one slot/group's designations to a specific phone (tournament manager). */
 export async function shareSlotScheduleToPhone(args, phone) {
   const msg = buildSlotScheduleMessage(args)
-  await shareToWhatsAppPhone(phone, msg)
+  shareToWhatsAppPhone(phone, msg)
 }
 
 export async function shareScheduleGeneral(args) {
@@ -367,5 +367,5 @@ export async function shareScheduleGeneral(args) {
 }
 export async function shareRefereeSchedule(args) {
   const msg = buildRefereeScheduleMessage(args)
-  await shareToWhatsAppPhone(args.referee?.phone, msg)
+  shareToWhatsAppPhone(args.referee?.phone, msg)
 }

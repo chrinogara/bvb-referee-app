@@ -624,25 +624,38 @@ export default function Evaluate() {
     let alive = true
     if (!tournamentId || !dayNumber) { setSchedMatches([]); setSchedAssign({}); return }
     setLoadingSched(true)
-    Promise.all([
-      matchService.getByTournament(tournamentId),
-      designationService.getByTournament(tournamentId),
-    ])
-      .then(([mRes, dRes]) => {
+    ;(async () => {
+      try {
+        // 1. Carica tutte le gare del torneo
+        const mRes = await matchService.getByTournament(tournamentId)
         if (!alive) return
-        const mts = (mRes.data || [])
-          .filter((m) => (m.day_number || 1) === dayNumber)
+        const allMatches = mRes.data || []
+        const mts = allMatches
+          .filter((m) => Number(m.day_number || 1) === Number(dayNumber))
           .sort((a, b) => (a.scheduled_time || '').localeCompare(b.scheduled_time || '') || (a.match_number || 0) - (b.match_number || 0))
         setSchedMatches(mts)
+
+        // 2. Carica le designazioni del torneo
+        const dRes = await designationService.getByTournament(tournamentId)
+        if (!alive) return
+        const desigs = dRes.data || []
+
+        // 3. Costruisce la mappa match_id → {referee_id, referee} solo per R1
         const map = {}
-        for (const d of dRes.data || []) {
-          if (d.role && d.role !== 'R1') continue
+        for (const d of desigs) {
+          if (!d.match_id || !d.referee_id) continue
+          // Includi sia R1 esplicito sia righe senza role (vecchi record)
+          if (d.role === 'R2') continue
           map[d.match_id] = { referee_id: d.referee_id, referee: d.referees || null }
         }
         setSchedAssign(map)
-      })
-      .catch(() => { if (alive) { setSchedMatches([]); setSchedAssign({}) } })
-      .finally(() => { if (alive) setLoadingSched(false) })
+      } catch (err) {
+        console.error('[By game] load error:', err)
+        if (alive) { setSchedMatches([]); setSchedAssign({}) }
+      } finally {
+        if (alive) setLoadingSched(false)
+      }
+    })()
     return () => { alive = false }
   }, [tournamentId, dayNumber])
 
@@ -1039,7 +1052,15 @@ export default function Evaluate() {
                   ) : loadingSched ? (
                     <p className="text-xs text-gray-400">Loading games…</p>
                   ) : designatedGames.length === 0 ? (
-                    <p className="text-xs text-gray-500">No designated games for this day yet. Assign referees in Schedule, or use By round / Manual.</p>
+                    <div className="text-xs text-gray-500 space-y-1">
+                      <p>No designated games for Day {dayNumber}.</p>
+                      {schedMatches.length > 0 && Object.keys(schedAssign).length === 0 && (
+                        <p className="text-orange-500">Found {schedMatches.length} games but no referee assignments yet — assign referees in Schedule first.</p>
+                      )}
+                      {schedMatches.length === 0 && (
+                        <p className="text-orange-500">No games found for Day {dayNumber}.</p>
+                      )}
+                    </div>
                   ) : (
                     <div className="flex flex-col gap-1">
                       <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">

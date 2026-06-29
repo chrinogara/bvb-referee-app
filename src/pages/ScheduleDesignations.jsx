@@ -8,7 +8,7 @@ import { useTournaments } from '../hooks/useTournaments'
 import { useTournamentRanking } from '../hooks/useRanking'
 import { matchService, attendanceService, designationService } from '../lib/supabase'
 import { trackSave } from '../lib/saveTracker'
-import { autoAssignSchedule, autoAssignSlot, findSlotConflicts } from '../lib/scheduleAssign'
+import { autoAssignSchedule, autoAssignSlot, findSlotConflicts, needsTwoRefs } from '../lib/scheduleAssign'
 import { shareScheduleGeneral, shareSlotSchedule, shareRefereeSchedule } from '../lib/whatsapp'
 import { refereeName } from '../lib/utils'
 
@@ -19,11 +19,6 @@ const SECTION = 1
 function serShort(m) { return m.series === 'PRO' ? 'PRO' : 'CH' }
 function genLabel(m) { return m.gender === 'M' ? 'Heren' : 'Dames' }
 function matchTag(m) { return `${serShort(m)} ${genLabel(m)} ${m.round || ''}`.trim() }
-// 2 arbitri (R1 + R2): tutte le finali (PRO e Challenge) + le semifinali PRO
-function needsTwoRefs(m) {
-  if (m.referees_needed != null) return m.referees_needed >= 2
-  return !!m.is_final || (m.series === 'PRO' && /semi/i.test(m.round || ''))
-}
 function hhmm(t) {
   if (!t) return '—'
   try { return new Date(t).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' }) }
@@ -137,11 +132,16 @@ export default function ScheduleDesignations() {
     if (!rankedRoster.length) { toast.error('Nessun arbitro disponibile'); return }
     setBusy(true)
     try {
-      const a = autoAssignSchedule(matches, rankedRoster)
-      const rows = matches.filter((m) => a[m.id]).map((m) => ({ match_id: m.id, referee_id: a[m.id], role: 'R1' }))
+      const { r1, r2 } = autoAssignSchedule(matches, rankedRoster)
+      const rows = []
+      matches.forEach((m) => {
+        if (r1[m.id]) rows.push({ match_id: m.id, referee_id: r1[m.id], role: 'R1' })
+        if (r2[m.id]) rows.push({ match_id: m.id, referee_id: r2[m.id], role: 'R2' })
+      })
       await trackSave(() => Promise.all(rows.map((row) => designationService.upsert(row))))
-      setAssignMap(a)
-      toast.success(`Designazioni generate (${rows.length} partite)`)
+      setAssignMap(r1); setAssignR2(r2)
+      const two = Object.keys(r2).length
+      toast.success(`Designazioni generate (${Object.keys(r1).length} partite${two ? `, ${two} con 2° arbitro` : ''})`)
     } catch (e) { toast.error('Errore: ' + (e?.message || '')) } finally { setBusy(false) }
   }
 
@@ -151,10 +151,15 @@ export default function ScheduleDesignations() {
     if (!slotMatches.length) return
     setSlotBusy(slotKey)
     try {
-      const a = autoAssignSlot(matches, slotKey, rankedRoster, assignMap)
-      const rows = slotMatches.filter((m) => a[m.id]).map((m) => ({ match_id: m.id, referee_id: a[m.id], role: 'R1' }))
+      const { r1, r2 } = autoAssignSlot(matches, slotKey, rankedRoster, assignMap, assignR2)
+      const rows = []
+      slotMatches.forEach((m) => {
+        if (r1[m.id]) rows.push({ match_id: m.id, referee_id: r1[m.id], role: 'R1' })
+        if (r2[m.id]) rows.push({ match_id: m.id, referee_id: r2[m.id], role: 'R2' })
+      })
       await trackSave(() => Promise.all(rows.map((row) => designationService.upsert(row))))
-      setAssignMap((prev) => ({ ...prev, ...a }))
+      setAssignMap((prev) => ({ ...prev, ...r1 }))
+      setAssignR2((prev) => ({ ...prev, ...r2 }))
       toast.success(`Fascia ${hhmm(slotMatches[0].scheduled_time)} · ${rows.length} designazioni`)
     } catch (e) { toast.error('Errore: ' + (e?.message || '')) } finally { setSlotBusy(null) }
   }

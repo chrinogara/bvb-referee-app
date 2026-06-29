@@ -265,27 +265,27 @@ export function shareTournamentDigestToReferee(args) {
 // ─── Schedule-based designations (finals/bracket day) ─────────────────────────
 // Helpers
 function _serShort(m) { return m.series === 'PRO' ? 'PRO' : 'CH' }
-function _genLabel(m) { return m.gender === 'M' ? 'Heren' : 'Dames' }
+function _genLabel(m) { return m.gender === 'M' ? 'Men' : 'Women' }
 function _matchTag(m) { return `${_serShort(m)} ${_genLabel(m)} ${m.round || ''}`.trim() }
 function _hhmm(t) {
   if (!t) return ''
-  try { return new Date(t).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' }) }
+  try { return new Date(t).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' }) }
   catch { return String(t).slice(11, 16) }
 }
 
 /** General broadcast: full day designations grouped by time slot. */
 export function buildScheduleGeneralMessage({ tournamentName, dayLabel, matches, refNameById, ref2NameById }) {
   const L = []
-  L.push(`🏐 *${tournamentName || 'Torneo'} — ${dayLabel || ''}*`.trim())
-  L.push('_Assignments_')
+  L.push(`📋 *${tournamentName || 'Tournament'} — ${dayLabel || ''}*`.trim())
+  L.push('_Match assignments_')
   let curr = null
   for (const m of matches) {
     const t = _hhmm(m.scheduled_time)
-    if (t !== curr) { curr = t; L.push(''); L.push(`*${t}*`) }
-    const star = m.is_final ? '🏆 ' : ''
+    if (t !== curr) { curr = t; L.push(''); L.push(`⏰ *${t}*`) }
+    const icon = m.is_final ? '🏆' : '🏐'
     const ref = refNameById[m.id] || '—'
     const ref2 = ref2NameById && ref2NameById[m.id]
-    const head = `${star}C${m.court} · #${m.match_number} ${_matchTag(m)}`
+    const head = `${icon} Court ${m.court} · #${m.match_number} ${_matchTag(m)}`
     L.push(ref2 ? `${head} → R1: *${ref}* · R2: *${ref2}*` : `${head} → *${ref}*`)
   }
   L.push('')
@@ -298,16 +298,16 @@ export function buildScheduleGeneralMessage({ tournamentName, dayLabel, matches,
 export function buildRefereeScheduleMessage({ referee, tournamentName, dayLabel, matches }) {
   const name = referee?.first_name || ''
   const L = []
-  L.push(`🏐 *${tournamentName || 'Torneo'} — ${dayLabel || ''}*`.trim())
-  L.push(`Ciao *${name}*, ecco le tue partite:`.trim())
+  L.push(`📋 *${tournamentName || 'Tournament'} — ${dayLabel || ''}*`.trim())
+  L.push(`Hi *${name}*, here are your matches:`.trim())
   L.push('')
   for (const m of matches) {
-    const star = m.is_final ? '🏆 ' : '⏰ '
-    const roleP = m._role ? ` · _${m._role}${m._partner ? ` con ${m._partner}` : ''}_` : ''
-    L.push(`${star}*${_hhmm(m.scheduled_time)}* — Campo ${m.court} · #${m.match_number} ${_matchTag(m)}${roleP}`)
+    const icon = m.is_final ? '🏆' : '🏐'
+    const roleP = m._role ? ` · _${m._role}${m._partner ? ` with ${m._partner}` : ''}_` : ''
+    L.push(`${icon} *${_hhmm(m.scheduled_time)}* · Court ${m.court} · #${m.match_number} ${_matchTag(m)}${roleP}`)
   }
   L.push('')
-  L.push(`Totale: *${matches.length}* partit${matches.length === 1 ? 'a' : 'e'}.`)
+  L.push(`Total: *${matches.length}* match${matches.length === 1 ? '' : 'es'}.`)
   L.push('Christian Nogara')
   L.push('CEV Referee Coach')
   return L.join('\n')
@@ -316,14 +316,14 @@ export function buildRefereeScheduleMessage({ referee, tournamentName, dayLabel,
 /** Message for a SINGLE time slot: only the matches starting at that time. */
 export function buildSlotScheduleMessage({ tournamentName, dayLabel, slotTime, matches, refNameById, ref2NameById }) {
   const L = []
-  L.push(`🏐 *${tournamentName || 'Torneo'} — ${dayLabel || ''}*`.trim())
-  L.push(`_Assignments · ${_hhmm(slotTime)}_`)
+  L.push(`📋 *${tournamentName || 'Tournament'} — ${dayLabel || ''}*`.trim())
+  L.push(`_Match assignments · ${_hhmm(slotTime)}_`)
   L.push('')
   for (const m of matches) {
-    const star = m.is_final ? '🏆 ' : ''
+    const icon = m.is_final ? '🏆' : '🏐'
     const ref = (refNameById && refNameById[m.id]) || '—'
     const ref2 = ref2NameById && ref2NameById[m.id]
-    const head = `${star}C${m.court} · #${m.match_number} ${_matchTag(m)}`
+    const head = `${icon} Court ${m.court} · #${m.match_number} ${_matchTag(m)}`
     L.push(ref2 ? `${head} → R1: *${ref}* · R2: *${ref2}*` : `${head} → *${ref}*`)
   }
   L.push('')

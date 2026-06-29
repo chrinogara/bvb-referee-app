@@ -78,11 +78,20 @@ export const designationService = {
       .select('*, referees(*)')
       .eq('match_id', matchId),
 
-  getByTournament: (tournamentId) =>
-    supabase
+  getByTournament: async (tournamentId) => {
+    // Prima prendo i match_id del torneo, poi filtro le designazioni
+    const { data: mRows, error: mErr } = await supabase
+      .from('matches')
+      .select('id')
+      .eq('tournament_id', tournamentId)
+    if (mErr) return { data: [], error: mErr }
+    const ids = (mRows || []).map((m) => m.id)
+    if (!ids.length) return { data: [], error: null }
+    return supabase
       .from('designations')
       .select('*, referees(*), matches(*)')
-      .eq('matches.tournament_id', tournamentId),
+      .in('match_id', ids)
+  },
 
   upsert: (data) =>
     supabase

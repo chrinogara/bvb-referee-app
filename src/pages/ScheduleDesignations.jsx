@@ -65,6 +65,7 @@ export default function ScheduleDesignations() {
     () => allMatches.filter((m) => (m.day_number || 1) === day).sort(byTime),
     [allMatches, day]
   )
+  const dayNeedsRefs = useMemo(() => matches.some((m) => m.referees_needed !== 0), [matches])
 
   // ── Referees + presence ──────────────────────────────────────────────────────
   const [attRows, setAttRows] = useState([])
@@ -270,6 +271,11 @@ export default function ScheduleDesignations() {
 
         <div className="max-w-2xl mx-auto px-4 py-4 space-y-4">
           {/* Actions */}
+          {!dayNeedsRefs ? (
+            <div className="flex items-center gap-2 p-3 rounded-xl bg-gray-50 border border-gray-200 text-gray-500 text-sm">
+              <Users size={16} /> Giornata auto-arbitrata — nessuna designazione richiesta.
+            </div>
+          ) : (
           <div className="flex flex-wrap gap-2">
             <button
               onClick={generate}
@@ -294,6 +300,7 @@ export default function ScheduleDesignations() {
               <RotateCcw size={16} /> {confirmReset ? 'Confermi? Azzera' : 'Reset designazioni'}
             </button>
           </div>
+          )}
 
           {conflicts.size > 0 && (
             <div className="flex items-center gap-2 p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm">

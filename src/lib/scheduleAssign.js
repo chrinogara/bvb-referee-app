@@ -20,6 +20,7 @@ function finalPrestige(m) {
  * @returns {Object} map matchId -> refereeId (matches with no available ref are omitted)
  */
 export function autoAssignSchedule(matches, presentRanked, maxConsec = MAX_CONSEC) {
+  matches = matches.filter((m) => m.referees_needed !== 0) // skip self-refereed matches
   const refIds = presentRanked.map((r) => r.id)
   if (refIds.length === 0) return {}
   const rankIndex = {}; presentRanked.forEach((r, i) => { rankIndex[r.id] = i })
@@ -91,6 +92,7 @@ export function autoAssignSchedule(matches, presentRanked, maxConsec = MAX_CONSE
  * @returns {Object} map matchId -> refereeId for the matches of THIS slot only
  */
 export function autoAssignSlot(allMatches, slotKey, presentRanked, existingAssign = {}, maxConsec = MAX_CONSEC) {
+  allMatches = allMatches.filter((m) => m.referees_needed !== 0) // skip self-refereed matches
   const refIds = presentRanked.map((r) => r.id)
   if (refIds.length === 0) return {}
   const rankIndex = {}; presentRanked.forEach((r, i) => { rankIndex[r.id] = i })

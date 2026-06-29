@@ -9,6 +9,7 @@ import { useTournamentRanking } from '../hooks/useRanking'
 import { matchService, attendanceService, designationService } from '../lib/supabase'
 import { trackSave } from '../lib/saveTracker'
 import { autoAssignSchedule, autoAssignSlot, findSlotConflicts, needsTwoRefs } from '../lib/scheduleAssign'
+import { ensureWolvertemReferees } from '../lib/wolvertemSetup'
 import { shareScheduleGeneral, shareSlotSchedule, shareRefereeSchedule } from '../lib/whatsapp'
 import { refereeName } from '../lib/utils'
 
@@ -78,6 +79,8 @@ export default function ScheduleDesignations() {
   }, [attRows, day])
   const usingPresent = presentRefs.length > 0
   const roster = usingPresent ? presentRefs : allRefs
+  const isWolvertem = /wolvertem/i.test(tournament?.name || '')
+  const needsRefFix = isWolvertem && (allRefs.length < 6 || allRefs.some((r) => !r.phone))
 
   const avgById = useMemo(() => {
     const m = {}; (ranking || []).forEach((r) => { m[r.id] = r.avg_score ?? -1 }); return m
@@ -127,6 +130,16 @@ export default function ScheduleDesignations() {
   // ── Actions ──────────────────────────────────────────────────────────────────
   const [busy, setBusy] = useState(false)
   const [slotBusy, setSlotBusy] = useState(null)
+  const [fixing, setFixing] = useState(false)
+  async function fixWolvertem() {
+    if (!tournamentId) return
+    setFixing(true)
+    try {
+      const { linked, created } = await ensureWolvertemReferees(tournamentId)
+      await loadAtt()
+      toast.success(`Arbitri sistemati: ${linked} collegati${created ? `, ${created} creati` : ''}`)
+    } catch (e) { toast.error('Errore: ' + (e?.message || '')) } finally { setFixing(false) }
+  }
   async function generate() {
     if (!matches.length) { toast.error('Nessuna partita per questa giornata — carica prima il calendario'); return }
     if (!rankedRoster.length) { toast.error('Nessun arbitro disponibile'); return }
@@ -275,6 +288,22 @@ export default function ScheduleDesignations() {
         </div>
 
         <div className="max-w-2xl mx-auto px-4 py-4 space-y-4">
+          {needsRefFix && (
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2 p-3 rounded-xl bg-amber-50 border border-amber-300 text-amber-800 text-sm">
+              <div className="flex-1 flex items-center gap-2">
+                <AlertTriangle size={16} /> Mancano arbitri o numeri a Wolvertem. Tocca per aggiungere i 6 arbitri con i loro numeri WhatsApp.
+              </div>
+              <button
+                onClick={fixWolvertem}
+                disabled={fixing}
+                className="shrink-0 inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
+                style={{ background: ORANGE }}
+              >
+                <Users size={16} /> {fixing ? 'Sistemo…' : 'Sistema i 6 arbitri'}
+              </button>
+            </div>
+          )}
+
           {/* Actions */}
           {!dayNeedsRefs ? (
             <div className="flex items-center gap-2 p-3 rounded-xl bg-gray-50 border border-gray-200 text-gray-500 text-sm">

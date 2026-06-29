@@ -336,6 +336,14 @@ export function shareSlotSchedule(args) {
   shareToWhatsApp(buildSlotScheduleMessage(args))
 }
 
+/** Send one slot/group's designations to a specific phone (tournament manager). */
+export function shareSlotScheduleToPhone(args, phone) {
+  const msg = buildSlotScheduleMessage(args)
+  const p = normalizePhone(phone)
+  if (p) window.open(`https://wa.me/${p}?text=${encodeURIComponent(msg)}`, '_blank', 'noopener,noreferrer')
+  else shareToWhatsApp(msg)
+}
+
 export function shareScheduleGeneral(args) {
   shareToWhatsApp(buildScheduleGeneralMessage(args))
 }

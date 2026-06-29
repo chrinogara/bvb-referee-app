@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
-import { CalendarRange, Wand2, MessageCircle, Trophy, AlertTriangle, Users, RotateCcw } from 'lucide-react'
+import { CalendarRange, Wand2, MessageCircle, Trophy, AlertTriangle, Users, RotateCcw, Send } from 'lucide-react'
 
 import { Header } from '../components/layout/Header'
 import { toast } from '../components/ui/Toast'
@@ -10,7 +10,7 @@ import { matchService, attendanceService, designationService } from '../lib/supa
 import { trackSave } from '../lib/saveTracker'
 import { autoAssignSchedule, autoAssignSlot, findSlotConflicts, needsTwoRefs } from '../lib/scheduleAssign'
 import { ensureWolvertemReferees, loadWolvertemMatches, computeWolvertemRefCount } from '../lib/wolvertemSetup'
-import { shareScheduleGeneral, shareSlotSchedule, shareRefereeSchedule } from '../lib/whatsapp'
+import { shareScheduleGeneral, shareSlotSchedule, shareRefereeSchedule, shareSlotScheduleToPhone } from '../lib/whatsapp'
 import { refereeName } from '../lib/utils'
 
 const NAVY = '#2D3270'
@@ -31,12 +31,19 @@ function byTime(a, b) {
   return (a.match_number || 0) - (b.match_number || 0)
 }
 
+// Tournament manager phone (per tournament, saved on device)
+function managerKey(tid) { return `bvbManagerPhone:${tid}` }
+function getManagerPhone(tid) { try { return (tid && localStorage.getItem(managerKey(tid))) || '' } catch { return '' } }
+function setManagerPhoneLS(tid, v) { try { localStorage.setItem(managerKey(tid), v || '') } catch { /* ignore */ } }
+
 export default function ScheduleDesignations() {
   const { tournaments } = useTournaments()
   const [tournamentId, setTournamentId] = useState('')
   useEffect(() => { if (!tournamentId && tournaments[0]) setTournamentId(tournaments[0].id) }, [tournaments]) // eslint-disable-line
   const tournament = tournaments.find((t) => t.id === tournamentId)
   const { ranking } = useTournamentRanking(tournamentId)
+  const [managerPhone, setManagerPhone] = useState('')
+  useEffect(() => { setManagerPhone(getManagerPhone(tournamentId)) }, [tournamentId])
 
   // ── Matches ────────────────────────────────────────────────────────────────
   const [allMatches, setAllMatches] = useState([])
@@ -224,6 +231,16 @@ export default function ScheduleDesignations() {
     if (!slot?.items?.length) return
     shareSlotSchedule({ tournamentName: tournament?.name, dayLabel: `Day ${day}`, slotTime: slot.time, matches: slot.items, refNameById, ref2NameById })
   }
+  function sendSlotToManager(slot) {
+    if (!slot?.items?.length) return
+    let phone = managerPhone
+    if (!phone) {
+      const v = window.prompt('Numero WhatsApp del responsabile del torneo (es. +32...)')
+      if (!v || !v.trim()) return
+      phone = v.trim(); setManagerPhone(phone); setManagerPhoneLS(tournamentId, phone)
+    }
+    shareSlotScheduleToPhone({ tournamentName: tournament?.name, dayLabel: `Day ${day}`, slotTime: slot.time, matches: slot.items, refNameById, ref2NameById }, phone)
+  }
   function sendIndividual(ref) {
     const mine = matches
       .filter((m) => assignMap[m.id] === ref.id || assignR2[m.id] === ref.id)
@@ -340,6 +357,27 @@ export default function ScheduleDesignations() {
           </div>
           )}
 
+          {dayNeedsRefs && (
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2 p-3 rounded-xl bg-gray-50 border border-gray-200">
+              <div className="flex items-center gap-1.5 text-sm font-semibold text-gray-700 shrink-0">
+                <Send size={14} /> Responsabile torneo
+              </div>
+              <input
+                value={managerPhone}
+                onChange={(e) => setManagerPhone(e.target.value)}
+                placeholder="+32… (numero WhatsApp)"
+                className="flex-1 text-sm rounded-lg border border-gray-300 px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-amber-300"
+              />
+              <button
+                onClick={() => { setManagerPhoneLS(tournamentId, managerPhone.trim()); setManagerPhone(managerPhone.trim()); toast.success(managerPhone.trim() ? 'Numero responsabile salvato' : 'Numero rimosso') }}
+                className="shrink-0 inline-flex items-center justify-center gap-1 rounded-lg px-3 py-1.5 text-sm font-bold text-white"
+                style={{ background: NAVY }}
+              >
+                Salva
+              </button>
+            </div>
+          )}
+
           {conflicts.size > 0 && (
             <div className="flex items-center gap-2 p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm">
               <AlertTriangle size={16} /> {conflicts.size} conflitto/i: stesso arbitro su due campi nella stessa fascia. Correggi dai menù in rosso.
@@ -401,6 +439,14 @@ export default function ScheduleDesignations() {
                     className="inline-flex items-center gap-1 text-xs font-bold rounded-lg border border-gray-300 px-2.5 py-1.5 text-gray-700 hover:bg-gray-100"
                   >
                     <MessageCircle size={12} /> WhatsApp
+                  </button>
+                  <button
+                    onClick={() => sendSlotToManager(slot)}
+                    title="Invia questo gruppo al responsabile del torneo"
+                    className="inline-flex items-center gap-1 text-xs font-bold rounded-lg border px-2.5 py-1.5 text-white"
+                    style={{ background: NAVY, borderColor: NAVY }}
+                  >
+                    <Send size={12} /> Responsabile
                   </button>
                 </div>
               </div>

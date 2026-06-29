@@ -5,13 +5,14 @@ import { Header } from '../components/layout/Header'
 import { toast } from '../components/ui/Toast'
 
 import { useTournaments } from '../hooks/useTournaments'
-import { useTournamentRanking } from '../hooks/useRanking'
+import { useRanking } from '../hooks/useRanking'
 import { matchService, attendanceService, designationService } from '../lib/supabase'
 import { trackSave } from '../lib/saveTracker'
 import { autoAssignSchedule, autoAssignSlot, findSlotConflicts, needsTwoRefs } from '../lib/scheduleAssign'
 import { ensureWolvertemReferees, loadWolvertemMatches, computeWolvertemRefCount } from '../lib/wolvertemSetup'
 import { shareScheduleGeneral, shareSlotSchedule, shareRefereeSchedule, shareSlotScheduleToPhone } from '../lib/whatsapp'
 import { refereeName } from '../lib/utils'
+import { computeStanding, effectiveLevel } from '../lib/standing'
 
 const NAVY = '#2D3270'
 const ORANGE = '#E85D26'
@@ -41,7 +42,7 @@ export default function ScheduleDesignations() {
   const [tournamentId, setTournamentId] = useState('')
   useEffect(() => { if (!tournamentId && tournaments[0]) setTournamentId(tournaments[0].id) }, [tournaments]) // eslint-disable-line
   const tournament = tournaments.find((t) => t.id === tournamentId)
-  const { ranking } = useTournamentRanking(tournamentId)
+  const { ranking: seasonRanking } = useRanking() // cumulative across ALL tournaments
   const [managerPhone, setManagerPhone] = useState('')
   useEffect(() => { setManagerPhone(getManagerPhone(tournamentId)) }, [tournamentId])
 
@@ -92,12 +93,38 @@ export default function ScheduleDesignations() {
   const isWolvertem = /wolvertem/i.test(tournament?.name || '')
   const needsSetup = isWolvertem && (allRefs.length < 6 || allMatches.length === 0)
 
+  // Cumulative cross-tournament standing: starting level (anchor) + all evaluations.
+  // This is what makes the level/evaluations FOLLOW the referee between tournaments.
+  const seasonById = useMemo(() => {
+    const m = {}; (seasonRanking || []).forEach((r) => { m[r.id] = r }); return m
+  }, [seasonRanking])
   const avgById = useMemo(() => {
-    const m = {}; (ranking || []).forEach((r) => { m[r.id] = r.avg_score ?? -1 }); return m
-  }, [ranking])
+    const m = {}
+    roster.forEach((r) => {
+      const s = seasonById[r.id]
+      m[r.id] = computeStanding({
+        ranking_level: r.ranking_level || s?.ranking_level,
+        avg_score: s?.avg_score,
+        total_evaluations: s?.total_evaluations,
+      })
+    })
+    return m
+  }, [roster, seasonById])
   const rankInfo = useMemo(() => {
-    const m = {}; (ranking || []).forEach((r) => { m[r.id] = { avg: r.avg_score, count: r.total_evaluations || 0 } }); return m
-  }, [ranking])
+    const m = {}
+    roster.forEach((r) => {
+      const s = seasonById[r.id]
+      const base = { ranking_level: r.ranking_level || s?.ranking_level, avg_score: s?.avg_score, total_evaluations: s?.total_evaluations }
+      m[r.id] = {
+        avg: s?.avg_score ?? null,
+        count: s?.total_evaluations || 0,
+        standing: avgById[r.id],
+        level: effectiveLevel(base),
+        start: r.ranking_level || s?.ranking_level || 'B',
+      }
+    })
+    return m
+  }, [roster, seasonById, avgById])
   const rankedRoster = useMemo(
     () => [...roster].sort((a, b) => (avgById[b.id] ?? -1) - (avgById[a.id] ?? -1) || refereeName(a).localeCompare(refereeName(b))),
     [roster, avgById]
@@ -394,12 +421,13 @@ export default function ScheduleDesignations() {
           {rankedRoster.length > 0 && (
             <div>
               <div className="text-sm font-bold uppercase tracking-wide text-gray-600 mb-1.5">
-                Classifica cumulata torneo · {usingPresent ? 'presenti' : 'tutti'}
+                Classifica cumulata · livello + storico · {usingPresent ? 'presenti' : 'tutti'}
               </div>
               <div className="rounded-2xl bg-white border border-gray-200 divide-y divide-gray-100 overflow-hidden">
                 {rankedRoster.map((r, i) => {
                   const info = rankInfo[r.id]
                   const top = i < 4
+                  const moved = info && info.level !== info.start
                   return (
                     <div key={r.id} className="flex items-center gap-3 px-3 py-2">
                       <span className="w-5 text-sm font-bold tabular-nums" style={{ color: top ? ORANGE : '#9ca3af' }}>{i + 1}</span>
@@ -407,15 +435,24 @@ export default function ScheduleDesignations() {
                         {top && <Trophy size={12} style={{ color: ORANGE }} />}
                         {refereeName(r)}
                       </span>
-                      <span className="text-xs tabular-nums text-gray-500">
-                        {info && info.avg != null ? `${info.avg.toFixed(1)} · ${info.count} val.` : 'no val.'}
+                      {info && (
+                        <span
+                          className="text-[11px] font-bold rounded px-1.5 py-0.5 text-white shrink-0"
+                          style={{ background: NAVY }}
+                          title={moved ? `Livello di partenza: ${info.start}` : 'Livello'}
+                        >
+                          {info.level}{moved ? ` ←${info.start}` : ''}
+                        </span>
+                      )}
+                      <span className="text-xs tabular-nums text-gray-500 shrink-0">
+                        {info ? `${Number(info.standing).toFixed(1)} · ${info.count} val.` : ''}
                       </span>
                     </div>
                   )
                 })}
               </div>
               <div className="mt-1 text-[11px] text-gray-400">
-                I primi 4 (🏆) sono i candidati alle finali, in base alla media cumulata sull'intero torneo (Day 1 + Day 2).
+                Ordine in base allo <b>standing persistente</b>: livello di partenza + media di tutte le valutazioni, di tutti i tornei. Il livello (A/B/C) si ricalcola da solo; "←B" indica il livello di partenza. I primi 4 (🏆) sono i candidati alle finali.
               </div>
             </div>
           )}

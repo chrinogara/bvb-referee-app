@@ -14,6 +14,7 @@ import { useReferees } from '../hooks/useReferees'
 import { useRanking } from '../hooks/useRanking'
 
 import { cn, refereeName, refereeInitials, levelColor } from '../lib/utils'
+import { effectiveLevel } from '../lib/standing'
 
 // ─── Level Filter Tabs ────────────────────────────────────────────────────────
 
@@ -53,7 +54,14 @@ function GenderBadge({ gender }) {
 
 function RefereeCard({ referee, rankData, onClick }) {
   const initials = refereeInitials(referee)
-  const lvlColor = levelColor(referee.ranking_level)
+  const startLevel = referee.ranking_level || 'B'
+  const effLevel = effectiveLevel({
+    ranking_level: startLevel,
+    avg_score: rankData?.avg_score,
+    total_evaluations: rankData?.total_evaluations,
+  })
+  const moved = effLevel !== startLevel
+  const lvlColor = levelColor(effLevel)
 
   return (
     <div
@@ -78,14 +86,15 @@ function RefereeCard({ referee, rankData, onClick }) {
               {refereeName(referee)}
             </p>
             <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-              {/* Level badge */}
+              {/* Level badge (effective, auto-computed from cumulative evaluations) */}
               <span
                 className={cn(
                   'text-xs px-2 py-0.5 rounded-full font-bold',
                   lvlColor
                 )}
+                title={moved ? `Livello di partenza: ${startLevel}` : 'Livello'}
               >
-                Level {referee.ranking_level}
+                Level {effLevel}{moved ? ` · da ${startLevel}` : ''}
               </span>
               <GenderBadge gender={referee.gender} />
             </div>
@@ -199,14 +208,14 @@ function AddRefereeModal({ open, onClose, onCreate }) {
             <option value="F">Female</option>
           </Select>
           <Select
-            label="Level"
+            label="Starting level"
             name="ranking_level"
             value={form.ranking_level}
             onChange={handleChange}
           >
-            <option value="A">Level A</option>
-            <option value="B">Level B</option>
-            <option value="C">Level C</option>
+            <option value="A">Level A (start)</option>
+            <option value="B">Level B (start)</option>
+            <option value="C">Level C (start)</option>
           </Select>
         </div>
 

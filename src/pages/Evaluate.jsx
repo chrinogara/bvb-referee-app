@@ -38,9 +38,15 @@ import {
 // ─── Schedule game helpers (per "By game" picker) ────────────────────────────
 function hhmm(t) {
   if (!t) return ''
-  const s = String(t)
-  const m = s.match(/(\d{1,2}):(\d{2})/)
-  return m ? `${m[1].padStart(2, '0')}:${m[2]}` : s
+  try {
+    const d = new Date(t)
+    if (isNaN(d)) throw new Error()
+    return d.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels', hour12: false })
+  } catch {
+    const s = String(t)
+    const m = s.match(/(\d{1,2}):(\d{2})/)
+    return m ? `${m[1].padStart(2, '0')}:${m[2]}` : s
+  }
 }
 function gameTag(m) {
   const ser = m.series === 'PRO' ? 'PRO' : 'CH'

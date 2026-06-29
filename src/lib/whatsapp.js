@@ -63,24 +63,33 @@ export function buildDesignationMessage({
  * On mobile: uses navigator.share() (Web Share API) — handles emoji correctly.
  * On desktop fallback: opens wa.me URL.
  */
-export async function shareToWhatsApp(message) {
-  if (navigator.share) {
-    try {
-      await navigator.share({ text: message })
-      return
-    } catch (err) {
-      // User cancelled (AbortError) or share failed — fall through to wa.me
-      if (err?.name === 'AbortError') return
-    }
-  }
+/**
+ * Apre WhatsApp senza destinatario specifico (messaggio generale / broadcast).
+ * Usa wa.me senza numero — apre WhatsApp direttamente su qualsiasi dispositivo.
+ */
+export function shareToWhatsApp(message) {
   const url = `https://wa.me/?text=${encodeURIComponent(message)}`
-  window.open(url, '_blank', 'noopener,noreferrer')
+  _openWaUrl(url)
 }
 
 /**
- * Open WhatsApp directed to a specific phone number (opens the referee's personal chat).
- * Always uses wa.me/<phone> — navigator.share() cannot target a specific contact.
- * On iOS Safari uses location.href to ensure the WhatsApp deep link opens correctly.
+ * Helper: apre un URL WhatsApp su qualsiasi dispositivo.
+ * Usa un <a> invisibile con click() — unico metodo affidabile su iOS Safari
+ * per deep link wa.me senza navigare via dalla pagina.
+ */
+function _openWaUrl(url) {
+  const a = document.createElement('a')
+  a.href = url
+  a.target = '_blank'
+  a.rel = 'noopener noreferrer'
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+}
+
+/**
+ * Apre WhatsApp sulla chat personale di un numero specifico (arbitro / responsabile).
+ * Usa sempre wa.me/<phone> — navigator.share() non può aprire un contatto specifico.
  */
 export function shareToWhatsAppPhone(phone, message) {
   const p = normalizePhone(phone)
@@ -89,13 +98,7 @@ export function shareToWhatsAppPhone(phone, message) {
     return
   }
   const url = `https://wa.me/${p}?text=${encodeURIComponent(message)}`
-  // iOS Safari handles wa.me deep links better with location.href than window.open
-  const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent)
-  if (isIOS) {
-    window.location.href = url
-  } else {
-    window.open(url, '_blank', 'noopener,noreferrer')
-  }
+  _openWaUrl(url)
 }
 
 /** Copy message to clipboard. */

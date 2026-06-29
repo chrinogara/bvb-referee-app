@@ -362,6 +362,7 @@ export default function ScheduleDesignations() {
               <div className="rounded-2xl bg-white border border-gray-200 divide-y divide-gray-100 overflow-hidden">
                 {slot.items.map((m) => {
                   const conflict = conflicts.has(m.id)
+                  const selfRef = m.referees_needed === 0
                   const two = needsTwoRefs(m)
                   const r2Dup = two && assignR2[m.id] && assignR2[m.id] === assignMap[m.id]
                   const opts = (
@@ -383,7 +384,9 @@ export default function ScheduleDesignations() {
                         </div>
                         <div className="text-xs text-gray-400 truncate">{m.team1} vs {m.team2}</div>
                       </div>
-                      {two ? (
+                      {selfRef ? (
+                        <span className="shrink-0 text-[11px] font-semibold text-gray-400 bg-gray-100 rounded-lg px-2.5 py-1.5">Auto-arbitrata</span>
+                      ) : two ? (
                         <div className="shrink-0 flex flex-col gap-1 items-end">
                           <div className="flex items-center gap-1.5">
                             <span className="text-[10px] font-bold text-gray-400 w-4 text-right">R1</span>

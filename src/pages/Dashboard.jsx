@@ -63,9 +63,18 @@ function starRating(count) {
 
 // ─── Stat Card ────────────────────────────────────────────────────────────────
 
-function StatCard({ icon: Icon, label, value, sub, accent }) {
+function StatCard({ icon: Icon, label, value, sub, accent, onClick }) {
+  const clickable = typeof onClick === 'function'
+  const Comp = clickable ? 'button' : 'div'
   return (
-    <div className="rounded-2xl bg-white border border-gray-200 shadow-sm p-3">
+    <Comp
+      {...(clickable ? { type: 'button', onClick } : {})}
+      className={cn(
+        'w-full text-left rounded-2xl bg-white border border-gray-200 shadow-sm p-3',
+        clickable &&
+          'cursor-pointer transition active:scale-[.98] hover:-translate-y-0.5 hover:border-[#E85D26]/40'
+      )}
+    >
       <div className="flex items-center gap-2">
         <div className={cn('w-9 h-9 rounded-xl flex items-center justify-center shrink-0', accent || 'bg-[#2D3270]/10')}>
           <Icon size={18} className="text-[#2D3270]" />
@@ -74,7 +83,7 @@ function StatCard({ icon: Icon, label, value, sub, accent }) {
       </div>
       <div className="font-display text-2xl font-bold mt-1.5 leading-none truncate text-gray-900">{value}</div>
       {sub && <p className="text-xs text-gray-400 mt-0.5 truncate">{sub}</p>}
-    </div>
+    </Comp>
   )
 }
 
@@ -205,6 +214,7 @@ export default function Dashboard() {
             value={upcomingTournament ? upcomingTournament.name : '—'}
             sub={upcomingTournament ? formatDate(upcomingTournament.start_date) : 'No upcoming events'}
             accent="bg-[#E85D26]/15"
+            onClick={() => navigate('/schedule-assign')}
           />
           <StatCard icon={ClipboardList} label="Total Evaluations" value={evaluations.length} sub="across all tournaments" />
           <StatCard icon={TrendingUp} label="Season Avg Score" value={seasonAvg != null ? seasonAvg : '—'} sub="weighted overall score" accent="bg-emerald-500/10" />

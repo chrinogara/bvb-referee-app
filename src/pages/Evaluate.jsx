@@ -366,7 +366,7 @@ function NoteField({ value, onChange, placeholder, rows = 2, autoOpenLabel, rule
   )
 }
 
-function CriterionCard({ criterion, score, repeat, note, onScore, onRepeat, onNote, error }) {
+function CriterionCard({ criterion, score, repeat, note, na, onScore, onRepeat, onNote, onNa, error }) {
   const [descOpen, setDescOpen] = useState(false)
   const [noteOpen, setNoteOpen] = useState(!!note)
 
@@ -398,59 +398,85 @@ function CriterionCard({ criterion, score, repeat, note, onScore, onRepeat, onNo
 
       <CardBody className="pt-3 space-y-3">
         {/* Three-step protocol for signals */}
-        {criterion.threeStep && <ThreeStepProtocol />}
+        {criterion.threeStep && !na && <ThreeStepProtocol />}
 
         {/* Score buttons: 5 large tap targets */}
         <div>
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-500 mb-2">
-            Score <span className="text-red-400">*</span>
-          </p>
-          <div className="grid grid-cols-5 gap-1.5">
-            {[1, 2, 3, 4, 5].map((val) => {
-              const isActive = score === val
-              return (
-                <button
-                  key={val}
-                  type="button"
-                  onClick={() => onScore(val)}
-                  className={cn(
-                    'flex flex-col items-center justify-center rounded-xl min-h-[3.25rem] py-2 px-1',
-                    'font-bold transition-all duration-150 select-none',
-                    isActive ? SCORE_COLORS[val].active : SCORE_COLORS[val].idle
-                  )}
-                >
-                  <span className="text-lg leading-none">{val}</span>
-                  <span className="text-[9px] font-medium leading-tight mt-0.5 text-center opacity-80">
-                    {SCORE_LABELS[val].split(' ')[0]}
-                  </span>
-                </button>
-              )
-            })}
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">
+              Score {!na && <span className="text-red-400">*</span>}
+            </p>
+            <button
+              type="button"
+              onClick={() => onNa(!na)}
+              className={cn(
+                'text-[11px] font-bold rounded-full px-2.5 py-1 border transition-all duration-150',
+                na
+                  ? 'bg-gray-700 text-white border-gray-700'
+                  : 'bg-gray-50 text-gray-500 border-gray-200 hover:border-gray-300 hover:text-gray-700'
+              )}
+            >
+              {na ? '✓ Not evaluable' : 'Not evaluable'}
+            </button>
           </div>
-          {error && (
-            <p className="text-xs text-red-400 mt-1">Please select a score</p>
+
+          {na ? (
+            <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-3 py-3 text-center">
+              <p className="text-xs font-semibold text-gray-600">Not evaluable — situation did not occur</p>
+              <p className="text-[11px] text-gray-400 mt-0.5">Excluded from the score (does not count as zero)</p>
+            </div>
+          ) : (
+            <>
+              <div className="grid grid-cols-5 gap-1.5">
+                {[1, 2, 3, 4, 5].map((val) => {
+                  const isActive = score === val
+                  return (
+                    <button
+                      key={val}
+                      type="button"
+                      onClick={() => onScore(val)}
+                      className={cn(
+                        'flex flex-col items-center justify-center rounded-xl min-h-[3.25rem] py-2 px-1',
+                        'font-bold transition-all duration-150 select-none',
+                        isActive ? SCORE_COLORS[val].active : SCORE_COLORS[val].idle
+                      )}
+                    >
+                      <span className="text-lg leading-none">{val}</span>
+                      <span className="text-[9px] font-medium leading-tight mt-0.5 text-center opacity-80">
+                        {SCORE_LABELS[val].split(' ')[0]}
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
+              {error && (
+                <p className="text-xs text-red-400 mt-1">Please select a score or mark it not evaluable</p>
+              )}
+            </>
           )}
         </div>
 
-        {/* Repeat fault toggle */}
-        <button
-          type="button"
-          onClick={() => onRepeat(!repeat)}
-          className={cn(
-            'w-full flex items-center gap-2 px-3 py-2.5 rounded-xl border text-sm font-medium transition-all duration-150',
-            repeat
-              ? 'bg-amber-500/20 border-amber-500/40 text-amber-700'
-              : 'bg-gray-50 border-gray-200 text-gray-500 hover:border-gray-300 hover:text-gray-700'
-          )}
-        >
-          <AlertTriangle size={14} className={repeat ? 'text-amber-600' : 'text-gray-600'} />
-          <span>Repeated Fault</span>
-          {repeat && (
-            <span className="ml-auto text-xs text-amber-500 font-normal">
-              −0.5 penalty applied
-            </span>
-          )}
-        </button>
+        {/* Repeat fault toggle (hidden when not evaluable) */}
+        {!na && (
+          <button
+            type="button"
+            onClick={() => onRepeat(!repeat)}
+            className={cn(
+              'w-full flex items-center gap-2 px-3 py-2.5 rounded-xl border text-sm font-medium transition-all duration-150',
+              repeat
+                ? 'bg-amber-500/20 border-amber-500/40 text-amber-700'
+                : 'bg-gray-50 border-gray-200 text-gray-500 hover:border-gray-300 hover:text-gray-700'
+            )}
+          >
+            <AlertTriangle size={14} className={repeat ? 'text-amber-600' : 'text-gray-600'} />
+            <span>Repeated Fault</span>
+            {repeat && (
+              <span className="ml-auto text-xs text-amber-500 font-normal">
+                −0.5 penalty applied
+              </span>
+            )}
+          </button>
+        )}
 
         {/* Notes (collapsible) */}
         {!noteOpen ? (
@@ -478,16 +504,16 @@ function CriterionCard({ criterion, score, repeat, note, onScore, onRepeat, onNo
 
 // ─── Live score bar (sticky bottom) ──────────────────────────────────────────
 
-function LiveScoreBar({ scores, repeats }) {
+function LiveScoreBar({ scores, repeats, difficulty }) {
   const result = useMemo(() => {
     const allSet = Object.values(scores).every((v) => v != null && v > 0)
     if (!allSet) {
       // Compute partial score for whatever's filled
-      const partial = computeScore(scores, repeats)
+      const partial = computeScore(scores, repeats, difficulty)
       return { ...partial, partial: true }
     }
-    return { ...computeScore(scores, repeats), partial: false }
-  }, [scores, repeats])
+    return { ...computeScore(scores, repeats, difficulty), partial: false }
+  }, [scores, repeats, difficulty])
 
   const filledCount = Object.values(scores).filter((v) => v != null && v > 0).length
   const grade = result.overall > 0 ? getGrade(result.overall) : null
@@ -518,6 +544,11 @@ function LiveScoreBar({ scores, repeats }) {
               ⚠ −{result.penalty.toFixed(1)} repeat penalty
             </p>
           )}
+          {result.adjustment ? (
+            <p className={cn('text-[10px] font-medium', result.adjustment > 0 ? 'text-green-600' : 'text-gray-500')}>
+              {result.adjustment > 0 ? '↑' : '↓'} {result.adjustment > 0 ? '+' : ''}{result.adjustment.toFixed(1)} difficulty
+            </p>
+          ) : null}
         </div>
 
         {/* Score */}
@@ -577,6 +608,7 @@ export default function Evaluate() {
   // ── Form state ──────────────────────────────────────────────────────────────
   const [refereeId, setRefereeId] = useState(searchParams.get('refereeId') || '')
   const [role, setRole] = useState('R1')
+  const [difficulty, setDifficulty] = useState('medium')
   const [tournamentId, setTournamentId] = useState(
     searchParams.get('tournamentId') || lastTournamentId || ''
   )
@@ -692,7 +724,7 @@ export default function Evaluate() {
   // Per-criterion: score, repeat, note
   const [criteriaData, setCriteriaData] = useState(() =>
     Object.fromEntries(
-      CRITERIA.map((c) => [c.key, { score: null, repeat: false, note: '' }])
+      CRITERIA.map((c) => [c.key, { score: null, repeat: false, note: '', na: false }])
     )
   )
 
@@ -717,6 +749,7 @@ export default function Evaluate() {
         if (cancelled || !e) return
         setRefereeId(e.referee_id)
         setRole(e.role || 'R1')
+        setDifficulty(e.match_difficulty || 'medium')
         if (e.tournament_id) setTournamentId(e.tournament_id)
         if (e.day_number) setDayNumber(e.day_number)
         setOrigMatchDesc(e.match_description || null)
@@ -724,6 +757,7 @@ export default function Evaluate() {
           score: e[`score_${c.key}`] ?? null,
           repeat: !!e[`repeat_${c.key}`],
           note: e[`note_${c.key}`] || '',
+          na: e[`score_${c.key}`] == null,
         }])))
         setGeneralNotes(e.general_notes || '')
       } catch {
@@ -767,13 +801,14 @@ export default function Evaluate() {
       if (raw) {
         const d = JSON.parse(raw)
         if (d.criteriaData) setCriteriaData(d.criteriaData)
+        if (d.difficulty) setDifficulty(d.difficulty)
         setGeneralNotes(d.generalNotes || '')
         if (d.courtNumber != null) setCourtNumber(d.courtNumber)
         if (d.roundNumber != null) setRoundNumber(d.roundNumber)
         if (d.schedMatchId != null) setSchedMatchId(d.schedMatchId)
         if (d.pickMode) setPickMode(d.pickMode)
       } else {
-        setCriteriaData(Object.fromEntries(CRITERIA.map((c) => [c.key, { score: null, repeat: false, note: '' }])))
+        setCriteriaData(Object.fromEntries(CRITERIA.map((c) => [c.key, { score: null, repeat: false, note: '', na: false }])))
         setGeneralNotes('')
       }
     } catch { /* ignore */ }
@@ -786,13 +821,13 @@ export default function Evaluate() {
     const key = wipKey(tournamentId, dayNumber, refereeId, role)
     try {
       if (evalHasContent(criteriaData, generalNotes)) {
-        localStorage.setItem(key, JSON.stringify({ criteriaData, generalNotes, courtNumber, roundNumber, schedMatchId, pickMode, updatedAt: Date.now() }))
+        localStorage.setItem(key, JSON.stringify({ criteriaData, generalNotes, courtNumber, roundNumber, schedMatchId, pickMode, difficulty, updatedAt: Date.now() }))
         localStorage.setItem(LAST_WIP_KEY, JSON.stringify({ tournamentId, dayNumber, refereeId, role }))
       } else {
         localStorage.removeItem(key)
       }
     } catch { /* ignore */ }
-  }, [criteriaData, generalNotes, courtNumber, roundNumber, schedMatchId, pickMode, refereeId, role, tournamentId, dayNumber, savedEval]) // eslint-disable-line
+  }, [criteriaData, generalNotes, courtNumber, roundNumber, schedMatchId, pickMode, difficulty, refereeId, role, tournamentId, dayNumber, savedEval]) // eslint-disable-line
 
   function clearWipDraft() {
     try {
@@ -804,26 +839,38 @@ export default function Evaluate() {
   // ── Score snapshot for live preview ────────────────────────────────────────
   const scores = useMemo(
     () =>
-      Object.fromEntries(CRITERIA.map((c) => [c.key, criteriaData[c.key].score || 0])),
+      Object.fromEntries(CRITERIA.map((c) => {
+        const cd = criteriaData[c.key]
+        return [c.key, cd.na ? null : (cd.score ?? null)]
+      })),
     [criteriaData]
   )
   const repeats = useMemo(
     () =>
-      Object.fromEntries(CRITERIA.map((c) => [c.key, criteriaData[c.key].repeat])),
+      Object.fromEntries(CRITERIA.map((c) => [c.key, criteriaData[c.key].na ? false : criteriaData[c.key].repeat])),
     [criteriaData]
   )
 
   // ── Helpers to update criteria ───────────────────────────────────────────────
   function setCriterion(key, field, value) {
-    setCriteriaData((prev) => ({
-      ...prev,
-      [key]: { ...prev[key], [field]: value },
-    }))
+    setCriteriaData((prev) => {
+      const cur = prev[key]
+      let next
+      if (field === 'na' && value) {
+        next = { ...cur, na: true, score: null, repeat: false }
+      } else if (field === 'score') {
+        next = { ...cur, score: value, na: false }
+      } else {
+        next = { ...cur, [field]: value }
+      }
+      return { ...prev, [key]: next }
+    })
     // Clear score error on change
-    if (field === 'score') {
+    if (field === 'score' || field === 'na') {
       setErrors((prev) => {
         const next = { ...prev }
         delete next[`score_${key}`]
+        delete next.noScore
         return next
       })
     }
@@ -841,11 +888,14 @@ export default function Evaluate() {
     const errs = {}
     if (!refereeId) errs.refereeId = 'Referee is required'
     if (!role) errs.role = 'Role is required'
+    let scoredCount = 0
     CRITERIA.forEach((c) => {
-      if (!criteriaData[c.key].score) {
-        errs[`score_${c.key}`] = 'Required'
-      }
+      const cd = criteriaData[c.key]
+      if (cd.na) return
+      if (!cd.score) errs[`score_${c.key}`] = 'Required'
+      else scoredCount++
     })
+    if (scoredCount === 0) errs.noScore = 'At least one criterion must be scored'
     setErrors(errs)
     return Object.keys(errs).length === 0
   }
@@ -859,27 +909,37 @@ export default function Evaluate() {
       return
     }
 
+    const scoreOf  = (k) => (criteriaData[k].na ? null : criteriaData[k].score)
+    const repeatOf = (k) => (criteriaData[k].na ? false : criteriaData[k].repeat)
+    const _scores  = Object.fromEntries(CRITERIA.map((c) => [c.key, scoreOf(c.key)]))
+    const _repeats = Object.fromEntries(CRITERIA.map((c) => [c.key, repeatOf(c.key)]))
+    const _calc = computeScore(_scores, _repeats, difficulty)
+
     const payload = {
       referee_id: refereeId,
       role,
       tournament_id: tournamentId || null,
       day_number: dayNumber || null,
       match_description: matchLabel(),
-      score_positioning:  criteriaData.positioning.score,
-      score_signals:      criteriaData.signals.score,
-      score_attitude:     criteriaData.attitude.score,
-      score_captain_comm: criteriaData.captain_comm.score,
-      score_presentation: criteriaData.presentation.score,
-      repeat_positioning:  criteriaData.positioning.repeat,
-      repeat_signals:      criteriaData.signals.repeat,
-      repeat_attitude:     criteriaData.attitude.repeat,
-      repeat_captain_comm: criteriaData.captain_comm.repeat,
-      repeat_presentation: criteriaData.presentation.repeat,
+      match_difficulty: difficulty,
+      score_positioning:  scoreOf('positioning'),
+      score_signals:      scoreOf('signals'),
+      score_attitude:     scoreOf('attitude'),
+      score_captain_comm: scoreOf('captain_comm'),
+      score_presentation: scoreOf('presentation'),
+      repeat_positioning:  repeatOf('positioning'),
+      repeat_signals:      repeatOf('signals'),
+      repeat_attitude:     repeatOf('attitude'),
+      repeat_captain_comm: repeatOf('captain_comm'),
+      repeat_presentation: repeatOf('presentation'),
       note_positioning:  criteriaData.positioning.note || null,
       note_signals:      criteriaData.signals.note || null,
       note_attitude:     criteriaData.attitude.note || null,
       note_captain_comm: criteriaData.captain_comm.note || null,
       note_presentation: criteriaData.presentation.note || null,
+      overall_score: _calc.overall,
+      grade: _calc.grade ? _calc.grade.grade : null,
+      repeat_penalty: _calc.penalty,
       general_notes: generalNotes || null,
       evaluated_at: new Date().toISOString(),
     }
@@ -1309,6 +1369,43 @@ export default function Evaluate() {
                   ))}
                 </div>
               </div>
+
+              {/* Match difficulty — influences the final score */}
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+                  Match difficulty
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { key: 'easy',   label: 'Easy',   adj: '−0.3' },
+                    { key: 'medium', label: 'Medium', adj: '0' },
+                    { key: 'hard',   label: 'Hard',   adj: '+0.3' },
+                  ].map((d) => {
+                    const active = difficulty === d.key
+                    return (
+                      <button
+                        key={d.key}
+                        type="button"
+                        onClick={() => setDifficulty(d.key)}
+                        className={cn(
+                          'flex flex-col items-center justify-center py-2.5 rounded-xl text-sm font-bold transition-all duration-150',
+                          active
+                            ? 'bg-[#2D3270] text-white border border-[#2D3270] ring-2 ring-[#2D3270]/30 scale-[1.02]'
+                            : 'bg-gray-50 text-gray-500 border border-gray-200 hover:border-gray-300 hover:text-gray-700'
+                        )}
+                      >
+                        <span>{d.label}</span>
+                        <span className={cn('text-[10px] font-medium mt-0.5', active ? 'text-white/70' : 'text-gray-400')}>
+                          {d.adj}
+                        </span>
+                      </button>
+                    )
+                  })}
+                </div>
+                <p className="text-[11px] text-gray-400 mt-0.5">
+                  Adjusts the final score: harder match adds credit, easier subtracts (Medium = neutral).
+                </p>
+              </div>
             </CardBody>
           </Card>
 
@@ -1325,9 +1422,11 @@ export default function Evaluate() {
                   score={criteriaData[criterion.key].score}
                   repeat={criteriaData[criterion.key].repeat}
                   note={criteriaData[criterion.key].note}
+                  na={criteriaData[criterion.key].na}
                   onScore={(v) => setCriterion(criterion.key, 'score', v)}
                   onRepeat={(v) => setCriterion(criterion.key, 'repeat', v)}
                   onNote={(v) => setCriterion(criterion.key, 'note', v)}
+                  onNa={(v) => setCriterion(criterion.key, 'na', v)}
                   error={!!errors[`score_${criterion.key}`]}
                 />
               ))}
@@ -1449,7 +1548,7 @@ export default function Evaluate() {
       </div>
 
       {/* ── Section 3: Sticky live score bar ─────────────────────────────── */}
-      <LiveScoreBar scores={scores} repeats={repeats} />
+      <LiveScoreBar scores={scores} repeats={repeats} difficulty={difficulty} />
     </div>
   )
 }

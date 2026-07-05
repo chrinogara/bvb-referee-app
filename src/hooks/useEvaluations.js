@@ -40,13 +40,13 @@ export function useEvaluations(filter = {}) {
       presentation: formData.repeat_presentation,
     }
 
-    const { overall, penalty, grade } = computeScore(scores, repeats)
+    const { overall, penalty, grade } = computeScore(scores, repeats, formData.match_difficulty)
 
     const payload = {
       ...formData,
       overall_score: overall,
       repeat_penalty: penalty,
-      grade: grade.grade,
+      grade: grade ? grade.grade : null,
     }
 
     const { data, error } = await evaluationService.create(payload)

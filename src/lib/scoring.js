@@ -24,32 +24,52 @@ export const GRADE_THRESHOLDS = [
   { min: 0,   grade: 'POOR',           color: 'text-red-400',     bg: 'bg-red-400/10' },
 ]
 
-export function computeScore(scores, repeats) {
-  const { positioning, signals, attitude, captain_comm, presentation } = scores
+export const CRIT_KEYS = ['positioning', 'signals', 'attitude', 'captain_comm', 'presentation']
 
-  const raw =
-    (positioning  || 0) * WEIGHTS.positioning  +
-    (signals      || 0) * WEIGHTS.signals      +
-    (attitude     || 0) * WEIGHTS.attitude     +
-    (captain_comm || 0) * WEIGHTS.captain_comm +
-    (presentation || 0) * WEIGHTS.presentation
+// Match difficulty adjustment applied to the final score (1–5 scale).
+// Harder match → more credit; easier match → less. Medium is neutral.
+export const DIFFICULTY_ADJ = { easy: -0.3, medium: 0, hard: 0.3 }
 
-  const repeatCount = [
-    repeats?.positioning,
-    repeats?.signals,
-    repeats?.attitude,
-    repeats?.captain_comm,
-    repeats?.presentation,
-  ].filter(Boolean).length
+export function computeScore(scores, repeats, difficulty = 'medium') {
+  // Weighted average over ONLY the criteria that were actually scored.
+  // A criterion marked "not evaluable" (null/undefined score) is excluded and
+  // the remaining weights are re-normalised, so it does NOT count as zero.
+  let weighted = 0
+  let wsum = 0
+  let evaluated = 0
+  for (const k of CRIT_KEYS) {
+    const v = scores?.[k]
+    if (v == null || isNaN(v) || Number(v) <= 0) continue
+    weighted += Number(v) * WEIGHTS[k]
+    wsum += WEIGHTS[k]
+    evaluated++
+  }
 
+  if (wsum === 0) {
+    return { raw: null, penalty: 0, adjustment: 0, overall: null, grade: null, evaluated: 0 }
+  }
+
+  const raw = weighted / wsum
+
+  // Repeated-fault penalty counts only for criteria that were scored.
+  const repeatCount = CRIT_KEYS.filter((k) => {
+    const v = scores?.[k]
+    return v != null && !isNaN(v) && Number(v) > 0 && repeats?.[k]
+  }).length
   const penalty = repeatCount * 0.5
-  const overall = Math.max(1.0, raw - penalty)
+
+  const adjustment = DIFFICULTY_ADJ[difficulty] ?? 0
+
+  let overall = raw - penalty + adjustment
+  overall = Math.min(5.0, Math.max(1.0, overall))
 
   return {
     raw: Math.round(raw * 10) / 10,
     penalty: Math.round(penalty * 10) / 10,
+    adjustment,
     overall: Math.round(overall * 10) / 10,
     grade: getGrade(overall),
+    evaluated,
   }
 }
 

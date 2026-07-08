@@ -781,6 +781,7 @@ export default function Evaluate() {
   // ── Post-save state ─────────────────────────────────────────────────────────
   const [saving, setSaving] = useState(false)
   const [savedEval, setSavedEval] = useState(null)
+  const [draftSavedAt, setDraftSavedAt] = useState(null) // when the in-progress draft was last stored on this device
   const [pdfBlob, setPdfBlob] = useState(null)
   const [generatingPdf, setGeneratingPdf] = useState(false)
 
@@ -837,6 +838,7 @@ export default function Evaluate() {
       if (last.dayNumber) setDayNumber(last.dayNumber)
       if (last.role) setRole(last.role)
       setRefereeId(last.refereeId) // triggers the restore effect below
+      toast('Draft restored — pick up where you left off', 'info', 4000)
     } catch { /* ignore */ }
   }, []) // eslint-disable-line
 
@@ -855,9 +857,11 @@ export default function Evaluate() {
         if (d.roundNumber != null) setRoundNumber(d.roundNumber)
         if (d.schedMatchId != null) setSchedMatchId(d.schedMatchId)
         if (d.pickMode) setPickMode(d.pickMode)
+        setDraftSavedAt(d.updatedAt || Date.now())
       } else {
         setCriteriaData(Object.fromEntries(CRITERIA.map((c) => [c.key, { score: null, repeat: false, note: '', na: false }])))
         setGeneralNotes('')
+        setDraftSavedAt(null)
       }
     } catch { /* ignore */ }
   }, [refereeId, role, tournamentId, dayNumber]) // eslint-disable-line
@@ -869,10 +873,13 @@ export default function Evaluate() {
     const key = wipKey(tournamentId, dayNumber, refereeId, role)
     try {
       if (evalHasContent(criteriaData, generalNotes)) {
-        localStorage.setItem(key, JSON.stringify({ criteriaData, generalNotes, courtNumber, roundNumber, schedMatchId, pickMode, difficulty, updatedAt: Date.now() }))
+        const now = Date.now()
+        localStorage.setItem(key, JSON.stringify({ criteriaData, generalNotes, courtNumber, roundNumber, schedMatchId, pickMode, difficulty, updatedAt: now }))
         localStorage.setItem(LAST_WIP_KEY, JSON.stringify({ tournamentId, dayNumber, refereeId, role }))
+        setDraftSavedAt(now)
       } else {
         localStorage.removeItem(key)
+        setDraftSavedAt(null)
       }
     } catch { /* ignore */ }
   }, [criteriaData, generalNotes, courtNumber, roundNumber, schedMatchId, pickMode, difficulty, refereeId, role, tournamentId, dayNumber, savedEval]) // eslint-disable-line
@@ -882,6 +889,32 @@ export default function Evaluate() {
       localStorage.removeItem(wipKey(tournamentId, dayNumber, refereeId, role))
       localStorage.removeItem(LAST_WIP_KEY)
     } catch { /* ignore */ }
+    setDraftSavedAt(null)
+  }
+
+  // Explicit "Save draft" — same local store the autosave uses, with confirmation.
+  function saveDraftNow() {
+    if (!refereeId) { toast.error('Pick a referee first'); return }
+    try {
+      const now = Date.now()
+      localStorage.setItem(
+        wipKey(tournamentId, dayNumber, refereeId, role),
+        JSON.stringify({ criteriaData, generalNotes, courtNumber, roundNumber, schedMatchId, pickMode, difficulty, updatedAt: now })
+      )
+      localStorage.setItem(LAST_WIP_KEY, JSON.stringify({ tournamentId, dayNumber, refereeId, role }))
+      setDraftSavedAt(now)
+      toast.success('Draft saved — you can close the app and resume here later')
+    } catch {
+      toast.error('Could not save the draft on this device')
+    }
+  }
+
+  // Discard the current in-progress draft and reset the scorecard.
+  function discardDraft() {
+    clearWipDraft()
+    setCriteriaData(Object.fromEntries(CRITERIA.map((c) => [c.key, { score: null, repeat: false, note: '', na: false }])))
+    setGeneralNotes('')
+    toast('Draft discarded', 'info')
   }
 
   // ── Score snapshot for live preview ────────────────────────────────────────
@@ -1537,23 +1570,56 @@ export default function Evaluate() {
           <div className="space-y-3">
             {/* Save button */}
             {!savedEval ? (
-              <Button
-                onClick={handleSave}
-                loading={saving}
-                disabled={saving}
-                variant="primary"
-                size="lg"
-                className="w-full py-4 text-base font-bold rounded-xl"
-              >
-                {saving ? (
-                  'Saving…'
-                ) : (
-                  <>
-                    <Save size={18} />
-                    {editingEvalId ? 'Update Evaluation' : 'Save Evaluation'}
-                  </>
+              <>
+                {/* Draft controls — save progress and resume later */}
+                {refereeId && (
+                  <div className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Button
+                        onClick={saveDraftNow}
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="flex-1"
+                      >
+                        <Pencil size={14} /> Save draft
+                      </Button>
+                      {draftSavedAt && (
+                        <button
+                          type="button"
+                          onClick={discardDraft}
+                          className="text-xs font-semibold text-gray-500 hover:text-red-500 px-2 py-1 transition-colors shrink-0"
+                        >
+                          Discard
+                        </button>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-gray-500 leading-snug">
+                      {draftSavedAt
+                        ? `Draft saved · ${new Date(draftSavedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}. You can close the app or switch pages — it resumes here automatically.`
+                        : 'Your progress is saved automatically on this device. Tap “Save draft” to keep it and resume later.'}
+                    </p>
+                  </div>
                 )}
-              </Button>
+
+                <Button
+                  onClick={handleSave}
+                  loading={saving}
+                  disabled={saving}
+                  variant="primary"
+                  size="lg"
+                  className="w-full py-4 text-base font-bold rounded-xl"
+                >
+                  {saving ? (
+                    'Saving…'
+                  ) : (
+                    <>
+                      <Save size={18} />
+                      {editingEvalId ? 'Update Evaluation' : 'Save Evaluation'}
+                    </>
+                  )}
+                </Button>
+              </>
             ) : (
               /* Success state */
               <div className="space-y-3">

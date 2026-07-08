@@ -62,3 +62,14 @@ body {
 .grade-adequate  { color: #CA8A04; }
 .grade-below     { color: #EA580C; }
 .grade-poor      { color: #DC2626; }
+
+/* iOS Safari zooms in on focus when a form field's font-size is < 16px.
+   On touch devices, force form controls to 16px so tapping a field does NOT
+   trigger the auto-zoom. Pinch-to-zoom on the whole app stays available. */
+@media (hover: none) and (pointer: coarse) {
+  input:not([type='checkbox']):not([type='radio']),
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+}

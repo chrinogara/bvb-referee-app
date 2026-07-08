@@ -5,7 +5,7 @@ import { useReferees } from '../hooks/useReferees'
 import { useTournaments } from '../hooks/useTournaments'
 import { useEvaluations } from '../hooks/useEvaluations'
 import { evaluationService } from '../lib/supabase'
-import { courtAssignmentService, matchService, designationService } from '../lib/supabase'
+import { courtAssignmentService, matchService, designationService, tournamentService } from '../lib/supabase'
 import { useAppStore } from '../store/appStore'
 import { CRITERIA, computeScore, SCORE_LABELS, getGrade } from '../lib/scoring'
 import { generateEvaluationPDF, downloadPDF, sharePDFWhatsApp } from '../lib/pdf'
@@ -189,36 +189,52 @@ function RefereeSelector({ referees, value, onChange, error }) {
                 </button>
               )}
             </div>
-            {/* List */}
-            <ul className="max-h-52 overflow-y-auto">
+            {/* List (grouped: Referees vs Line judges) */}
+            <ul className="max-h-60 overflow-y-auto">
               {filtered.length === 0 ? (
                 <li className="px-4 py-3 text-sm text-gray-500 text-center">No referees found</li>
-              ) : (
-                filtered.map((r) => (
+              ) : (() => {
+                const isLJ = (r) => (r.notes || '').toLowerCase().includes('line judge')
+                const refs = filtered.filter((r) => !isLJ(r))
+                const ljs = filtered.filter((r) => isLJ(r))
+                const hasLJ = ljs.length > 0
+                const item = (r) => (
                   <li key={r.id}>
                     <button
                       type="button"
-                      onClick={() => {
-                        onChange(r.id)
-                        setOpen(false)
-                        setQuery('')
-                      }}
+                      onClick={() => { onChange(r.id); setOpen(false); setQuery('') }}
                       className={cn(
-                        'w-full text-left px-4 py-3 text-sm transition-colors',
+                        'w-full text-left px-4 py-3 text-sm transition-colors flex items-center gap-2',
                         r.id === value
                           ? 'bg-[#E85D26]/15 text-[#E85D26] font-semibold'
                           : 'text-gray-700 hover:bg-gray-100'
                       )}
                     >
-                      <span className="font-medium">{r.last_name}</span>{' '}
-                      <span className="text-gray-500">{r.first_name}</span>
-                      {r.level && (
-                        <span className="ml-2 text-[10px] text-gray-500">Lv.{r.level}</span>
+                      <span className="flex-1">
+                        <span className="font-medium">{r.last_name}</span>{' '}
+                        <span className="text-gray-500">{r.first_name}</span>
+                      </span>
+                      {isLJ(r) && (
+                        <span className="text-[9px] font-bold uppercase text-white bg-gray-500 rounded px-1.5 py-0.5 shrink-0">LJ</span>
                       )}
                     </button>
                   </li>
-                ))
-              )}
+                )
+                const header = (t, n) => (
+                  <li className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-gray-400 bg-gray-100/80 sticky top-0">
+                    {t} ({n})
+                  </li>
+                )
+                if (!hasLJ) return refs.map(item)
+                return (
+                  <>
+                    {refs.length > 0 && header('Referees', refs.length)}
+                    {refs.map(item)}
+                    {header('Line judges', ljs.length)}
+                    {ljs.map(item)}
+                  </>
+                )
+              })()}
             </ul>
           </div>
         </div>
@@ -597,6 +613,9 @@ export default function Evaluate() {
   const { referees, loading: refLoading } = useReferees()
   const { tournaments } = useTournaments()
   const { create } = useEvaluations()
+  // Tournament roster (only the referees linked to the selected tournament)
+  const [roster, setRoster] = useState(null)   // null = not loaded / all-referees fallback
+  const [rosterLoading, setRosterLoading] = useState(false)
   const {
     lastTournamentId,
     lastDayNumber,
@@ -613,6 +632,30 @@ export default function Evaluate() {
     searchParams.get('tournamentId') || lastTournamentId || ''
   )
   const [dayNumber, setDayNumber] = useState(lastDayNumber || 1)
+
+  // When a tournament is selected, load ITS referees (roster). Falls back to the
+  // full list when no tournament is chosen or the tournament has no roster yet.
+  useEffect(() => {
+    let alive = true
+    if (!tournamentId) { setRoster(null); return }
+    setRosterLoading(true)
+    tournamentService.getReferees(tournamentId)
+      .then(({ data }) => {
+        if (!alive) return
+        const list = (data || []).map((row) => row.referees).filter(Boolean)
+        setRoster(list)
+      })
+      .catch(() => { if (alive) setRoster(null) })
+      .finally(() => { if (alive) setRosterLoading(false) })
+    return () => { alive = false }
+  }, [tournamentId])
+
+  const isLineJudge = (r) => !!r && (r.notes || '').toLowerCase().includes('line judge')
+  // Referees shown in the picker: the tournament roster if available, else all.
+  const pickerReferees = useMemo(
+    () => (roster && roster.length ? roster : referees),
+    [roster, referees]
+  )
   const [courtNumber, setCourtNumber] = useState(null)
   const [roundNumber, setRoundNumber] = useState(null)
   // Number of courts (3 or 4), shared with Assignments via localStorage.
@@ -703,6 +746,11 @@ export default function Evaluate() {
   const designatedGames = useMemo(
     () => schedMatches.filter((m) => schedAssign[m.id]?.referee_id),
     [schedMatches, schedAssign]
+  )
+  // Designated games for the currently selected referee (optional match attach)
+  const refDesignatedGames = useMemo(
+    () => (refereeId ? designatedGames.filter((m) => schedAssign[m.id]?.referee_id === refereeId) : []),
+    [designatedGames, schedAssign, refereeId]
   )
   const rounds = useMemo(() => {
     const FINALS = 99
@@ -1083,7 +1131,7 @@ export default function Evaluate() {
             <CardBody className="space-y-4">
               {/* Pick mode: by schedule game, by round (assignments), or manual */}
               <div className="grid grid-cols-3 gap-2">
-                {[['match', 'By game'], ['round', 'By round'], ['manual', 'Manual']].map(([m, label]) => (
+                {[['match', 'By referee'], ['round', 'By round'], ['manual', 'Manual']].map(([m, label]) => (
                   <button
                     key={m}
                     type="button"
@@ -1104,45 +1152,56 @@ export default function Evaluate() {
                 ))}
               </div>
 
-              {/* ── By-game picker: gare reali dalle Schedule Designations ── */}
+              {/* ── By-referee picker: pick from the tournament roster ── */}
               {pickMode === 'match' && (
-                <div className="space-y-2">
-                  {!tournamentId ? (
-                    <p className="text-xs text-gray-500">Select a tournament below to load its games.</p>
-                  ) : loadingSched ? (
-                    <p className="text-xs text-gray-400">Loading games…</p>
-                  ) : designatedGames.length === 0 ? (
-                    <div className="text-xs text-gray-500 space-y-1">
-                      <p>No designated games for Day {dayNumber}.</p>
-                      {schedMatches.length > 0 && Object.keys(schedAssign).length === 0 && (
-                        <p className="text-orange-500">Found {schedMatches.length} games but no referee assignments yet — assign referees in Schedule first.</p>
-                      )}
-                      {schedMatches.length === 0 && (
-                        <p className="text-orange-500">No games found for Day {dayNumber}.</p>
-                      )}
+                <div className="space-y-3">
+                  <RefereeSelector
+                    referees={pickerReferees}
+                    value={refereeId}
+                    onChange={(id) => {
+                      setRefereeId(id)
+                      setSchedMatch(null); setSchedMatchId(null)
+                      setRoundNumber(null)
+                      setErrors((p) => { const n = { ...p }; delete n.refereeId; return n })
+                    }}
+                    error={errors.refereeId}
+                  />
+
+                  {selectedReferee && isLineJudge(selectedReferee) && (
+                    <div className="rounded-xl bg-gray-100 border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-600 flex items-center gap-2">
+                      <span className="text-[9px] font-bold uppercase text-white bg-gray-500 rounded px-1.5 py-0.5">LJ</span>
+                      Line judge evaluation — {refereeName(selectedReferee)}
                     </div>
-                  ) : (
+                  )}
+
+                  {!tournamentId ? (
+                    <p className="text-xs text-gray-500">Select a tournament below to load its referees.</p>
+                  ) : rosterLoading ? (
+                    <p className="text-xs text-gray-400">Loading referees…</p>
+                  ) : roster && roster.length === 0 ? (
+                    <p className="text-xs text-orange-500">This tournament has no referees yet — add them first.</p>
+                  ) : !refereeId ? (
+                    <p className="text-xs text-gray-500">Pick a referee from the roster above, then score below.</p>
+                  ) : refDesignatedGames.length > 0 ? (
                     <div className="flex flex-col gap-1">
                       <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">
-                        Tap the game to evaluate its referee
+                        Designated game (optional)
                       </label>
-                      <div className="space-y-1.5 max-h-80 overflow-y-auto pr-1">
-                        {designatedGames.map((m) => {
-                          const a = schedAssign[m.id]
-                          const ref = a?.referee || referees.find((r) => r.id === a?.referee_id)
+                      <div className="space-y-1.5 max-h-64 overflow-y-auto pr-1">
+                        {refDesignatedGames.map((m) => {
                           const selected = schedMatch?.id === m.id
                           return (
                             <button
                               key={m.id}
                               type="button"
                               onClick={() => {
+                                if (selected) { setSchedMatch(null); setSchedMatchId(null); return }
                                 setSchedMatch(m)
                                 setSchedMatchId(m.id)
-                                setRefereeId(a.referee_id)
                                 setCourtNumber(m.court)
                                 setRoundNumber(null)
                                 setRole('R1')
-                                setErrors((p) => { const n = { ...p }; delete n.refereeId; return n })
+                                if (m.day_number) setDayNumber(m.day_number)
                               }}
                               className={cn(
                                 'w-full text-left px-3 py-2 rounded-xl border transition-all duration-150',
@@ -1162,14 +1221,13 @@ export default function Evaluate() {
                               <div className={cn('text-xs truncate', selected ? 'text-white/70' : 'text-gray-400')}>
                                 {m.team1 && m.team2 ? `${m.team1} / ${m.team2}` : '—'}
                               </div>
-                              <div className={cn('text-xs font-semibold mt-0.5', selected ? 'text-white' : 'text-[#2D3270]')}>
-                                Ref: {ref ? refereeName(ref) : '—'}
-                              </div>
                             </button>
                           )
                         })}
                       </div>
                     </div>
+                  ) : (
+                    <p className="text-xs text-gray-400">No designated games for this referee — you can still score below.</p>
                   )}
                 </div>
               )}
@@ -1255,7 +1313,7 @@ export default function Evaluate() {
               {/* Referee selector (manual mode, or to override) */}
               {pickMode === 'manual' && (
                 <RefereeSelector
-                  referees={referees}
+                  referees={pickerReferees}
                   value={refereeId}
                   onChange={(id) => {
                     setRefereeId(id)

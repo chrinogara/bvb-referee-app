@@ -936,6 +936,13 @@ export default function Evaluate() {
     const errs = {}
     if (!refereeId) errs.refereeId = 'Referee is required'
     if (!role) errs.role = 'Role is required'
+    // Line judges: written evaluation only — no numeric criteria required.
+    const _selLj = referees.find((r) => r.id === refereeId)
+    if (_selLj && isLineJudge(_selLj)) {
+      if (!generalNotes || !generalNotes.trim()) errs.noScore = 'Write the line judge evaluation'
+      setErrors(errs)
+      return Object.keys(errs).length === 0
+    }
     let scoredCount = 0
     CRITERIA.forEach((c) => {
       const cd = criteriaData[c.key]
@@ -957,11 +964,16 @@ export default function Evaluate() {
       return
     }
 
-    const scoreOf  = (k) => (criteriaData[k].na ? null : criteriaData[k].score)
-    const repeatOf = (k) => (criteriaData[k].na ? false : criteriaData[k].repeat)
+    const _selLjSave = referees.find((r) => r.id === refereeId)
+    const _isLj = !!(_selLjSave && isLineJudge(_selLjSave))
+    const scoreOf  = (k) => (_isLj || criteriaData[k].na ? null : criteriaData[k].score)
+    const repeatOf = (k) => (_isLj ? false : (criteriaData[k].na ? false : criteriaData[k].repeat))
+    const noteOf   = (k) => (_isLj ? null : (criteriaData[k].note || null))
     const _scores  = Object.fromEntries(CRITERIA.map((c) => [c.key, scoreOf(c.key)]))
     const _repeats = Object.fromEntries(CRITERIA.map((c) => [c.key, repeatOf(c.key)]))
-    const _calc = computeScore(_scores, _repeats, difficulty)
+    const _calc = _isLj
+      ? { overall: null, grade: null, penalty: 0 }
+      : computeScore(_scores, _repeats, difficulty)
 
     const payload = {
       referee_id: refereeId,
@@ -980,11 +992,11 @@ export default function Evaluate() {
       repeat_attitude:     repeatOf('attitude'),
       repeat_captain_comm: repeatOf('captain_comm'),
       repeat_presentation: repeatOf('presentation'),
-      note_positioning:  criteriaData.positioning.note || null,
-      note_signals:      criteriaData.signals.note || null,
-      note_attitude:     criteriaData.attitude.note || null,
-      note_captain_comm: criteriaData.captain_comm.note || null,
-      note_presentation: criteriaData.presentation.note || null,
+      note_positioning:  noteOf('positioning'),
+      note_signals:      noteOf('signals'),
+      note_attitude:     noteOf('attitude'),
+      note_captain_comm: noteOf('captain_comm'),
+      note_presentation: noteOf('presentation'),
       overall_score: _calc.overall,
       grade: _calc.grade ? _calc.grade.grade : null,
       repeat_penalty: _calc.penalty,
@@ -1082,6 +1094,8 @@ export default function Evaluate() {
 
   // Arbitro selezionato (per invio valutazione al suo numero)
   const selectedReferee = referees.find((r) => r.id === refereeId)
+  // Line judges are evaluated with a written comment only — no numeric criteria.
+  const ljMode = !!(selectedReferee && isLineJudge(selectedReferee))
 
   // ── Invia il riepilogo valutazione su WhatsApp AL NUMERO dell'arbitro valutato ──
   async function sendEvalToReferee() {
@@ -1170,7 +1184,7 @@ export default function Evaluate() {
                   {selectedReferee && isLineJudge(selectedReferee) && (
                     <div className="rounded-xl bg-gray-100 border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-600 flex items-center gap-2">
                       <span className="text-[9px] font-bold uppercase text-white bg-gray-500 rounded px-1.5 py-0.5">LJ</span>
-                      Line judge evaluation — {refereeName(selectedReferee)}
+                      Line judge — {refereeName(selectedReferee)} · written evaluation only, no score
                     </div>
                   )}
 
@@ -1428,7 +1442,8 @@ export default function Evaluate() {
                 </div>
               </div>
 
-              {/* Match difficulty — influences the final score */}
+              {/* Match difficulty — influences the final score (hidden for line judges) */}
+              {!ljMode && (
               <div className="flex flex-col gap-1">
                 <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">
                   Match difficulty
@@ -1464,10 +1479,12 @@ export default function Evaluate() {
                   Adjusts the final score: harder match adds credit, easier subtracts (Medium = neutral).
                 </p>
               </div>
+              )}
             </CardBody>
           </Card>
 
-          {/* ── Section 2: The 5 Criteria ─────────────────────────────────── */}
+          {/* ── Section 2: The 5 Criteria (hidden for line judges) ────────── */}
+          {!ljMode && (
           <div>
             <h2 className="font-display text-base font-bold uppercase tracking-wide text-[#2D3270] mb-3 px-1">
               Evaluation Criteria
@@ -1490,20 +1507,28 @@ export default function Evaluate() {
               ))}
             </div>
           </div>
+          )}
 
           {/* ── Section 4: General Notes ──────────────────────────────────── */}
           <Card>
             <CardHeader className="py-3">
               <h2 className="font-display text-base font-bold uppercase tracking-wide text-[#2D3270]">
-                General Feedback
+                {ljMode ? 'Line Judge Evaluation' : 'General Feedback'}
               </h2>
             </CardHeader>
             <CardBody>
+              {ljMode && (
+                <p className="text-[11px] text-gray-500 mb-2">
+                  Written evaluation only — no numeric score. Write in any language; it is translated to English automatically.
+                </p>
+              )}
               <NoteField
                 value={generalNotes}
                 onChange={setGeneralNotes}
-                placeholder="Overall impressions, strengths, areas for improvement…"
-                rows={4}
+                placeholder={ljMode
+                  ? 'Assess the line judge: accuracy of calls, positioning, focus, communication with the referee…'
+                  : 'Overall impressions, strengths, areas for improvement…'}
+                rows={ljMode ? 6 : 4}
               />
             </CardBody>
           </Card>
@@ -1605,8 +1630,8 @@ export default function Evaluate() {
         </div>
       </div>
 
-      {/* ── Section 3: Sticky live score bar ─────────────────────────────── */}
-      <LiveScoreBar scores={scores} repeats={repeats} difficulty={difficulty} />
+      {/* ── Section 3: Sticky live score bar (hidden for line judges) ────── */}
+      {!ljMode && <LiveScoreBar scores={scores} repeats={repeats} difficulty={difficulty} />}
     </div>
   )
 }

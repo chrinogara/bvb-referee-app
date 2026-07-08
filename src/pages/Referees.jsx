@@ -131,6 +131,21 @@ const BLANK_FORM = {
   phone: '',
   email: '',
   notes: '',
+  isLJ: false,
+}
+
+// The line-judge flag lives inside the free-text notes (this matches the
+// detection used on the Evaluate page: a referee is a line judge when their
+// notes contain "line judge"). This helper adds/removes the marker cleanly
+// without clobbering the rest of the notes.
+export function applyLineJudge(notes, on) {
+  let base = (notes || '')
+    .replace(/line judge/gi, '')
+    .replace(/\(\s*\)/g, '')
+    .replace(/[ \t]{2,}/g, ' ')
+    .trim()
+  if (on) base = base ? `${base} (line judge)` : 'line judge'
+  return base || null
 }
 
 function AddRefereeModal({ open, onClose, onCreate }) {
@@ -164,7 +179,7 @@ function AddRefereeModal({ open, onClose, onCreate }) {
         ranking_level: form.ranking_level,
         phone: form.phone.trim() || null,
         email: form.email.trim() || null,
-        notes: form.notes.trim() || null,
+        notes: applyLineJudge(form.notes, form.isLJ),
       })
       setForm(BLANK_FORM)
       onClose()
@@ -246,6 +261,21 @@ function AddRefereeModal({ open, onClose, onCreate }) {
           placeholder="Any additional notes about this referee…"
           rows={3}
         />
+
+        <label className="flex items-start gap-2 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={form.isLJ}
+            onChange={(e) => setForm((p) => ({ ...p, isLJ: e.target.checked }))}
+            className="mt-0.5 w-4 h-4 accent-[#E85D26]"
+          />
+          <span className="text-sm font-medium text-gray-700">
+            Line judge
+            <span className="block text-xs font-normal text-gray-400">
+              Listed under “Line judges” when evaluating; assessed with a written comment only (no score).
+            </span>
+          </span>
+        </label>
 
         {errors.submit && (
           <p className="text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">

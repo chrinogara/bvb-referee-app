@@ -20,7 +20,7 @@ const LIGHT_GRAY = '#F8F9FA'
 const DARK_GRAY = '#374151'
 const LEADERSHIP_PDF_LABEL = { 0: 'Not evaluable', 1: 'Needs support', 2: 'Developing', 3: 'Solid', 4: 'Role model' }
 const BENCH_PDF_LABEL = { 0: 'Not evaluable', 1: 'Needs work', 2: 'Developing', 3: 'Solid', 4: 'Excellent' }
-const OFFCOURT_PDF = { attento: { label: 'Attentive', pts: '+0.2' }, superficiale: { label: 'Superficial', pts: '-0.1' }, non_attento: { label: 'Not attentive', pts: '-0.3' } }
+const OFFCOURT_PDF = { attento: { label: 'Attentive', pts: '+0.2' }, superficiale: { label: 'Superficial', pts: '-0.2' }, non_attento: { label: 'Not attentive', pts: '-0.1' } }
 const MED_GRAY = '#6B7280'
 
 // Logo BBT bianco su trasparente: si fonde con la banda navy dell'header (nessun riquadro)

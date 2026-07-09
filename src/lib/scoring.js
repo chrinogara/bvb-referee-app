@@ -32,7 +32,7 @@ export const DIFFICULTY_ADJ = { easy: -0.3, medium: 0, hard: 0.3 }
 
 // Off-court control (R1 duty: ball kids, rakers, line-judge uniforms, etc.).
 // These points are ADDED to the final score.
-export const OFFCOURT_ADJ = { attento: 0.2, superficiale: -0.1, non_attento: -0.3 }
+export const OFFCOURT_ADJ = { attento: 0.2, superficiale: -0.2, non_attento: -0.1 }
 export const OFFCOURT_LABEL = { attento: 'Attentive', superficiale: 'Superficial', non_attento: 'Not attentive' }
 
 export function computeScore(scores, repeats, difficulty = 'medium', extraAdj = 0) {

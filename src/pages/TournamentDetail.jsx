@@ -842,7 +842,8 @@ function EvaluationCard({ evaluation }) {
   const score = evaluation.overall_score
 
   return (
-    <Card>
+    <Link to={`/evaluate?evalId=${evaluation.id}`} className="block active:opacity-80">
+    <Card className="hover:border-gray-300 transition-colors">
       <CardBody className="p-3">
         <div className="flex items-start gap-3">
           {/* Avatar */}
@@ -890,6 +891,7 @@ function EvaluationCard({ evaluation }) {
         </div>
       </CardBody>
     </Card>
+    </Link>
   )
 }
 

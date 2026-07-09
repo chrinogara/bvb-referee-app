@@ -5,7 +5,7 @@ import { useReferees } from '../hooks/useReferees'
 import { useTournaments } from '../hooks/useTournaments'
 import { useEvaluations } from '../hooks/useEvaluations'
 import { evaluationService } from '../lib/supabase'
-import { courtAssignmentService, matchService, designationService, tournamentService } from '../lib/supabase'
+import { supabase, courtAssignmentService, matchService, designationService, tournamentService } from '../lib/supabase'
 import { useAppStore } from '../store/appStore'
 import { CRITERIA, computeScore, SCORE_LABELS, getGrade } from '../lib/scoring'
 import { generateEvaluationPDF, downloadPDF, sharePDFWhatsApp } from '../lib/pdf'
@@ -596,12 +596,25 @@ function LiveScoreBar({ scores, repeats, difficulty }) {
 // arbitro+ruolo) e viene cancellata al salvataggio definitivo.
 const LAST_WIP_KEY = 'bvb_eval_wip_last'
 const wipKey = (t, d, r, ro) => `bvb_eval_wip::${t || '-'}::${d || '-'}::${r}::${ro}`
-function evalHasContent(cd, gn) {
+function evalHasContent(cd, gn, extra = {}) {
   return Boolean(
     (gn && gn.trim()) ||
+    extra.leadershipScore != null ||
+    (extra.leadershipNote && extra.leadershipNote.trim()) ||
     CRITERIA.some((c) => cd[c.key].score || cd[c.key].repeat || (cd[c.key].note && cd[c.key].note.trim()))
   )
 }
+
+// Leadership / collegiality rating — how the referee helps and sets an example
+// to colleagues (esp. pre-match management). Separate from the official weighted
+// score; carried into the final report.
+const LEADERSHIP_LEVELS = [
+  { value: 1, label: 'Needs support', hint: 'Rarely helps peers / limited pre-match example' },
+  { value: 2, label: 'Developing',    hint: 'Occasionally supports colleagues' },
+  { value: 3, label: 'Solid',         hint: 'Reliably helps peers; good pre-match example' },
+  { value: 4, label: 'Role model',    hint: 'Exemplary — sets the standard others follow' },
+]
+export const LEADERSHIP_LABEL = Object.fromEntries(LEADERSHIP_LEVELS.map((l) => [l.value, l.label]))
 
 // ─── Main page ────────────────────────────────────────────────────────────────
 
@@ -789,6 +802,10 @@ export default function Evaluate() {
   )
 
   const [generalNotes, setGeneralNotes] = useState('')
+  // Leadership / example-to-colleagues rating (1–4) + note. Separate from score.
+  const [leadershipScore, setLeadershipScore] = useState(null)
+  const [leadershipNote, setLeadershipNote] = useState('')
+  const [leadershipEnabled, setLeadershipEnabled] = useState(true) // DB has the columns?
 
   // ── Post-save state ─────────────────────────────────────────────────────────
   const [saving, setSaving] = useState(false)
@@ -821,6 +838,8 @@ export default function Evaluate() {
           na: e[`score_${c.key}`] == null,
         }])))
         setGeneralNotes(e.general_notes || '')
+        setLeadershipScore(e.leadership_score ?? null)
+        setLeadershipNote(e.leadership_note || '')
       } catch {
         toast.error('Could not load the evaluation to edit')
       } finally {
@@ -832,6 +851,20 @@ export default function Evaluate() {
 
   // ── Validation errors ───────────────────────────────────────────────────────
   const [errors, setErrors] = useState({})
+
+  // One-time probe: do the leadership_* columns exist in the DB? If not, the
+  // rating still works locally (draft) but isn't sent to the server until the
+  // columns are added, so saving an evaluation never fails.
+  useEffect(() => {
+    let alive = true
+    ;(async () => {
+      try {
+        const { error } = await supabase.from('evaluations').select('leadership_score').limit(1)
+        if (alive && error) setLeadershipEnabled(false)
+      } catch { if (alive) setLeadershipEnabled(false) }
+    })()
+    return () => { alive = false }
+  }, [])
 
   // ── Resume in-progress evaluation (draft persistence) ───────────────────────
   const skipNextSaveRef = useRef(false)
@@ -869,10 +902,14 @@ export default function Evaluate() {
         if (d.roundNumber != null) setRoundNumber(d.roundNumber)
         if (d.schedMatchId != null) setSchedMatchId(d.schedMatchId)
         if (d.pickMode) setPickMode(d.pickMode)
+        setLeadershipScore(d.leadershipScore ?? null)
+        setLeadershipNote(d.leadershipNote || '')
         setDraftSavedAt(d.updatedAt || Date.now())
       } else {
         setCriteriaData(Object.fromEntries(CRITERIA.map((c) => [c.key, { score: null, repeat: false, note: '', na: false }])))
         setGeneralNotes('')
+        setLeadershipScore(null)
+        setLeadershipNote('')
         setDraftSavedAt(null)
       }
     } catch { /* ignore */ }
@@ -884,9 +921,9 @@ export default function Evaluate() {
     if (skipNextSaveRef.current) { skipNextSaveRef.current = false; return }
     const key = wipKey(tournamentId, dayNumber, refereeId, role)
     try {
-      if (evalHasContent(criteriaData, generalNotes)) {
+      if (evalHasContent(criteriaData, generalNotes, { leadershipScore, leadershipNote })) {
         const now = Date.now()
-        localStorage.setItem(key, JSON.stringify({ criteriaData, generalNotes, courtNumber, roundNumber, schedMatchId, pickMode, difficulty, updatedAt: now }))
+        localStorage.setItem(key, JSON.stringify({ criteriaData, generalNotes, leadershipScore, leadershipNote, courtNumber, roundNumber, schedMatchId, pickMode, difficulty, updatedAt: now }))
         localStorage.setItem(LAST_WIP_KEY, JSON.stringify({ tournamentId, dayNumber, refereeId, role }))
         setDraftSavedAt(now)
       } else {
@@ -894,7 +931,7 @@ export default function Evaluate() {
         setDraftSavedAt(null)
       }
     } catch { /* ignore */ }
-  }, [criteriaData, generalNotes, courtNumber, roundNumber, schedMatchId, pickMode, difficulty, refereeId, role, tournamentId, dayNumber, savedEval]) // eslint-disable-line
+  }, [criteriaData, generalNotes, leadershipScore, leadershipNote, courtNumber, roundNumber, schedMatchId, pickMode, difficulty, refereeId, role, tournamentId, dayNumber, savedEval]) // eslint-disable-line
 
   function clearWipDraft() {
     try {
@@ -911,7 +948,7 @@ export default function Evaluate() {
       const now = Date.now()
       localStorage.setItem(
         wipKey(tournamentId, dayNumber, refereeId, role),
-        JSON.stringify({ criteriaData, generalNotes, courtNumber, roundNumber, schedMatchId, pickMode, difficulty, updatedAt: now })
+        JSON.stringify({ criteriaData, generalNotes, leadershipScore, leadershipNote, courtNumber, roundNumber, schedMatchId, pickMode, difficulty, updatedAt: now })
       )
       localStorage.setItem(LAST_WIP_KEY, JSON.stringify({ tournamentId, dayNumber, refereeId, role }))
       setDraftSavedAt(now)
@@ -926,6 +963,8 @@ export default function Evaluate() {
     clearWipDraft()
     setCriteriaData(Object.fromEntries(CRITERIA.map((c) => [c.key, { score: null, repeat: false, note: '', na: false }])))
     setGeneralNotes('')
+    setLeadershipScore(null)
+    setLeadershipNote('')
     toast('Draft discarded', 'info')
   }
 
@@ -1047,6 +1086,12 @@ export default function Evaluate() {
       repeat_penalty: _calc.penalty,
       general_notes: generalNotes || null,
       evaluated_at: new Date().toISOString(),
+    }
+
+    // Leadership / example-to-colleagues rating — only sent if the columns exist.
+    if (leadershipEnabled) {
+      payload.leadership_score = leadershipScore ?? null
+      payload.leadership_note = leadershipNote ? leadershipNote.trim() : null
     }
 
     // Edit mode: keep the original match label and timestamp (don't reorder).
@@ -1534,6 +1579,55 @@ export default function Evaluate() {
               )}
             </CardBody>
           </Card>
+
+          {/* ── Leadership & example to colleagues (top of the eval; referees only) ── */}
+          {!ljMode && (
+          <Card>
+            <CardHeader className="py-3">
+              <h2 className="font-display text-base font-bold uppercase tracking-wide text-[#2D3270]">
+                Leadership &amp; Example
+              </h2>
+              <p className="text-[11px] text-gray-500 mt-0.5">
+                How the referee helps colleagues and sets the example — pre-match management and role-model behaviour. Included in the final report.
+              </p>
+            </CardHeader>
+            <CardBody className="space-y-3">
+              <div className="grid grid-cols-2 gap-2">
+                {LEADERSHIP_LEVELS.map((lv) => {
+                  const active = leadershipScore === lv.value
+                  return (
+                    <button
+                      key={lv.value}
+                      type="button"
+                      onClick={() => setLeadershipScore(active ? null : lv.value)}
+                      className={cn(
+                        'flex flex-col items-start text-left px-3 py-2 rounded-xl border transition-all duration-150',
+                        active
+                          ? 'bg-[#2D3270] text-white border-[#2D3270] ring-2 ring-[#2D3270]/30'
+                          : 'bg-gray-50 text-gray-700 border-gray-200 hover:border-gray-300'
+                      )}
+                    >
+                      <span className="text-sm font-bold">{lv.label}</span>
+                      <span className={cn('text-[10px] mt-0.5 leading-tight', active ? 'text-white/70' : 'text-gray-400')}>{lv.hint}</span>
+                    </button>
+                  )
+                })}
+              </div>
+              <NoteField
+                value={leadershipNote}
+                onChange={setLeadershipNote}
+                placeholder="Concrete example: how they ran the pre-match, helped a colleague, set the standard…"
+                rows={3}
+                autoOpenLabel="Example for colleagues"
+              />
+              {!leadershipEnabled && (
+                <p className="text-[11px] text-amber-600 leading-snug">
+                  Kept in your draft for now — a quick database update is needed before this rating is stored on the server.
+                </p>
+              )}
+            </CardBody>
+          </Card>
+          )}
 
           {/* ── Section 2: The 5 Criteria (hidden for line judges) ────────── */}
           {!ljMode && (

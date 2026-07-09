@@ -7,7 +7,7 @@ import { useEvaluations } from '../hooks/useEvaluations'
 import { evaluationService } from '../lib/supabase'
 import { supabase, courtAssignmentService, matchService, designationService, tournamentService, draftService } from '../lib/supabase'
 import { useAppStore } from '../store/appStore'
-import { CRITERIA, computeScore, SCORE_LABELS, getGrade } from '../lib/scoring'
+import { CRITERIA, computeScore, SCORE_LABELS, getGrade, OFFCOURT_ADJ } from '../lib/scoring'
 import { generateEvaluationPDF, downloadPDF, sharePDFWhatsApp } from '../lib/pdf'
 import { shareEvaluationToReferee } from '../lib/whatsapp'
 import { translateToEnglish, lookupRuleReference } from '../lib/anthropic'
@@ -520,16 +520,16 @@ function CriterionCard({ criterion, score, repeat, note, na, onScore, onRepeat, 
 
 // ─── Live score bar (sticky bottom) ──────────────────────────────────────────
 
-function LiveScoreBar({ scores, repeats, difficulty }) {
+function LiveScoreBar({ scores, repeats, difficulty, extraAdj = 0 }) {
   const result = useMemo(() => {
     const allSet = Object.values(scores).every((v) => v != null && v > 0)
     if (!allSet) {
       // Compute partial score for whatever's filled
-      const partial = computeScore(scores, repeats, difficulty)
+      const partial = computeScore(scores, repeats, difficulty, extraAdj)
       return { ...partial, partial: true }
     }
-    return { ...computeScore(scores, repeats, difficulty), partial: false }
-  }, [scores, repeats, difficulty])
+    return { ...computeScore(scores, repeats, difficulty, extraAdj), partial: false }
+  }, [scores, repeats, difficulty, extraAdj])
 
   const filledCount = Object.values(scores).filter((v) => v != null && v > 0).length
   const grade = result.overall > 0 ? getGrade(result.overall) : null
@@ -603,6 +603,8 @@ function evalHasContent(cd, gn, extra = {}) {
     (extra.leadershipNote && extra.leadershipNote.trim()) ||
     extra.benchScore != null || extra.benchNa ||
     (extra.benchNote && extra.benchNote.trim()) ||
+    extra.offcourtControl != null ||
+    (extra.offcourtNote && extra.offcourtNote.trim()) ||
     CRITERIA.some((c) => cd[c.key].score || cd[c.key].repeat || (cd[c.key].note && cd[c.key].note.trim()))
   )
 }
@@ -626,6 +628,14 @@ const BENCH_LEVELS = [
   { value: 4, label: 'Excellent',   hint: 'Proactive, authoritative off-court management' },
 ]
 export const BENCH_LABEL = Object.fromEntries(BENCH_LEVELS.map((l) => [l.value, l.label]))
+
+// R1 only — control of everything OFF the court (ball kids, rakers, line-judge
+// uniforms…). These points ADD to the final score and appear in the report.
+const OFFCOURT_LEVELS = [
+  { value: 'attento',     label: 'Attentive',     pts: OFFCOURT_ADJ.attento },
+  { value: 'superficiale', label: 'Superficial',  pts: OFFCOURT_ADJ.superficiale },
+  { value: 'non_attento', label: 'Not attentive', pts: OFFCOURT_ADJ.non_attento },
+]
 
 // Reusable "extra rating" card: a levelled judgement + Not-evaluable toggle +
 // auto-translated note. Used for Leadership and for the R2 bench/off-court block.
@@ -884,6 +894,10 @@ export default function Evaluate() {
   const [benchNa, setBenchNa] = useState(false)
   const [benchNote, setBenchNote] = useState('')
   const [benchEnabled, setBenchEnabled] = useState(true) // DB has the columns?
+  // R1 only — off-court control (ball kids / rakers / LJ uniforms). Affects score.
+  const [offcourtControl, setOffcourtControl] = useState(null) // 'attento' | 'superficiale' | 'non_attento'
+  const [offcourtNote, setOffcourtNote] = useState('')
+  const [offcourtEnabled, setOffcourtEnabled] = useState(true)
 
   // ── Post-save state ─────────────────────────────────────────────────────────
   const [saving, setSaving] = useState(false)
@@ -922,6 +936,8 @@ export default function Evaluate() {
         setBenchNa(e.bench_score === 0)
         setBenchScore(e.bench_score > 0 ? e.bench_score : null)
         setBenchNote(e.bench_note || '')
+        setOffcourtControl(e.offcourt_control || null)
+        setOffcourtNote(e.offcourt_note || '')
       } catch {
         toast.error('Could not load the evaluation to edit')
       } finally {
@@ -948,6 +964,10 @@ export default function Evaluate() {
         const { error } = await supabase.from('evaluations').select('bench_score').limit(1)
         if (alive && error) setBenchEnabled(false)
       } catch { if (alive) setBenchEnabled(false) }
+      try {
+        const { error } = await supabase.from('evaluations').select('offcourt_control').limit(1)
+        if (alive && error) setOffcourtEnabled(false)
+      } catch { if (alive) setOffcourtEnabled(false) }
     })()
     return () => { alive = false }
   }, [])
@@ -995,6 +1015,8 @@ export default function Evaluate() {
         setBenchScore(d.benchScore ?? null)
         setBenchNa(!!d.benchNa)
         setBenchNote(d.benchNote || '')
+        setOffcourtControl(d.offcourtControl ?? null)
+        setOffcourtNote(d.offcourtNote || '')
         setDraftSavedAt(d.updatedAt || Date.now())
       } else {
         setCriteriaData(Object.fromEntries(CRITERIA.map((c) => [c.key, { score: null, repeat: false, note: '', na: false }])))
@@ -1005,6 +1027,8 @@ export default function Evaluate() {
         setBenchScore(null)
         setBenchNa(false)
         setBenchNote('')
+        setOffcourtControl(null)
+        setOffcourtNote('')
         setDraftSavedAt(null)
       }
     } catch { /* ignore */ }
@@ -1016,9 +1040,9 @@ export default function Evaluate() {
     if (skipNextSaveRef.current) { skipNextSaveRef.current = false; return }
     const key = wipKey(tournamentId, dayNumber, refereeId, role)
     try {
-      if (evalHasContent(criteriaData, generalNotes, { leadershipScore, leadershipNa, leadershipNote, benchScore, benchNa, benchNote })) {
+      if (evalHasContent(criteriaData, generalNotes, { leadershipScore, leadershipNa, leadershipNote, benchScore, benchNa, benchNote, offcourtControl, offcourtNote })) {
         const now = Date.now()
-        const draftObj = { criteriaData, generalNotes, leadershipScore, leadershipNa, leadershipNote, benchScore, benchNa, benchNote, courtNumber, roundNumber, schedMatchId, pickMode, difficulty, updatedAt: now }
+        const draftObj = { criteriaData, generalNotes, leadershipScore, leadershipNa, leadershipNote, benchScore, benchNa, benchNote, offcourtControl, offcourtNote, courtNumber, roundNumber, schedMatchId, pickMode, difficulty, updatedAt: now }
         localStorage.setItem(key, JSON.stringify(draftObj))
         localStorage.setItem(LAST_WIP_KEY, JSON.stringify({ tournamentId, dayNumber, refereeId, role }))
         setDraftSavedAt(now)
@@ -1030,7 +1054,7 @@ export default function Evaluate() {
         deleteDraftServer(key)
       }
     } catch { /* ignore */ }
-  }, [criteriaData, generalNotes, leadershipScore, leadershipNa, leadershipNote, benchScore, benchNa, benchNote, courtNumber, roundNumber, schedMatchId, pickMode, difficulty, refereeId, role, tournamentId, dayNumber, savedEval]) // eslint-disable-line
+  }, [criteriaData, generalNotes, leadershipScore, leadershipNa, leadershipNote, benchScore, benchNa, benchNote, offcourtControl, offcourtNote, courtNumber, roundNumber, schedMatchId, pickMode, difficulty, refereeId, role, tournamentId, dayNumber, savedEval]) // eslint-disable-line
 
   function clearWipDraft() {
     const key = wipKey(tournamentId, dayNumber, refereeId, role)
@@ -1049,7 +1073,7 @@ export default function Evaluate() {
     try {
       const now = Date.now()
       const key = wipKey(tournamentId, dayNumber, refereeId, role)
-      const draftObj = { criteriaData, generalNotes, leadershipScore, leadershipNa, leadershipNote, benchScore, benchNa, benchNote, courtNumber, roundNumber, schedMatchId, pickMode, difficulty, updatedAt: now }
+      const draftObj = { criteriaData, generalNotes, leadershipScore, leadershipNa, leadershipNote, benchScore, benchNa, benchNote, offcourtControl, offcourtNote, courtNumber, roundNumber, schedMatchId, pickMode, difficulty, updatedAt: now }
       localStorage.setItem(key, JSON.stringify(draftObj))
       localStorage.setItem(LAST_WIP_KEY, JSON.stringify({ tournamentId, dayNumber, refereeId, role }))
       setDraftSavedAt(now)
@@ -1072,6 +1096,8 @@ export default function Evaluate() {
     setBenchScore(null)
     setBenchNa(false)
     setBenchNote('')
+    setOffcourtControl(null)
+    setOffcourtNote('')
     toast('Draft discarded', 'info')
     refreshDrafts()
   }
@@ -1208,6 +1234,8 @@ export default function Evaluate() {
       setBenchScore(null)
       setBenchNa(false)
       setBenchNote('')
+      setOffcourtControl(null)
+      setOffcourtNote('')
       setDraftSavedAt(null)
     }
     refreshDrafts()
@@ -1311,7 +1339,7 @@ export default function Evaluate() {
     const _repeats = Object.fromEntries(CRITERIA.map((c) => [c.key, repeatOf(c.key)]))
     const _calc = _isLj
       ? { overall: null, grade: null, penalty: 0 }
-      : computeScore(_scores, _repeats, difficulty)
+      : computeScore(_scores, _repeats, difficulty, (offcourtEnabled && OFFCOURT_ADJ[offcourtControl]) || 0)
 
     const payload = {
       referee_id: refereeId,
@@ -1352,6 +1380,10 @@ export default function Evaluate() {
       payload.bench_score = benchNa ? 0 : (benchScore ?? null)
       payload.bench_note = benchNote ? benchNote.trim() : null
     }
+    if (offcourtEnabled) {
+      payload.offcourt_control = offcourtControl || null
+      payload.offcourt_note = offcourtNote ? offcourtNote.trim() : null
+    }
 
     // Edit mode: keep the original match label and timestamp (don't reorder).
     if (editingEvalId) {
@@ -1384,12 +1416,13 @@ export default function Evaluate() {
         return await persistOnce(pl)
       } catch (err) {
         const msg = (err?.message || '').toLowerCase()
-        if (/leadership_score|leadership_note|bench_score|bench_note|schema cache|could not find the/.test(msg)) {
+        if (/leadership_score|leadership_note|bench_score|bench_note|offcourt_control|offcourt_note|schema cache|could not find the/.test(msg)) {
           setLeadershipEnabled(false)
           setBenchEnabled(false)
-          const { leadership_score, leadership_note, bench_score, bench_note, ...core } = pl
+          setOffcourtEnabled(false)
+          const { leadership_score, leadership_note, bench_score, bench_note, offcourt_control, offcourt_note, ...core } = pl
           const data = await persistOnce(core)
-          toast('Saved. The leadership/bench columns aren’t in the database yet — run the SQL to store those ratings.', 'info', 6500)
+          toast('Saved. The extra rating columns aren’t in the database yet — run the SQL to store those ratings.', 'info', 6500)
           return data
         }
         if (/role/.test(msg) && /(constraint|check|invalid|violat|enum)/.test(msg)) {
@@ -1952,6 +1985,56 @@ export default function Evaluate() {
             />
           )}
 
+          {/* ── R1 only: control of everything off the court ────────────────── */}
+          {!ljMode && role === 'R1' && (
+            <Card>
+              <CardHeader className="py-3">
+                <h2 className="font-display text-base font-bold uppercase tracking-wide text-[#2D3270]">
+                  Off-court Control (R1)
+                </h2>
+                <p className="text-[11px] text-gray-500 mt-0.5">
+                  R1 duty — control of ball kids, rakers, line-judge uniforms and everything off the court. These points are added to the final score.
+                </p>
+              </CardHeader>
+              <CardBody className="space-y-3">
+                <div className="grid grid-cols-3 gap-2">
+                  {OFFCOURT_LEVELS.map((lv) => {
+                    const active = offcourtControl === lv.value
+                    const sign = lv.pts > 0 ? `+${lv.pts}` : `${lv.pts}`
+                    return (
+                      <button
+                        key={lv.value}
+                        type="button"
+                        onClick={() => setOffcourtControl(active ? null : lv.value)}
+                        className={cn(
+                          'flex flex-col items-center text-center px-2 py-2.5 rounded-xl border transition-all duration-150',
+                          active
+                            ? 'bg-[#2D3270] text-white border-[#2D3270] ring-2 ring-[#2D3270]/30'
+                            : 'bg-gray-50 text-gray-700 border-gray-200 hover:border-gray-300'
+                        )}
+                      >
+                        <span className="text-sm font-bold leading-tight">{lv.label}</span>
+                        <span className={cn('text-[11px] font-bold mt-0.5', active ? 'text-white/80' : (lv.pts < 0 ? 'text-red-500' : 'text-emerald-600'))}>{sign}</span>
+                      </button>
+                    )
+                  })}
+                </div>
+                <NoteField
+                  value={offcourtNote}
+                  onChange={setOffcourtNote}
+                  placeholder="What was off — uniforms, ball kids, rakers… and whether the R1 corrected it"
+                  rows={3}
+                  autoOpenLabel="Off-court notes"
+                />
+                {!offcourtEnabled && (
+                  <p className="text-[11px] text-amber-600 leading-snug">
+                    Kept in your draft for now — a quick database update is needed before this rating is stored and counted in the score.
+                  </p>
+                )}
+              </CardBody>
+            </Card>
+          )}
+
           {/* ── Section 2: The 5 Criteria (hidden for line judges) ────────── */}
           {!ljMode && (
           <div>
@@ -2133,7 +2216,7 @@ export default function Evaluate() {
       </div>
 
       {/* ── Section 3: Sticky live score bar (hidden for line judges) ────── */}
-      {!ljMode && <LiveScoreBar scores={scores} repeats={repeats} difficulty={difficulty} />}
+      {!ljMode && <LiveScoreBar scores={scores} repeats={repeats} difficulty={difficulty} extraAdj={(role === 'R1' && OFFCOURT_ADJ[offcourtControl]) || 0} />}
     </div>
   )
 }

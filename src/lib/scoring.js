@@ -30,7 +30,12 @@ export const CRIT_KEYS = ['positioning', 'signals', 'attitude', 'captain_comm', 
 // Harder match → more credit; easier match → less. Medium is neutral.
 export const DIFFICULTY_ADJ = { easy: -0.3, medium: 0, hard: 0.3 }
 
-export function computeScore(scores, repeats, difficulty = 'medium') {
+// Off-court control (R1 duty: ball kids, rakers, line-judge uniforms, etc.).
+// These points are ADDED to the final score.
+export const OFFCOURT_ADJ = { attento: 0.2, superficiale: -0.1, non_attento: -0.3 }
+export const OFFCOURT_LABEL = { attento: 'Attentive', superficiale: 'Superficial', non_attento: 'Not attentive' }
+
+export function computeScore(scores, repeats, difficulty = 'medium', extraAdj = 0) {
   // Weighted average over ONLY the criteria that were actually scored.
   // A criterion marked "not evaluable" (null/undefined score) is excluded and
   // the remaining weights are re-normalised, so it does NOT count as zero.
@@ -60,7 +65,7 @@ export function computeScore(scores, repeats, difficulty = 'medium') {
 
   const adjustment = DIFFICULTY_ADJ[difficulty] ?? 0
 
-  let overall = raw - penalty + adjustment
+  let overall = raw - penalty + adjustment + (Number(extraAdj) || 0)
   overall = Math.min(5.0, Math.max(1.0, overall))
 
   return {

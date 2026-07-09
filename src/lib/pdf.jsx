@@ -20,6 +20,7 @@ const LIGHT_GRAY = '#F8F9FA'
 const DARK_GRAY = '#374151'
 const LEADERSHIP_PDF_LABEL = { 0: 'Not evaluable', 1: 'Needs support', 2: 'Developing', 3: 'Solid', 4: 'Role model' }
 const BENCH_PDF_LABEL = { 0: 'Not evaluable', 1: 'Needs work', 2: 'Developing', 3: 'Solid', 4: 'Excellent' }
+const OFFCOURT_PDF = { attento: { label: 'Attentive', pts: '+0.2' }, superficiale: { label: 'Superficial', pts: '-0.1' }, non_attento: { label: 'Not attentive', pts: '-0.3' } }
 const MED_GRAY = '#6B7280'
 
 // Logo BBT bianco su trasparente: si fonde con la banda navy dell'header (nessun riquadro)
@@ -376,6 +377,21 @@ function EvaluationDocument({ evaluation, referee, match, tournament, lang = 'en
             )}
             {evaluation.bench_note && (
               <Text style={styles.noteText}>{evaluation.bench_note}</Text>
+            )}
+          </>
+        )}
+
+        {/* R1 — Off-court control (counts toward the final score) */}
+        {(evaluation.offcourt_control || evaluation.offcourt_note) && (
+          <>
+            <Text style={styles.sectionTitle}>Off-court Control (R1)</Text>
+            {evaluation.offcourt_control && OFFCOURT_PDF[evaluation.offcourt_control] && (
+              <Text style={styles.noteText}>
+                {OFFCOURT_PDF[evaluation.offcourt_control].label} ({OFFCOURT_PDF[evaluation.offcourt_control].pts} to final score)
+              </Text>
+            )}
+            {evaluation.offcourt_note && (
+              <Text style={styles.noteText}>{evaluation.offcourt_note}</Text>
             )}
           </>
         )}
@@ -1143,7 +1159,7 @@ export async function generateEvaluationPDF(evaluation, referee, match, tourname
   // translate again here as a safety net so no Italian leaks into the PDF.
   const ev = await translateFieldsToEnglish(evaluation, [
     'note_positioning', 'note_signals', 'note_attitude',
-    'note_captain_comm', 'note_presentation', 'general_notes', 'leadership_note', 'bench_note',
+    'note_captain_comm', 'note_presentation', 'general_notes', 'leadership_note', 'bench_note', 'offcourt_note',
   ])
   const blob = await pdf(
     <EvaluationDocument
@@ -1304,6 +1320,12 @@ export function collectEvalComments(ev) {
     out.push({ label: `Benches/off-court${ev.bench_score != null ? ` (${RECAP_BENCH[ev.bench_score] || ev.bench_score})` : ''}`, text: String(ev.bench_note).trim() })
   } else if (ev.bench_score != null) {
     out.push({ label: 'Benches/off-court', text: RECAP_BENCH[ev.bench_score] || String(ev.bench_score) })
+  }
+  if (ev.offcourt_control && OFFCOURT_PDF[ev.offcourt_control]) {
+    const oc = OFFCOURT_PDF[ev.offcourt_control]
+    out.push({ label: `Off-court control (${oc.pts})`, text: (ev.offcourt_note && String(ev.offcourt_note).trim()) ? String(ev.offcourt_note).trim() : oc.label })
+  } else if (ev.offcourt_note && String(ev.offcourt_note).trim()) {
+    out.push({ label: 'Off-court control', text: String(ev.offcourt_note).trim() })
   }
   for (const c of CRITERIA) {
     const n = ev[`note_${c.key}`]

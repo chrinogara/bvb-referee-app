@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { evaluationService } from '../lib/supabase'
-import { computeScore } from '../lib/scoring'
+import { computeScore, OFFCOURT_ADJ } from '../lib/scoring'
 
 export function useEvaluations(filter = {}) {
   const [evaluations, setEvaluations] = useState([])
@@ -40,7 +40,7 @@ export function useEvaluations(filter = {}) {
       presentation: formData.repeat_presentation,
     }
 
-    const { overall, penalty, grade } = computeScore(scores, repeats, formData.match_difficulty)
+    const { overall, penalty, grade } = computeScore(scores, repeats, formData.match_difficulty, OFFCOURT_ADJ[formData.offcourt_control] || 0)
 
     const payload = {
       ...formData,

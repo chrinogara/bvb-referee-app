@@ -676,7 +676,8 @@ export default function Evaluate() {
 
   // ── Schedule games selection (gare + designazioni da Schedule) ──────────────
   const [schedMatches, setSchedMatches] = useState([])   // matches table rows for the day
-  const [schedAssign, setSchedAssign] = useState({})     // { [match_id]: { referee_id, referee } }
+  const [schedAssign, setSchedAssign] = useState({})     // { [match_id]: { referee_id, referee } }  (R1, for legacy uses)
+  const [schedDesigs, setSchedDesigs] = useState([])     // all designations (R1/R2/LJ1/LJ2) for the tournament
   const [loadingSched, setLoadingSched] = useState(false)
   const [schedMatch, setSchedMatch] = useState(null)     // selected match object (drives the label)
   const [schedMatchId, setSchedMatchId] = useState(null) // persisted id (WIP restore)
@@ -697,7 +698,7 @@ export default function Evaluate() {
   // Load the day's schedule games + their schedule designations (1 ref per game)
   useEffect(() => {
     let alive = true
-    if (!tournamentId || !dayNumber) { setSchedMatches([]); setSchedAssign({}); return }
+    if (!tournamentId || !dayNumber) { setSchedMatches([]); setSchedAssign({}); setSchedDesigs([]); return }
     setLoadingSched(true)
     ;(async () => {
       try {
@@ -714,6 +715,7 @@ export default function Evaluate() {
         const dRes = await designationService.getByTournament(tournamentId)
         if (!alive) return
         const desigs = dRes.data || []
+        setSchedDesigs(desigs)
 
         // 3. Costruisce la mappa match_id → {referee_id, referee} solo per R1
         const map = {}
@@ -748,10 +750,20 @@ export default function Evaluate() {
     [schedMatches, schedAssign]
   )
   // Designated games for the currently selected referee (optional match attach)
-  const refDesignatedGames = useMemo(
-    () => (refereeId ? designatedGames.filter((m) => schedAssign[m.id]?.referee_id === refereeId) : []),
-    [designatedGames, schedAssign, refereeId]
-  )
+  // Designated games for the currently selected official — across ALL roles
+  // (R1, R2, LJ1, LJ2), so both referees and line judges see their own games.
+  const refDesignatedGames = useMemo(() => {
+    if (!refereeId) return []
+    const roleByMatch = {}
+    for (const d of schedDesigs) {
+      if (d.referee_id !== refereeId || !d.match_id) continue
+      // keep the most specific role if a match somehow has several
+      roleByMatch[d.match_id] = d.role || roleByMatch[d.match_id] || 'R1'
+    }
+    return schedMatches
+      .filter((m) => roleByMatch[m.id])
+      .map((m) => ({ ...m, _role: roleByMatch[m.id] }))
+  }, [refereeId, schedDesigs, schedMatches])
   const rounds = useMemo(() => {
     const FINALS = 99
     const bySession = {}
@@ -1247,7 +1259,7 @@ export default function Evaluate() {
                                 setSchedMatchId(m.id)
                                 setCourtNumber(m.court)
                                 setRoundNumber(null)
-                                setRole('R1')
+                                setRole(m._role === 'R2' ? 'R2' : 'R1')
                                 if (m.day_number) setDayNumber(m.day_number)
                               }}
                               className={cn(
@@ -1261,8 +1273,15 @@ export default function Evaluate() {
                                 <span className="text-sm font-bold truncate">
                                   {m.is_final ? '🏆 ' : ''}#{m.match_number} · C{m.court} · {hhmm(m.scheduled_time)}
                                 </span>
-                                <span className={cn('text-[11px] font-bold uppercase shrink-0', selected ? 'text-white/80' : 'text-[#E85D26]')}>
-                                  {gameTag(m)}
+                                <span className="flex items-center gap-1.5 shrink-0">
+                                  {m._role && (
+                                    <span className={cn('text-[9px] font-bold uppercase rounded px-1.5 py-0.5', selected ? 'bg-white/20 text-white' : 'bg-gray-200 text-gray-600')}>
+                                      {m._role}
+                                    </span>
+                                  )}
+                                  <span className={cn('text-[11px] font-bold uppercase', selected ? 'text-white/80' : 'text-[#E85D26]')}>
+                                    {gameTag(m)}
+                                  </span>
                                 </span>
                               </div>
                               <div className={cn('text-xs truncate', selected ? 'text-white/70' : 'text-gray-400')}>

@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { CalendarRange, Wand2, MessageCircle, Trophy, AlertTriangle, Users, RotateCcw, Send } from 'lucide-react'
+import { Link } from 'react-router-dom'
 
 import { Header } from '../components/layout/Header'
 import { toast } from '../components/ui/Toast'
@@ -309,7 +310,18 @@ export default function ScheduleDesignations() {
 
   return (
     <div className="flex flex-col h-full">
-      <Header title="Schedule Designations" subtitle={tournament?.name} />
+      <Header
+        title="Schedule Designations"
+        subtitle={tournament?.name}
+        actions={
+          <Link
+            to="/import-schedule"
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold uppercase tracking-wide bg-[#E85D26] text-white hover:bg-[#d24e1c] transition-colors"
+          >
+            <CalendarRange size={13} /> Import
+          </Link>
+        }
+      />
 
       <div className="flex-1 overflow-y-auto pb-28">
         {/* Selectors */}

@@ -1388,8 +1388,17 @@ function CommentsRecapDocument({ tournament, byDay }) {
 }
 
 export async function generateCommentsRecapPDF({ tournament, evaluations }) {
+  const NOTE_KEYS = [
+    'note_positioning', 'note_signals', 'note_attitude', 'note_captain_comm',
+    'note_presentation', 'general_notes', 'leadership_note', 'bench_note', 'offcourt_note',
+  ]
+  // Ensure every comment is in English (notes are stored in the original language).
+  const translated = await Promise.all(
+    (evaluations || []).map((ev) => translateFieldsToEnglish(ev, NOTE_KEYS).catch(() => ev))
+  )
+
   const map = new Map()
-  for (const ev of (evaluations || [])) {
+  for (const ev of translated) {
     const comments = collectEvalComments(ev)
     if (comments.length === 0) continue
     const day = ev.day_number || 0

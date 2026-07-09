@@ -1292,7 +1292,7 @@ function DayReportDocument({ tournament, dayNumber, stats, tips, times, finals }
 const RECAP_LEAD = { 0: 'Not evaluable', 1: 'Needs support', 2: 'Developing', 3: 'Solid', 4: 'Role model' }
 const RECAP_BENCH = { 0: 'Not evaluable', 1: 'Needs work', 2: 'Developing', 3: 'Solid', 4: 'Excellent' }
 
-function collectEvalComments(ev) {
+export function collectEvalComments(ev) {
   const out = []
   if (ev.general_notes && String(ev.general_notes).trim()) out.push({ label: null, text: String(ev.general_notes).trim() })
   if (ev.leadership_note && String(ev.leadership_note).trim()) {
@@ -1389,6 +1389,67 @@ export async function generateCommentsRecapPDF({ tournament, evaluations }) {
     }))
 
   const blob = await pdf(<CommentsRecapDocument tournament={tournament} byDay={byDay} />).toBlob()
+  return blob
+}
+
+// ─── Anonymised GROUP summary (general points, no names) ─────────────────────
+const GROUP_HEADINGS = ['Positives to keep', 'Areas to improve', 'Reminders']
+
+function GroupSummaryLines({ text }) {
+  const lines = String(text || '').split(/\r?\n/)
+  return (
+    <View>
+      {lines.map((raw, i) => {
+        const line = raw.trim()
+        if (!line) return <View key={i} style={{ height: 3 }} />
+        if (GROUP_HEADINGS.some((h) => line.toLowerCase() === h.toLowerCase())) {
+          return <Text key={i} style={{ fontSize: 10, fontFamily: 'Helvetica-Bold', color: NAVY, marginTop: 6, marginBottom: 2 }}>{line}</Text>
+        }
+        const bullet = line.replace(/^[-•*]\s*/, '')
+        const isBullet = /^[-•*]\s+/.test(line)
+        return (
+          <View key={i} style={{ flexDirection: 'row', marginBottom: 2 }}>
+            {isBullet && <Text style={{ width: 9, fontSize: 9 }}>•</Text>}
+            <Text style={{ flex: 1, fontSize: 9, lineHeight: 1.35 }}>{isBullet ? bullet : line}</Text>
+          </View>
+        )
+      })}
+    </View>
+  )
+}
+
+function GroupSummaryDocument({ tournament, byDay }) {
+  return (
+    <Document>
+      <Page size="A4" style={reportStyles.page} wrap>
+        <View style={reportStyles.header}>
+          <Text style={reportStyles.headerTitle}>REFEREE GROUP DEBRIEF</Text>
+          <Text style={reportStyles.headerSubtitle}>
+            {tournament?.name || 'Tournament'}{tournament?.location ? ` · ${tournament.location}` : ''} · General feedback to all referees
+          </Text>
+          <View style={reportStyles.headerAccent} />
+        </View>
+
+        {byDay.length === 0 && <Text style={reportStyles.td}>No comments recorded yet.</Text>}
+
+        {byDay.map((day) => (
+          <View key={day.key} wrap={false}>
+            <Text style={reportStyles.sectionTitle}>{day.label}</Text>
+            <GroupSummaryLines text={day.text} />
+          </View>
+        ))}
+
+        <View style={reportStyles.footer} fixed>
+          <Text>BVB Referee Coach · Group debrief (anonymised)</Text>
+          <Text>Generated {formatDateTime(new Date())}</Text>
+        </View>
+      </Page>
+    </Document>
+  )
+}
+
+export async function generateGroupSummaryPDF({ tournament, byDay }) {
+  const blob = await pdf(<GroupSummaryDocument tournament={tournament} byDay={byDay} />).toBlob()
   return blob
 }
 

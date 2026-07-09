@@ -22,7 +22,8 @@ import { Modal } from '../components/ui/Modal'
 import { useTournaments, useTournamentReferees } from '../hooks/useTournaments'
 import { useReferees } from '../hooks/useReferees'
 import { useEvaluations } from '../hooks/useEvaluations'
-import { generateCommentsRecapPDF, downloadPDF, sharePDFWhatsApp } from '../lib/pdf'
+import { generateCommentsRecapPDF, generateGroupSummaryPDF, collectEvalComments, downloadPDF, sharePDFWhatsApp } from '../lib/pdf'
+import { summarizeGroupFeedback } from '../lib/anthropic'
 import { matchService, courtAssignmentService } from '../lib/supabase'
 import {
   cn,
@@ -718,6 +719,7 @@ function CourtsTab({ tournament }) {
 function EvaluationsTab({ tournamentId, tournament }) {
   const { evaluations, loading } = useEvaluations({ tournamentId })
   const [genning, setGenning] = useState(false)
+  const [genningGroup, setGenningGroup] = useState(false)
 
   async function makeRecapPdf() {
     setGenning(true)
@@ -732,6 +734,38 @@ function EvaluationsTab({ tournamentId, tournament }) {
       console.error('recap pdf failed', e)
     } finally {
       setGenning(false)
+    }
+  }
+
+  async function makeGroupPdf() {
+    setGenningGroup(true)
+    try {
+      // Anonymised observations grouped by day (no names).
+      const byDayMap = new Map()
+      for (const ev of evaluations) {
+        const obs = collectEvalComments(ev).map((c) => (c.label ? `${c.label}: ${c.text}` : c.text))
+        if (!obs.length) continue
+        const day = ev.day_number || 0
+        if (!byDayMap.has(day)) byDayMap.set(day, [])
+        byDayMap.get(day).push(...obs)
+      }
+      const days = [...byDayMap.entries()].sort((a, b) => a[0] - b[0])
+      const byDay = await Promise.all(days.map(async ([day, obs]) => {
+        let text = ''
+        try { text = await summarizeGroupFeedback(obs) } catch (e) { console.error('group summary AI failed', e) }
+        if (!text) text = obs.map((o) => `- ${o}`).join('\n') // fallback: anonymised bullets
+        return { key: String(day), label: day ? `Day ${day}` : 'Overall', text }
+      }))
+      const blob = await generateGroupSummaryPDF({ tournament, byDay })
+      const fname = `Group_debrief_${(tournament?.name || 'tournament').replace(/\s+/g, '_')}.pdf`
+      if (navigator.share && navigator.canShare) {
+        try { await sharePDFWhatsApp(blob, fname); return } catch { /* fall back to download */ }
+      }
+      downloadPDF(blob, fname)
+    } catch (e) {
+      console.error('group pdf failed', e)
+    } finally {
+      setGenningGroup(false)
     }
   }
 
@@ -776,15 +810,26 @@ function EvaluationsTab({ tournamentId, tournament }) {
       )}
 
       {!loading && evaluations.length > 0 && (
-        <button
-          type="button"
-          onClick={makeRecapPdf}
-          disabled={genning}
-          className="mt-1 w-full py-3 rounded-xl bg-[#2D3270] text-white text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-50"
-        >
-          <FileText size={16} />
-          {genning ? 'Generating…' : 'Comments recap (PDF) — by day'}
-        </button>
+        <div className="flex flex-col gap-2 mt-1">
+          <button
+            type="button"
+            onClick={makeRecapPdf}
+            disabled={genning}
+            className="w-full py-3 rounded-xl bg-[#2D3270] text-white text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-50"
+          >
+            <FileText size={16} />
+            {genning ? 'Generating…' : 'Comments recap (PDF) — by day'}
+          </button>
+          <button
+            type="button"
+            onClick={makeGroupPdf}
+            disabled={genningGroup}
+            className="w-full py-3 rounded-xl border border-[#2D3270] text-[#2D3270] text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-50"
+          >
+            <Users size={16} />
+            {genningGroup ? 'Generating…' : 'Group debrief (PDF) — no names'}
+          </button>
+        </div>
       )}
     </div>
   )

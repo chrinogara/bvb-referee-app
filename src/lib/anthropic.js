@@ -288,3 +288,44 @@ export async function lookupRuleReference(observation) {
   const data = await response.json()
   return (data.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('').trim()
 }
+
+// ─── Group debrief summary (anonymised, addressed to the whole referee team) ──
+// Turns the day's evaluation observations into concise GENERAL feedback for the
+// group, without naming anyone. Used for the end-of-day group summary PDF.
+const GROUP_SUMMARY_SYSTEM = `You are a beach volleyball Referee Coach writing an end-of-day GROUP debrief for the whole referee team (Belgian Beach Tour / FIVB).
+From the anonymised observations collected across the evaluations, write concise, constructive GENERAL feedback addressed to the group of referees as a whole.
+STRICT RULES:
+- NEVER mention any individual name or identify anyone. Address the group ("you", "the group", "colleagues").
+- Do NOT attribute points to specific people or matches.
+- Merge similar points; surface recurring themes.
+- Output plain text in English, organised under exactly these three headings, each followed by short "- " bullet lines (omit a heading if it would be empty):
+Positives to keep
+Areas to improve
+Reminders
+- Keep it under 220 words. No preamble, no closing signature, no names.`
+
+export async function summarizeGroupFeedback(observations) {
+  const text = (observations || []).map((o) => `- ${String(o).trim()}`).filter((l) => l.length > 2).join('\n')
+  if (!text) return ''
+  if (!API_KEY) throw new Error('Group summary unavailable: missing API key')
+
+  const response = await fetch(API_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': API_KEY,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true',
+    },
+    body: JSON.stringify({
+      model: MODEL,
+      max_tokens: 700,
+      system: GROUP_SUMMARY_SYSTEM,
+      messages: [{ role: 'user', content: `OBSERVATIONS (anonymised):\n${text}` }],
+    }),
+  })
+
+  if (!response.ok) throw new Error(`Group summary failed (${response.status})`)
+  const data = await response.json()
+  return (data.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('').trim()
+}

@@ -846,9 +846,7 @@ function EvaluationsTab({ tournamentId, tournament }) {
       {!loading && evaluations.length > 0 && (
         <div className="flex flex-col gap-2">
           {grouped.map((g) => (
-            g.evals.length > 1
-              ? <RefereeEvalGroup key={g.rid} referee={g.referee} evals={g.evals} dupInfo={dupInfo} />
-              : <EvaluationCard key={g.evals[0].id} evaluation={g.evals[0]} dup={dupInfo[g.evals[0].id]} />
+            <RefereeEvalGroup key={g.rid} referee={g.referee} evals={g.evals} dupInfo={dupInfo} />
           ))}
         </div>
       )}
@@ -928,7 +926,18 @@ function RefereeEvalGroup({ referee, evals, dupInfo }) {
               <p className="text-sm font-medium text-gray-900 truncate">
                 {referee ? refereeName(referee) : 'Unknown Referee'}
               </p>
-              <p className="text-xs text-gray-500">{evals.length} evaluations</p>
+              <div className="flex items-center gap-2 flex-wrap mt-0.5">
+                {evals.length === 1 ? (
+                  <>
+                    {latest?.role && (
+                      <span className={cn('text-xs font-semibold px-2 py-0.5 rounded-full', roleColor(latest.role))}>{latest.role}</span>
+                    )}
+                    {latest?.day_number && <span className="text-xs text-gray-500">Day {latest.day_number}</span>}
+                  </>
+                ) : (
+                  <span className="text-xs text-gray-500">{evals.length} evaluations</span>
+                )}
+              </div>
             </div>
             <div className="flex items-center gap-2 flex-shrink-0">
               {latest?.overall_score != null && (

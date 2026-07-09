@@ -1288,6 +1288,110 @@ function DayReportDocument({ tournament, dayNumber, stats, tips, times, finals }
   )
 }
 
+// ─── End-of-day evaluation COMMENTS recap (grouped by day) ───────────────────
+const RECAP_LEAD = { 0: 'Not evaluable', 1: 'Needs support', 2: 'Developing', 3: 'Solid', 4: 'Role model' }
+const RECAP_BENCH = { 0: 'Not evaluable', 1: 'Needs work', 2: 'Developing', 3: 'Solid', 4: 'Excellent' }
+
+function collectEvalComments(ev) {
+  const out = []
+  if (ev.general_notes && String(ev.general_notes).trim()) out.push({ label: null, text: String(ev.general_notes).trim() })
+  if (ev.leadership_note && String(ev.leadership_note).trim()) {
+    out.push({ label: `Leadership${ev.leadership_score != null ? ` (${RECAP_LEAD[ev.leadership_score] || ev.leadership_score})` : ''}`, text: String(ev.leadership_note).trim() })
+  } else if (ev.leadership_score != null) {
+    out.push({ label: 'Leadership', text: RECAP_LEAD[ev.leadership_score] || String(ev.leadership_score) })
+  }
+  if (ev.bench_note && String(ev.bench_note).trim()) {
+    out.push({ label: `Benches/off-court${ev.bench_score != null ? ` (${RECAP_BENCH[ev.bench_score] || ev.bench_score})` : ''}`, text: String(ev.bench_note).trim() })
+  } else if (ev.bench_score != null) {
+    out.push({ label: 'Benches/off-court', text: RECAP_BENCH[ev.bench_score] || String(ev.bench_score) })
+  }
+  for (const c of CRITERIA) {
+    const n = ev[`note_${c.key}`]
+    if (n && String(n).trim()) out.push({ label: c.label, text: String(n).trim() })
+  }
+  return out
+}
+
+function CommentsRecapDocument({ tournament, byDay }) {
+  return (
+    <Document>
+      <Page size="A4" style={reportStyles.page} wrap>
+        <View style={reportStyles.header}>
+          <Text style={reportStyles.headerTitle}>EVALUATION COMMENTS — RECAP</Text>
+          <Text style={reportStyles.headerSubtitle}>
+            {tournament?.name || 'Tournament'}{tournament?.location ? ` · ${tournament.location}` : ''}
+          </Text>
+          <View style={reportStyles.headerAccent} />
+        </View>
+
+        {byDay.length === 0 && (
+          <Text style={reportStyles.td}>No comments recorded yet.</Text>
+        )}
+
+        {byDay.map((day) => (
+          <View key={day.key}>
+            <Text style={reportStyles.sectionTitle}>
+              {day.label} — {day.items.length} evaluation{day.items.length !== 1 ? 's' : ''}
+            </Text>
+            {day.items.map((it, idx) => (
+              <View key={idx} style={{ marginBottom: 9 }} wrap={false}>
+                <Text style={{ fontSize: 10, fontFamily: 'Helvetica-Bold', color: NAVY }}>
+                  {it.name}{it.role ? `   ·   ${it.role}` : ''}
+                </Text>
+                {(it.match || it.date) && (
+                  <Text style={{ fontSize: 8, color: MED_GRAY, marginBottom: 2 }}>
+                    {[it.match, it.date].filter(Boolean).join('   ·   ')}
+                  </Text>
+                )}
+                {it.comments.map((c, ci) => (
+                  <View key={ci} style={{ flexDirection: 'row', marginBottom: 2 }}>
+                    <Text style={{ width: 9, fontSize: 9 }}>•</Text>
+                    <Text style={{ flex: 1, fontSize: 9, lineHeight: 1.35 }}>
+                      {c.label ? <Text style={{ fontFamily: 'Helvetica-Bold' }}>{c.label}: </Text> : null}{c.text}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            ))}
+          </View>
+        ))}
+
+        <View style={reportStyles.footer} fixed>
+          <Text>BVB Referee Coach · Evaluation comments recap</Text>
+          <Text>Generated {formatDateTime(new Date())}</Text>
+        </View>
+      </Page>
+    </Document>
+  )
+}
+
+export async function generateCommentsRecapPDF({ tournament, evaluations }) {
+  const map = new Map()
+  for (const ev of (evaluations || [])) {
+    const comments = collectEvalComments(ev)
+    if (comments.length === 0) continue
+    const day = ev.day_number || 0
+    if (!map.has(day)) map.set(day, [])
+    map.get(day).push({
+      name: ev.referees ? refereeName(ev.referees) : 'Unknown referee',
+      role: ev.role || '',
+      match: ev.match_description || '',
+      date: ev.evaluated_at ? formatDate(ev.evaluated_at) : '',
+      comments,
+    })
+  }
+  const byDay = [...map.entries()]
+    .sort((a, b) => a[0] - b[0])
+    .map(([day, items]) => ({
+      key: String(day),
+      label: day ? `Day ${day}` : 'Unassigned day',
+      items: items.sort((a, b) => a.name.localeCompare(b.name)),
+    }))
+
+  const blob = await pdf(<CommentsRecapDocument tournament={tournament} byDay={byDay} />).toBlob()
+  return blob
+}
+
 export async function generateDayReportPDF({ tournament, dayNumber, stats, tips, times, finals }) {
   const blob = await pdf(
     <DayReportDocument tournament={tournament} dayNumber={dayNumber} stats={stats} tips={tips} times={times} finals={finals} />

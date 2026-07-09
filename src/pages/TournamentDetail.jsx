@@ -11,6 +11,7 @@ import {
   Clock,
   Edit2,
   Check,
+  FileText,
 } from 'lucide-react'
 import { Header } from '../components/layout/Header'
 import { Badge } from '../components/ui/Badge'
@@ -21,6 +22,7 @@ import { Modal } from '../components/ui/Modal'
 import { useTournaments, useTournamentReferees } from '../hooks/useTournaments'
 import { useReferees } from '../hooks/useReferees'
 import { useEvaluations } from '../hooks/useEvaluations'
+import { generateCommentsRecapPDF, downloadPDF, sharePDFWhatsApp } from '../lib/pdf'
 import { matchService, courtAssignmentService } from '../lib/supabase'
 import {
   cn,
@@ -713,8 +715,25 @@ function CourtsTab({ tournament }) {
 
 // ─── EVALUATIONS TAB ──────────────────────────────────────────────────────────
 
-function EvaluationsTab({ tournamentId }) {
+function EvaluationsTab({ tournamentId, tournament }) {
   const { evaluations, loading } = useEvaluations({ tournamentId })
+  const [genning, setGenning] = useState(false)
+
+  async function makeRecapPdf() {
+    setGenning(true)
+    try {
+      const blob = await generateCommentsRecapPDF({ tournament, evaluations })
+      const fname = `Comments_recap_${(tournament?.name || 'tournament').replace(/\s+/g, '_')}.pdf`
+      if (navigator.share && navigator.canShare) {
+        try { await sharePDFWhatsApp(blob, fname); return } catch { /* fall back to download */ }
+      }
+      downloadPDF(blob, fname)
+    } catch (e) {
+      console.error('recap pdf failed', e)
+    } finally {
+      setGenning(false)
+    }
+  }
 
   return (
     <div className="flex flex-col gap-4">
@@ -754,6 +773,18 @@ function EvaluationsTab({ tournamentId }) {
             <EvaluationCard key={ev.id} evaluation={ev} />
           ))}
         </div>
+      )}
+
+      {!loading && evaluations.length > 0 && (
+        <button
+          type="button"
+          onClick={makeRecapPdf}
+          disabled={genning}
+          className="mt-1 w-full py-3 rounded-xl bg-[#2D3270] text-white text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-50"
+        >
+          <FileText size={16} />
+          {genning ? 'Generating…' : 'Comments recap (PDF) — by day'}
+        </button>
       )}
     </div>
   )
@@ -906,7 +937,7 @@ export default function TournamentDetail() {
         )}
 
         {activeTab === 'Evaluations' && (
-          <EvaluationsTab tournamentId={id} />
+          <EvaluationsTab tournamentId={id} tournament={tournament} />
         )}
       </main>
     </div>

@@ -8,6 +8,7 @@ import {
   Users,
   Plus,
   ChevronRight,
+  ChevronDown,
   Clock,
   Edit2,
   Check,
@@ -745,6 +746,23 @@ function EvaluationsTab({ tournamentId, tournament }) {
     return info
   }, [evaluations])
 
+  // Group by referee: one row per referee; multi-evaluation referees collapse
+  // into a dropdown instead of a flat list.
+  const grouped = useMemo(() => {
+    const m = {}
+    for (const ev of evaluations) {
+      const rid = ev.referee_id || `x-${ev.id}`
+      if (!m[rid]) m[rid] = { rid, referee: ev.referees, evals: [] }
+      m[rid].evals.push(ev)
+    }
+    const arr = Object.values(m).map((g) => ({
+      ...g,
+      evals: g.evals.slice().sort((a, b) => new Date(b.evaluated_at || 0) - new Date(a.evaluated_at || 0)),
+    }))
+    arr.sort((a, b) => refereeName(a.referee || {}).localeCompare(refereeName(b.referee || {})))
+    return arr
+  }, [evaluations])
+
   async function makeRecapPdf() {
     setGenning(true)
     try {
@@ -827,8 +845,10 @@ function EvaluationsTab({ tournamentId, tournament }) {
 
       {!loading && evaluations.length > 0 && (
         <div className="flex flex-col gap-2">
-          {evaluations.map((ev) => (
-            <EvaluationCard key={ev.id} evaluation={ev} dup={dupInfo[ev.id]} />
+          {grouped.map((g) => (
+            g.evals.length > 1
+              ? <RefereeEvalGroup key={g.rid} referee={g.referee} evals={g.evals} dupInfo={dupInfo} />
+              : <EvaluationCard key={g.evals[0].id} evaluation={g.evals[0]} dup={dupInfo[g.evals[0].id]} />
           ))}
         </div>
       )}
@@ -888,6 +908,53 @@ function compareEvals(prev, cur) {
     dir = delta > 0 ? 'up' : delta < 0 ? 'down' : 'same'
   }
   return { dir, delta, repeated, improved }
+}
+
+function RefereeEvalGroup({ referee, evals, dupInfo }) {
+  const [open, setOpen] = useState(false)
+  const latest = evals[0] // sorted newest-first
+  const gradeColor = latest?.grade ? getGradeColor(latest.grade) : 'text-gray-500'
+  const gradeBg = latest?.grade ? getGradeBg(latest.grade) : 'bg-gray-400/10'
+
+  return (
+    <Card className="overflow-hidden">
+      <button type="button" onClick={() => setOpen((o) => !o)} className="w-full text-left">
+        <CardBody className="p-3">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-full bg-[#2D3270]/10 flex items-center justify-center text-xs font-semibold text-[#2D3270] flex-shrink-0">
+              {referee?.first_name?.[0]}{referee?.last_name?.[0]}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-gray-900 truncate">
+                {referee ? refereeName(referee) : 'Unknown Referee'}
+              </p>
+              <p className="text-xs text-gray-500">{evals.length} evaluations</p>
+            </div>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              {latest?.overall_score != null && (
+                <span className={cn('text-base font-bold tabular-nums leading-none', gradeColor)}>
+                  {latest.overall_score.toFixed(1)}
+                </span>
+              )}
+              {latest?.grade && (
+                <span className={cn('text-[10px] font-semibold px-2 py-0.5 rounded-full', gradeBg, gradeColor)}>
+                  {latest.grade}
+                </span>
+              )}
+              <ChevronDown size={18} className={cn('text-gray-400 transition-transform', open && 'rotate-180')} />
+            </div>
+          </div>
+        </CardBody>
+      </button>
+      {open && (
+        <div className="border-t border-gray-100 bg-gray-50/60 p-2 space-y-2">
+          {evals.map((ev) => (
+            <EvaluationCard key={ev.id} evaluation={ev} dup={dupInfo[ev.id]} />
+          ))}
+        </div>
+      )}
+    </Card>
+  )
 }
 
 function EvaluationCard({ evaluation, dup }) {

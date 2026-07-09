@@ -1,5 +1,5 @@
 import { trackSave } from '../lib/saveTracker'
-import { useState, useEffect, useMemo, useRef } from 'react'
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useReferees } from '../hooks/useReferees'
 import { useTournaments } from '../hooks/useTournaments'
@@ -939,6 +939,7 @@ export default function Evaluate() {
       localStorage.removeItem(LAST_WIP_KEY)
     } catch { /* ignore */ }
     setDraftSavedAt(null)
+    refreshDrafts()
   }
 
   // Explicit "Save draft" — same local store the autosave uses, with confirmation.
@@ -953,6 +954,7 @@ export default function Evaluate() {
       localStorage.setItem(LAST_WIP_KEY, JSON.stringify({ tournamentId, dayNumber, refereeId, role }))
       setDraftSavedAt(now)
       toast.success('Draft saved — you can close the app and resume here later')
+      refreshDrafts()
     } catch {
       toast.error('Could not save the draft on this device')
     }
@@ -966,6 +968,79 @@ export default function Evaluate() {
     setLeadershipScore(null)
     setLeadershipNote('')
     toast('Draft discarded', 'info')
+    refreshDrafts()
+  }
+
+  // ── All unfinished evaluations (one draft per referee/role) ─────────────────
+  const [drafts, setDrafts] = useState([])
+  const refreshDrafts = useCallback(() => {
+    const out = []
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i)
+        if (!k || !k.startsWith('bvb_eval_wip::')) continue
+        const [, t, d, r, ro] = k.split('::')
+        let data = null
+        try { data = JSON.parse(localStorage.getItem(k) || 'null') } catch { data = null }
+        if (!data) continue
+        out.push({
+          key: k,
+          tournamentId: t === '-' ? null : t,
+          dayNumber: d === '-' ? null : Number(d),
+          refereeId: r,
+          role: ro,
+          updatedAt: data.updatedAt || 0,
+          courtNumber: data.courtNumber ?? null,
+          roundNumber: data.roundNumber ?? null,
+          schedMatchId: data.schedMatchId ?? null,
+        })
+      }
+    } catch { /* ignore */ }
+    out.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))
+    setDrafts(out)
+  }, [])
+
+  useEffect(() => { refreshDrafts() }, [refreshDrafts, refereeId, role, tournamentId, dayNumber, savedEval])
+
+  // Reopen a saved draft — load its context so the restore effect fills the form.
+  function openDraft(d) {
+    setSavedEval(null)
+    setPdfBlob(null)
+    setErrors({})
+    if (d.tournamentId) setTournamentId(d.tournamentId)
+    if (d.dayNumber) setDayNumber(d.dayNumber)
+    if (d.role) setRole(d.role)
+    setRefereeId(d.refereeId) // triggers the restore effect
+    if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  // Delete one draft (and, if it's the one on screen, clear the form too).
+  function deleteDraft(d, e) {
+    if (e) e.stopPropagation()
+    try {
+      localStorage.removeItem(d.key)
+      const last = JSON.parse(localStorage.getItem(LAST_WIP_KEY) || 'null')
+      if (last && wipKey(last.tournamentId, last.dayNumber, last.refereeId, last.role) === d.key) {
+        localStorage.removeItem(LAST_WIP_KEY)
+      }
+    } catch { /* ignore */ }
+    if (d.key === wipKey(tournamentId, dayNumber, refereeId, role)) {
+      setCriteriaData(Object.fromEntries(CRITERIA.map((c) => [c.key, { score: null, repeat: false, note: '', na: false }])))
+      setGeneralNotes('')
+      setLeadershipScore(null)
+      setLeadershipNote('')
+      setDraftSavedAt(null)
+    }
+    refreshDrafts()
+  }
+
+  // Short context line for a draft row.
+  function draftContext(d) {
+    const m = d.schedMatchId ? schedMatches.find((x) => x.id === d.schedMatchId) : null
+    if (m) return `#${m.match_number} · C${m.court}`
+    if (d.courtNumber != null) return `Court ${d.courtNumber}`
+    if (d.roundNumber != null) return `Round ${d.roundNumber}`
+    return '—'
   }
 
   // ── Score snapshot for live preview ────────────────────────────────────────
@@ -1223,6 +1298,55 @@ export default function Evaluate() {
                 {editLoading && <span className="block text-xs mt-0.5 text-amber-700">Loading…</span>}
               </div>
             </div>
+          )}
+
+          {/* ── Unfinished evaluations — reopen any (multiple in parallel) ──── */}
+          {!editingEvalId && drafts.length > 0 && (
+            <Card>
+              <CardHeader className="py-3">
+                <h2 className="font-display text-base font-bold uppercase tracking-wide text-[#2D3270]">
+                  Unfinished evaluations ({drafts.length})
+                </h2>
+              </CardHeader>
+              <CardBody className="space-y-1.5">
+                <p className="text-[11px] text-gray-500 leading-snug">
+                  Tap to reopen and finish. Each referee is kept separately — you can keep several open at once (e.g. all officials of one match).
+                </p>
+                {drafts.map((d) => {
+                  const ref = referees.find((r) => r.id === d.refereeId)
+                  const isCurrent = d.key === wipKey(tournamentId, dayNumber, refereeId, role)
+                  return (
+                    <div
+                      key={d.key}
+                      onClick={() => openDraft(d)}
+                      className={cn(
+                        'w-full text-left px-3 py-2 rounded-xl border cursor-pointer flex items-center gap-2 transition-colors',
+                        isCurrent ? 'bg-[#E85D26]/10 border-[#E85D26]/40' : 'bg-white border-gray-200 hover:border-gray-300'
+                      )}
+                    >
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-gray-900 truncate flex items-center gap-1.5">
+                          {ref ? refereeName(ref) : 'Referee'}
+                          <span className="text-[9px] font-bold uppercase text-white bg-gray-500 rounded px-1.5 py-0.5">{d.role}</span>
+                          {isCurrent && <span className="text-[9px] font-bold uppercase text-[#E85D26]">• open</span>}
+                        </p>
+                        <p className="text-[11px] text-gray-400 truncate">
+                          {draftContext(d)}{d.updatedAt ? ` · saved ${new Date(d.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : ''}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={(e) => deleteDraft(d, e)}
+                        className="text-gray-400 hover:text-red-500 p-1 shrink-0"
+                        title="Delete this draft"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                  )
+                })}
+              </CardBody>
+            </Card>
           )}
 
           {/* ── Section 1: Match Context ──────────────────────────────────── */}

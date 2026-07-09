@@ -599,8 +599,10 @@ const wipKey = (t, d, r, ro) => `bvb_eval_wip::${t || '-'}::${d || '-'}::${r}::$
 function evalHasContent(cd, gn, extra = {}) {
   return Boolean(
     (gn && gn.trim()) ||
-    extra.leadershipScore != null ||
+    extra.leadershipScore != null || extra.leadershipNa ||
     (extra.leadershipNote && extra.leadershipNote.trim()) ||
+    extra.benchScore != null || extra.benchNa ||
+    (extra.benchNote && extra.benchNote.trim()) ||
     CRITERIA.some((c) => cd[c.key].score || cd[c.key].repeat || (cd[c.key].note && cd[c.key].note.trim()))
   )
 }
@@ -615,6 +617,76 @@ const LEADERSHIP_LEVELS = [
   { value: 4, label: 'Role model',    hint: 'Exemplary — sets the standard others follow' },
 ]
 export const LEADERSHIP_LABEL = Object.fromEntries(LEADERSHIP_LEVELS.map((l) => [l.value, l.label]))
+
+// R2 only — management of benches / team areas and everything off the court.
+const BENCH_LEVELS = [
+  { value: 1, label: 'Needs work',  hint: 'Struggles to control benches / off-court area' },
+  { value: 2, label: 'Developing',  hint: 'Handles the basics, some lapses' },
+  { value: 3, label: 'Solid',       hint: 'Good control of benches and surroundings' },
+  { value: 4, label: 'Excellent',   hint: 'Proactive, authoritative off-court management' },
+]
+export const BENCH_LABEL = Object.fromEntries(BENCH_LEVELS.map((l) => [l.value, l.label]))
+
+// Reusable "extra rating" card: a levelled judgement + Not-evaluable toggle +
+// auto-translated note. Used for Leadership and for the R2 bench/off-court block.
+// Kept OUT of the official weighted score; carried into the final report.
+function ExtraRatingCard({ title, description, levels, score, na, note, onScore, onNa, onNote, notePlaceholder, noteLabel, disabledHint }) {
+  return (
+    <Card>
+      <CardHeader className="py-3">
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <h2 className="font-display text-base font-bold uppercase tracking-wide text-[#2D3270]">{title}</h2>
+            <p className="text-[11px] text-gray-500 mt-0.5">{description}</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => onNa(!na)}
+            className={cn(
+              'text-[11px] font-bold rounded-full px-2.5 py-1 border transition-all duration-150 shrink-0',
+              na
+                ? 'bg-gray-700 text-white border-gray-700'
+                : 'bg-gray-50 text-gray-500 border-gray-200 hover:border-gray-300 hover:text-gray-700'
+            )}
+          >
+            {na ? '✓ Not evaluable' : 'Not evaluable'}
+          </button>
+        </div>
+      </CardHeader>
+      <CardBody className="space-y-3">
+        {na ? (
+          <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-3 py-3 text-center">
+            <p className="text-xs font-semibold text-gray-600">Not evaluable — situation did not occur</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-2">
+            {levels.map((lv) => {
+              const active = score === lv.value
+              return (
+                <button
+                  key={lv.value}
+                  type="button"
+                  onClick={() => onScore(active ? null : lv.value)}
+                  className={cn(
+                    'flex flex-col items-start text-left px-3 py-2 rounded-xl border transition-all duration-150',
+                    active
+                      ? 'bg-[#2D3270] text-white border-[#2D3270] ring-2 ring-[#2D3270]/30'
+                      : 'bg-gray-50 text-gray-700 border-gray-200 hover:border-gray-300'
+                  )}
+                >
+                  <span className="text-sm font-bold">{lv.label}</span>
+                  <span className={cn('text-[10px] mt-0.5 leading-tight', active ? 'text-white/70' : 'text-gray-400')}>{lv.hint}</span>
+                </button>
+              )
+            })}
+          </div>
+        )}
+        <NoteField value={note} onChange={onNote} placeholder={notePlaceholder} rows={3} autoOpenLabel={noteLabel} />
+        {disabledHint && <p className="text-[11px] text-amber-600 leading-snug">{disabledHint}</p>}
+      </CardBody>
+    </Card>
+  )
+}
 
 // ─── Main page ────────────────────────────────────────────────────────────────
 
@@ -804,8 +876,14 @@ export default function Evaluate() {
   const [generalNotes, setGeneralNotes] = useState('')
   // Leadership / example-to-colleagues rating (1–4) + note. Separate from score.
   const [leadershipScore, setLeadershipScore] = useState(null)
+  const [leadershipNa, setLeadershipNa] = useState(false)
   const [leadershipNote, setLeadershipNote] = useState('')
   const [leadershipEnabled, setLeadershipEnabled] = useState(true) // DB has the columns?
+  // R2 only — bench / off-court management rating (1–4) + note.
+  const [benchScore, setBenchScore] = useState(null)
+  const [benchNa, setBenchNa] = useState(false)
+  const [benchNote, setBenchNote] = useState('')
+  const [benchEnabled, setBenchEnabled] = useState(true) // DB has the columns?
 
   // ── Post-save state ─────────────────────────────────────────────────────────
   const [saving, setSaving] = useState(false)
@@ -838,8 +916,12 @@ export default function Evaluate() {
           na: e[`score_${c.key}`] == null,
         }])))
         setGeneralNotes(e.general_notes || '')
-        setLeadershipScore(e.leadership_score ?? null)
+        setLeadershipNa(e.leadership_score === 0)
+        setLeadershipScore(e.leadership_score > 0 ? e.leadership_score : null)
         setLeadershipNote(e.leadership_note || '')
+        setBenchNa(e.bench_score === 0)
+        setBenchScore(e.bench_score > 0 ? e.bench_score : null)
+        setBenchNote(e.bench_note || '')
       } catch {
         toast.error('Could not load the evaluation to edit')
       } finally {
@@ -862,6 +944,10 @@ export default function Evaluate() {
         const { error } = await supabase.from('evaluations').select('leadership_score').limit(1)
         if (alive && error) setLeadershipEnabled(false)
       } catch { if (alive) setLeadershipEnabled(false) }
+      try {
+        const { error } = await supabase.from('evaluations').select('bench_score').limit(1)
+        if (alive && error) setBenchEnabled(false)
+      } catch { if (alive) setBenchEnabled(false) }
     })()
     return () => { alive = false }
   }, [])
@@ -903,13 +989,21 @@ export default function Evaluate() {
         if (d.schedMatchId != null) setSchedMatchId(d.schedMatchId)
         if (d.pickMode) setPickMode(d.pickMode)
         setLeadershipScore(d.leadershipScore ?? null)
+        setLeadershipNa(!!d.leadershipNa)
         setLeadershipNote(d.leadershipNote || '')
+        setBenchScore(d.benchScore ?? null)
+        setBenchNa(!!d.benchNa)
+        setBenchNote(d.benchNote || '')
         setDraftSavedAt(d.updatedAt || Date.now())
       } else {
         setCriteriaData(Object.fromEntries(CRITERIA.map((c) => [c.key, { score: null, repeat: false, note: '', na: false }])))
         setGeneralNotes('')
         setLeadershipScore(null)
+        setLeadershipNa(false)
         setLeadershipNote('')
+        setBenchScore(null)
+        setBenchNa(false)
+        setBenchNote('')
         setDraftSavedAt(null)
       }
     } catch { /* ignore */ }
@@ -921,9 +1015,9 @@ export default function Evaluate() {
     if (skipNextSaveRef.current) { skipNextSaveRef.current = false; return }
     const key = wipKey(tournamentId, dayNumber, refereeId, role)
     try {
-      if (evalHasContent(criteriaData, generalNotes, { leadershipScore, leadershipNote })) {
+      if (evalHasContent(criteriaData, generalNotes, { leadershipScore, leadershipNa, leadershipNote, benchScore, benchNa, benchNote })) {
         const now = Date.now()
-        localStorage.setItem(key, JSON.stringify({ criteriaData, generalNotes, leadershipScore, leadershipNote, courtNumber, roundNumber, schedMatchId, pickMode, difficulty, updatedAt: now }))
+        localStorage.setItem(key, JSON.stringify({ criteriaData, generalNotes, leadershipScore, leadershipNa, leadershipNote, benchScore, benchNa, benchNote, courtNumber, roundNumber, schedMatchId, pickMode, difficulty, updatedAt: now }))
         localStorage.setItem(LAST_WIP_KEY, JSON.stringify({ tournamentId, dayNumber, refereeId, role }))
         setDraftSavedAt(now)
       } else {
@@ -931,7 +1025,7 @@ export default function Evaluate() {
         setDraftSavedAt(null)
       }
     } catch { /* ignore */ }
-  }, [criteriaData, generalNotes, leadershipScore, leadershipNote, courtNumber, roundNumber, schedMatchId, pickMode, difficulty, refereeId, role, tournamentId, dayNumber, savedEval]) // eslint-disable-line
+  }, [criteriaData, generalNotes, leadershipScore, leadershipNa, leadershipNote, benchScore, benchNa, benchNote, courtNumber, roundNumber, schedMatchId, pickMode, difficulty, refereeId, role, tournamentId, dayNumber, savedEval]) // eslint-disable-line
 
   function clearWipDraft() {
     try {
@@ -949,7 +1043,7 @@ export default function Evaluate() {
       const now = Date.now()
       localStorage.setItem(
         wipKey(tournamentId, dayNumber, refereeId, role),
-        JSON.stringify({ criteriaData, generalNotes, leadershipScore, leadershipNote, courtNumber, roundNumber, schedMatchId, pickMode, difficulty, updatedAt: now })
+        JSON.stringify({ criteriaData, generalNotes, leadershipScore, leadershipNa, leadershipNote, benchScore, benchNa, benchNote, courtNumber, roundNumber, schedMatchId, pickMode, difficulty, updatedAt: now })
       )
       localStorage.setItem(LAST_WIP_KEY, JSON.stringify({ tournamentId, dayNumber, refereeId, role }))
       setDraftSavedAt(now)
@@ -966,7 +1060,11 @@ export default function Evaluate() {
     setCriteriaData(Object.fromEntries(CRITERIA.map((c) => [c.key, { score: null, repeat: false, note: '', na: false }])))
     setGeneralNotes('')
     setLeadershipScore(null)
+    setLeadershipNa(false)
     setLeadershipNote('')
+    setBenchScore(null)
+    setBenchNa(false)
+    setBenchNote('')
     toast('Draft discarded', 'info')
     refreshDrafts()
   }
@@ -1028,7 +1126,11 @@ export default function Evaluate() {
       setCriteriaData(Object.fromEntries(CRITERIA.map((c) => [c.key, { score: null, repeat: false, note: '', na: false }])))
       setGeneralNotes('')
       setLeadershipScore(null)
+      setLeadershipNa(false)
       setLeadershipNote('')
+      setBenchScore(null)
+      setBenchNa(false)
+      setBenchNote('')
       setDraftSavedAt(null)
     }
     refreshDrafts()
@@ -1163,10 +1265,15 @@ export default function Evaluate() {
       evaluated_at: new Date().toISOString(),
     }
 
-    // Leadership / example-to-colleagues rating — only sent if the columns exist.
+    // Leadership + R2 bench ratings — "Not evaluable" stored as 0.
+    // Only sent if the columns exist (otherwise kept in the local draft).
     if (leadershipEnabled) {
-      payload.leadership_score = leadershipScore ?? null
+      payload.leadership_score = leadershipNa ? 0 : (leadershipScore ?? null)
       payload.leadership_note = leadershipNote ? leadershipNote.trim() : null
+    }
+    if (benchEnabled) {
+      payload.bench_score = benchNa ? 0 : (benchScore ?? null)
+      payload.bench_note = benchNote ? benchNote.trim() : null
     }
 
     // Edit mode: keep the original match label and timestamp (don't reorder).
@@ -1706,51 +1813,38 @@ export default function Evaluate() {
 
           {/* ── Leadership & example to colleagues (top of the eval; referees only) ── */}
           {!ljMode && (
-          <Card>
-            <CardHeader className="py-3">
-              <h2 className="font-display text-base font-bold uppercase tracking-wide text-[#2D3270]">
-                Leadership &amp; Example
-              </h2>
-              <p className="text-[11px] text-gray-500 mt-0.5">
-                How the referee helps colleagues and sets the example — pre-match management and role-model behaviour. Included in the final report.
-              </p>
-            </CardHeader>
-            <CardBody className="space-y-3">
-              <div className="grid grid-cols-2 gap-2">
-                {LEADERSHIP_LEVELS.map((lv) => {
-                  const active = leadershipScore === lv.value
-                  return (
-                    <button
-                      key={lv.value}
-                      type="button"
-                      onClick={() => setLeadershipScore(active ? null : lv.value)}
-                      className={cn(
-                        'flex flex-col items-start text-left px-3 py-2 rounded-xl border transition-all duration-150',
-                        active
-                          ? 'bg-[#2D3270] text-white border-[#2D3270] ring-2 ring-[#2D3270]/30'
-                          : 'bg-gray-50 text-gray-700 border-gray-200 hover:border-gray-300'
-                      )}
-                    >
-                      <span className="text-sm font-bold">{lv.label}</span>
-                      <span className={cn('text-[10px] mt-0.5 leading-tight', active ? 'text-white/70' : 'text-gray-400')}>{lv.hint}</span>
-                    </button>
-                  )
-                })}
-              </div>
-              <NoteField
-                value={leadershipNote}
-                onChange={setLeadershipNote}
-                placeholder="Concrete example: how they ran the pre-match, helped a colleague, set the standard…"
-                rows={3}
-                autoOpenLabel="Example for colleagues"
-              />
-              {!leadershipEnabled && (
-                <p className="text-[11px] text-amber-600 leading-snug">
-                  Kept in your draft for now — a quick database update is needed before this rating is stored on the server.
-                </p>
-              )}
-            </CardBody>
-          </Card>
+            <ExtraRatingCard
+              title="Leadership & Example"
+              description="How the referee helps colleagues and sets the example — pre-match management and role-model behaviour. Included in the final report."
+              levels={LEADERSHIP_LEVELS}
+              score={leadershipScore}
+              na={leadershipNa}
+              note={leadershipNote}
+              onScore={setLeadershipScore}
+              onNa={(v) => { setLeadershipNa(v); if (v) setLeadershipScore(null) }}
+              onNote={setLeadershipNote}
+              notePlaceholder="Concrete example: how they ran the pre-match, helped a colleague, set the standard…"
+              noteLabel="Example for colleagues"
+              disabledHint={!leadershipEnabled ? 'Kept in your draft for now — a quick database update is needed before this rating is stored on the server.' : ''}
+            />
+          )}
+
+          {/* ── R2 only: benches / off-court management ─────────────────────── */}
+          {!ljMode && role === 'R2' && (
+            <ExtraRatingCard
+              title="Benches & Off-court (R2)"
+              description="How the 2nd referee manages the benches, team areas and everything off the court. Included in the final report."
+              levels={BENCH_LEVELS}
+              score={benchScore}
+              na={benchNa}
+              note={benchNote}
+              onScore={setBenchScore}
+              onNa={(v) => { setBenchNa(v); if (v) setBenchScore(null) }}
+              onNote={setBenchNote}
+              notePlaceholder="How they handled team areas, substitutions, sanctions, spectators/coaches off the court…"
+              noteLabel="Bench & off-court notes"
+              disabledHint={!benchEnabled ? 'Kept in your draft for now — a quick database update is needed before this rating is stored on the server.' : ''}
+            />
           )}
 
           {/* ── Section 2: The 5 Criteria (hidden for line judges) ────────── */}

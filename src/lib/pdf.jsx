@@ -18,7 +18,8 @@ const NAVY = '#2D3270'
 const ORANGE = '#E85D26'
 const LIGHT_GRAY = '#F8F9FA'
 const DARK_GRAY = '#374151'
-const LEADERSHIP_PDF_LABEL = { 1: 'Needs support', 2: 'Developing', 3: 'Solid', 4: 'Role model' }
+const LEADERSHIP_PDF_LABEL = { 0: 'Not evaluable', 1: 'Needs support', 2: 'Developing', 3: 'Solid', 4: 'Role model' }
+const BENCH_PDF_LABEL = { 0: 'Not evaluable', 1: 'Needs work', 2: 'Developing', 3: 'Solid', 4: 'Excellent' }
 const MED_GRAY = '#6B7280'
 
 // Logo BBT bianco su trasparente: si fonde con la banda navy dell'header (nessun riquadro)
@@ -360,6 +361,21 @@ function EvaluationDocument({ evaluation, referee, match, tournament, lang = 'en
             )}
             {evaluation.leadership_note && (
               <Text style={styles.noteText}>{evaluation.leadership_note}</Text>
+            )}
+          </>
+        )}
+
+        {/* R2 — Benches & off-court management */}
+        {(evaluation.bench_score != null || evaluation.bench_note) && (
+          <>
+            <Text style={styles.sectionTitle}>Benches & Off-court (R2)</Text>
+            {evaluation.bench_score != null && (
+              <Text style={styles.noteText}>
+                Rating: {BENCH_PDF_LABEL[evaluation.bench_score] || evaluation.bench_score}
+              </Text>
+            )}
+            {evaluation.bench_note && (
+              <Text style={styles.noteText}>{evaluation.bench_note}</Text>
             )}
           </>
         )}
@@ -1127,7 +1143,7 @@ export async function generateEvaluationPDF(evaluation, referee, match, tourname
   // translate again here as a safety net so no Italian leaks into the PDF.
   const ev = await translateFieldsToEnglish(evaluation, [
     'note_positioning', 'note_signals', 'note_attitude',
-    'note_captain_comm', 'note_presentation', 'general_notes', 'leadership_note',
+    'note_captain_comm', 'note_presentation', 'general_notes', 'leadership_note', 'bench_note',
   ])
   const blob = await pdf(
     <EvaluationDocument

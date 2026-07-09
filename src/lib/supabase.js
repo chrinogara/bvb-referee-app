@@ -7,6 +7,16 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: { persistSession: true, autoRefreshToken: true },
 })
 
+// ─── Evaluation drafts (in-progress, synced across devices) ──────────────────
+export const draftService = {
+  getAll: () =>
+    supabase.from('evaluation_drafts').select('*').order('updated_at', { ascending: false }),
+  upsert: (row) =>
+    supabase.from('evaluation_drafts').upsert(row, { onConflict: 'id' }),
+  remove: (id) =>
+    supabase.from('evaluation_drafts').delete().eq('id', id),
+}
+
 // ─── Referees ────────────────────────────────────────────────────────────────
 export const refereeService = {
   getAll: () => supabase.from('referees').select('*').order('last_name'),

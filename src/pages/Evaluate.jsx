@@ -5,7 +5,7 @@ import { useReferees } from '../hooks/useReferees'
 import { useTournaments } from '../hooks/useTournaments'
 import { useEvaluations } from '../hooks/useEvaluations'
 import { evaluationService } from '../lib/supabase'
-import { supabase, courtAssignmentService, matchService, designationService, tournamentService } from '../lib/supabase'
+import { supabase, courtAssignmentService, matchService, designationService, tournamentService, draftService } from '../lib/supabase'
 import { useAppStore } from '../store/appStore'
 import { CRITERIA, computeScore, SCORE_LABELS, getGrade } from '../lib/scoring'
 import { generateEvaluationPDF, downloadPDF, sharePDFWhatsApp } from '../lib/pdf'
@@ -955,6 +955,7 @@ export default function Evaluate() {
   // ── Resume in-progress evaluation (draft persistence) ───────────────────────
   const skipNextSaveRef = useRef(false)
   const wipMountedRef = useRef(false)
+  const serverSyncTimer = useRef(null)
 
   // On mount: if no referee came from the URL, resume the last in-progress draft
   useEffect(() => {
@@ -1017,21 +1018,27 @@ export default function Evaluate() {
     try {
       if (evalHasContent(criteriaData, generalNotes, { leadershipScore, leadershipNa, leadershipNote, benchScore, benchNa, benchNote })) {
         const now = Date.now()
-        localStorage.setItem(key, JSON.stringify({ criteriaData, generalNotes, leadershipScore, leadershipNa, leadershipNote, benchScore, benchNa, benchNote, courtNumber, roundNumber, schedMatchId, pickMode, difficulty, updatedAt: now }))
+        const draftObj = { criteriaData, generalNotes, leadershipScore, leadershipNa, leadershipNote, benchScore, benchNa, benchNote, courtNumber, roundNumber, schedMatchId, pickMode, difficulty, updatedAt: now }
+        localStorage.setItem(key, JSON.stringify(draftObj))
         localStorage.setItem(LAST_WIP_KEY, JSON.stringify({ tournamentId, dayNumber, refereeId, role }))
         setDraftSavedAt(now)
+        if (serverSyncTimer.current) clearTimeout(serverSyncTimer.current)
+        serverSyncTimer.current = setTimeout(() => pushDraftServer(key, draftObj), 2500)
       } else {
         localStorage.removeItem(key)
         setDraftSavedAt(null)
+        deleteDraftServer(key)
       }
     } catch { /* ignore */ }
   }, [criteriaData, generalNotes, leadershipScore, leadershipNa, leadershipNote, benchScore, benchNa, benchNote, courtNumber, roundNumber, schedMatchId, pickMode, difficulty, refereeId, role, tournamentId, dayNumber, savedEval]) // eslint-disable-line
 
   function clearWipDraft() {
+    const key = wipKey(tournamentId, dayNumber, refereeId, role)
     try {
-      localStorage.removeItem(wipKey(tournamentId, dayNumber, refereeId, role))
+      localStorage.removeItem(key)
       localStorage.removeItem(LAST_WIP_KEY)
     } catch { /* ignore */ }
+    deleteDraftServer(key)
     setDraftSavedAt(null)
     refreshDrafts()
   }
@@ -1041,13 +1048,13 @@ export default function Evaluate() {
     if (!refereeId) { toast.error('Pick a referee first'); return }
     try {
       const now = Date.now()
-      localStorage.setItem(
-        wipKey(tournamentId, dayNumber, refereeId, role),
-        JSON.stringify({ criteriaData, generalNotes, leadershipScore, leadershipNa, leadershipNote, benchScore, benchNa, benchNote, courtNumber, roundNumber, schedMatchId, pickMode, difficulty, updatedAt: now })
-      )
+      const key = wipKey(tournamentId, dayNumber, refereeId, role)
+      const draftObj = { criteriaData, generalNotes, leadershipScore, leadershipNa, leadershipNote, benchScore, benchNa, benchNote, courtNumber, roundNumber, schedMatchId, pickMode, difficulty, updatedAt: now }
+      localStorage.setItem(key, JSON.stringify(draftObj))
       localStorage.setItem(LAST_WIP_KEY, JSON.stringify({ tournamentId, dayNumber, refereeId, role }))
       setDraftSavedAt(now)
-      toast.success('Draft saved — you can close the app and resume here later')
+      pushDraftServer(key, draftObj)
+      toast.success('Draft saved — synced, you can resume it on any device')
       refreshDrafts()
     } catch {
       toast.error('Could not save the draft on this device')
@@ -1098,7 +1105,76 @@ export default function Evaluate() {
     setDrafts(out)
   }, [])
 
+  // ── Cross-device draft sync (best-effort; no-op if the DB table is absent) ──
+  const serverRowFrom = (id, obj) => {
+    const [, t, d, r, ro] = id.split('::')
+    return {
+      id,
+      tournament_id: t === '-' ? null : t,
+      day_number: d === '-' ? null : Number(d),
+      referee_id: r || null,
+      role: ro || null,
+      data: obj,
+      updated_at: new Date(obj?.updatedAt || Date.now()).toISOString(),
+    }
+  }
+  const pushDraftServer = (id, obj) => {
+    try { draftService.upsert(serverRowFrom(id, obj)).then(() => {}, () => {}) } catch { /* ignore */ }
+  }
+  const deleteDraftServer = (id) => {
+    try { draftService.remove(id).then(() => {}, () => {}) } catch { /* ignore */ }
+  }
+  const readLocalDrafts = () => {
+    const list = []
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i)
+        if (!k || !k.startsWith('bvb_eval_wip::')) continue
+        let obj = null
+        try { obj = JSON.parse(localStorage.getItem(k) || 'null') } catch { obj = null }
+        if (obj) list.push({ id: k, obj })
+      }
+    } catch { /* ignore */ }
+    return list
+  }
+  // Pull server drafts into localStorage and push local ones up (last-write-wins).
+  const hydrateFromServer = useCallback(async () => {
+    try {
+      const { data, error } = await draftService.getAll()
+      if (!error && Array.isArray(data)) {
+        const serverById = {}
+        for (const row of data) {
+          if (!row?.id || !row?.data) continue
+          serverById[row.id] = row
+          let localUpdated = 0
+          try {
+            const raw = localStorage.getItem(row.id)
+            if (raw) localUpdated = JSON.parse(raw)?.updatedAt || 0
+          } catch { /* ignore */ }
+          const serverUpdated = row.data?.updatedAt || (row.updated_at ? Date.parse(row.updated_at) : 0)
+          if (serverUpdated >= localUpdated) {
+            try { localStorage.setItem(row.id, JSON.stringify(row.data)) } catch { /* ignore */ }
+          }
+        }
+        // Push local drafts that the server doesn't have (or that are newer here).
+        for (const { id, obj } of readLocalDrafts()) {
+          const s = serverById[id]
+          const serverUpdated = s ? (s.data?.updatedAt || (s.updated_at ? Date.parse(s.updated_at) : 0)) : -1
+          if ((obj?.updatedAt || 0) > serverUpdated) pushDraftServer(id, obj)
+        }
+      }
+    } catch { /* server unavailable / table missing — local only */ }
+    refreshDrafts()
+  }, [refreshDrafts])
+
+  // Rebuild locally on context change; hydrate from the server on mount + focus.
   useEffect(() => { refreshDrafts() }, [refreshDrafts, refereeId, role, tournamentId, dayNumber, savedEval])
+  useEffect(() => {
+    hydrateFromServer()
+    const onFocus = () => hydrateFromServer()
+    window.addEventListener('focus', onFocus)
+    return () => window.removeEventListener('focus', onFocus)
+  }, [hydrateFromServer])
 
   // Reopen a saved draft — load its context so the restore effect fills the form.
   function openDraft(d) {
@@ -1122,6 +1198,7 @@ export default function Evaluate() {
         localStorage.removeItem(LAST_WIP_KEY)
       }
     } catch { /* ignore */ }
+    deleteDraftServer(d.key)
     if (d.key === wipKey(tournamentId, dayNumber, refereeId, role)) {
       setCriteriaData(Object.fromEntries(CRITERIA.map((c) => [c.key, { score: null, repeat: false, note: '', na: false }])))
       setGeneralNotes('')

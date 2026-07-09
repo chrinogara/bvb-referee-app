@@ -1535,7 +1535,7 @@ export default function Evaluate() {
                                 setSchedMatchId(m.id)
                                 setCourtNumber(m.court)
                                 setRoundNumber(null)
-                                setRole(m._role === 'R2' ? 'R2' : 'R1')
+                                setRole(m._role || 'R1')
                                 if (m.day_number) setDayNumber(m.day_number)
                               }}
                               className={cn(
@@ -1672,14 +1672,14 @@ export default function Evaluate() {
                 <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">
                   Role <span className="text-red-400">*</span>
                 </label>
-                <div className="grid grid-cols-2 gap-2">
-                  {['R1', 'R2'].map((r) => (
+                <div className="grid grid-cols-4 gap-2">
+                  {['R1', 'R2', 'LJ1', 'LJ2'].map((r) => (
                     <button
                       key={r}
                       type="button"
                       onClick={() => setRole(r)}
                       className={cn(
-                        'py-3 rounded-xl text-base font-bold transition-all duration-150',
+                        'py-3 rounded-xl text-sm font-bold transition-all duration-150',
                         role === r
                           ? 'bg-[#2D3270] text-white border border-[#2D3270] ring-2 ring-[#2D3270]/30 scale-[1.02]'
                           : 'bg-gray-50 text-gray-500 border border-gray-200 hover:border-gray-300 hover:text-gray-700'

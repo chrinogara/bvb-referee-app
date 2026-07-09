@@ -721,6 +721,30 @@ function EvaluationsTab({ tournamentId, tournament }) {
   const [genning, setGenning] = useState(false)
   const [genningGroup, setGenningGroup] = useState(false)
 
+  // Flag referees with 2+ evaluations on the same day and compare them
+  // (improvement vs repeated errors).
+  const dupInfo = useMemo(() => {
+    const groups = {}
+    for (const ev of evaluations) {
+      const key = `${ev.referee_id}::${ev.day_number ?? '-'}`
+      ;(groups[key] || (groups[key] = [])).push(ev)
+    }
+    const info = {}
+    for (const key in groups) {
+      const list = groups[key]
+      if (list.length < 2) continue
+      const asc = list.slice().sort((a, b) => new Date(a.evaluated_at || 0) - new Date(b.evaluated_at || 0))
+      asc.forEach((ev, i) => {
+        info[ev.id] = {
+          count: asc.length,
+          index: i + 1,
+          trend: i > 0 ? compareEvals(asc[i - 1], ev) : null,
+        }
+      })
+    }
+    return info
+  }, [evaluations])
+
   async function makeRecapPdf() {
     setGenning(true)
     try {
@@ -804,7 +828,7 @@ function EvaluationsTab({ tournamentId, tournament }) {
       {!loading && evaluations.length > 0 && (
         <div className="flex flex-col gap-2">
           {evaluations.map((ev) => (
-            <EvaluationCard key={ev.id} evaluation={ev} />
+            <EvaluationCard key={ev.id} evaluation={ev} dup={dupInfo[ev.id]} />
           ))}
         </div>
       )}
@@ -835,7 +859,38 @@ function EvaluationsTab({ tournamentId, tournament }) {
   )
 }
 
-function EvaluationCard({ evaluation }) {
+// Compare two evaluations of the same referee/day to flag improvement vs repeated errors.
+const SAMEDAY_CRIT = [
+  ['positioning', 'Positioning'],
+  ['signals', 'Signals'],
+  ['attitude', 'Attitude'],
+  ['captain_comm', 'Captain comm.'],
+  ['presentation', 'Presentation'],
+]
+function compareEvals(prev, cur) {
+  const repeated = []
+  const improved = []
+  for (const [k, label] of SAMEDAY_CRIT) {
+    const p = prev[`score_${k}`]
+    const c = cur[`score_${k}`]
+    if (p != null && c != null) {
+      if (c > p) improved.push(label)
+      if (p <= 2 && c <= 2) repeated.push(label) // stayed weak = same error
+    }
+    if (prev[`repeat_${k}`] && cur[`repeat_${k}`] && !repeated.includes(label)) repeated.push(label)
+  }
+  const ps = prev.overall_score
+  const cs = cur.overall_score
+  let dir = 'same'
+  let delta = null
+  if (ps != null && cs != null) {
+    delta = Math.round((cs - ps) * 10) / 10
+    dir = delta > 0 ? 'up' : delta < 0 ? 'down' : 'same'
+  }
+  return { dir, delta, repeated, improved }
+}
+
+function EvaluationCard({ evaluation, dup }) {
   const referee = evaluation.referees
   const gradeColor = evaluation.grade ? getGradeColor(evaluation.grade) : 'text-gray-500'
   const gradeBg   = evaluation.grade ? getGradeBg(evaluation.grade)   : 'bg-gray-400/10'
@@ -867,6 +922,11 @@ function EvaluationCard({ evaluation }) {
                   {evaluation.day_number && (
                     <span className="text-xs text-gray-500">Day {evaluation.day_number}</span>
                   )}
+                  {dup && dup.count > 1 && (
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#E85D26]/10 text-[#E85D26]">
+                      {dup.index}/{dup.count} same day
+                    </span>
+                  )}
                   {evaluation.evaluated_at && (
                     <span className="text-xs text-gray-600">{formatDate(evaluation.evaluated_at)}</span>
                   )}
@@ -889,6 +949,32 @@ function EvaluationCard({ evaluation }) {
             </div>
           </div>
         </div>
+
+        {dup?.trend && (
+          <div className="mt-2 pt-2 border-t border-gray-100">
+            {dup.trend.dir === 'up' ? (
+              <span className="text-xs font-bold text-emerald-600">
+                ↑ Improved{dup.trend.delta != null ? ` (+${dup.trend.delta})` : ''} vs earlier today
+              </span>
+            ) : dup.trend.dir === 'down' ? (
+              <span className="text-xs font-bold text-red-500">
+                ↓ Lower{dup.trend.delta != null ? ` (${dup.trend.delta})` : ''} vs earlier today
+              </span>
+            ) : (
+              <span className="text-xs font-bold text-gray-500">→ Same level vs earlier today</span>
+            )}
+            {dup.trend.repeated.length > 0 && (
+              <span className="block text-[11px] text-amber-700 mt-0.5">
+                Repeated errors: {dup.trend.repeated.join(', ')}
+              </span>
+            )}
+            {dup.trend.dir === 'up' && dup.trend.improved.length > 0 && (
+              <span className="block text-[11px] text-emerald-700 mt-0.5">
+                Improved: {dup.trend.improved.join(', ')}
+              </span>
+            )}
+          </div>
+        )}
       </CardBody>
     </Card>
     </Link>

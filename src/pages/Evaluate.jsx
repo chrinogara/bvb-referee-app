@@ -1292,11 +1292,39 @@ export default function Evaluate() {
       return
     }
 
+    // Persist. If the DB doesn't have the optional rating columns yet, strip
+    // them and retry so a save never gets stuck on "Save error" for that reason.
+    const persistOnce = async (pl) => {
+      if (editingEvalId) {
+        const { data, error } = await evaluationService.update(editingEvalId, pl)
+        if (error) throw new Error(error.message)
+        return data
+      }
+      return await create(pl)
+    }
+    const persistEval = async (pl) => {
+      try {
+        return await persistOnce(pl)
+      } catch (err) {
+        const msg = (err?.message || '').toLowerCase()
+        if (/leadership_score|leadership_note|bench_score|bench_note|schema cache|could not find the/.test(msg)) {
+          setLeadershipEnabled(false)
+          setBenchEnabled(false)
+          const { leadership_score, leadership_note, bench_score, bench_note, ...core } = pl
+          const data = await persistOnce(core)
+          toast('Saved. The leadership/bench columns aren’t in the database yet — run the SQL to store those ratings.', 'info', 6500)
+          return data
+        }
+        if (/role/.test(msg) && /(constraint|check|invalid|violat|enum)/.test(msg)) {
+          toast('The database rejected the LJ role — run the SQL to allow LJ1/LJ2 for evaluations.', 'error', 7000)
+        }
+        throw err
+      }
+    }
+
     setSaving(true)
     try {
-      const saved = editingEvalId
-        ? await trackSave(() => evaluationService.update(editingEvalId, payload))
-        : await trackSave(() => create(payload))
+      const saved = await trackSave(() => persistEval(payload))
       setSavedEval(saved)
       clearWipDraft()
 

@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { useParams, useNavigate, Link } from 'react-router-dom'
+import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom'
 import {
   Trophy,
   Calendar,
@@ -1096,7 +1096,21 @@ function EvaluationCard({ evaluation, dup }) {
 export default function TournamentDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
-  const [activeTab, setActiveTab] = useState('Overview')
+  const [searchParams, setSearchParams] = useSearchParams()
+  const VALID_TABS = ['Overview', 'Referees', 'Courts', 'Evaluations']
+  const initialTab = VALID_TABS.includes(searchParams.get('tab')) ? searchParams.get('tab') : 'Overview'
+  const [activeTab, setActiveTabState] = useState(initialTab)
+  // Keep the URL's ?tab= in sync so this page can always be deep-linked back to
+  // (e.g. from Evaluate's "Back to Evaluations" button) and reflects the tab on reload/share.
+  const setActiveTab = (tab) => {
+    setActiveTabState(tab)
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev)
+      if (tab === 'Overview') next.delete('tab')
+      else next.set('tab', tab)
+      return next
+    }, { replace: true })
+  }
 
   const { tournaments, loading: tLoading, update } = useTournaments()
   const { referees: assigned, loading: rLoading, assign, remove } = useTournamentReferees(id)

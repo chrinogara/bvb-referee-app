@@ -1,6 +1,6 @@
 import { trackSave } from '../lib/saveTracker'
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams, Link } from 'react-router-dom'
 import { useReferees } from '../hooks/useReferees'
 import { useTournaments } from '../hooks/useTournaments'
 import { useEvaluations } from '../hooks/useEvaluations'
@@ -24,6 +24,7 @@ import {
   AlertTriangle,
   ChevronDown,
   ChevronUp,
+  ChevronLeft,
   Download,
   Share2,
   Save,
@@ -1537,6 +1538,16 @@ export default function Evaluate() {
       {/* Scrollable content — padded for sticky bottom bar */}
       <div className="flex-1 overflow-y-auto pb-40 lg:pb-28">
         <div className="max-w-lg mx-auto px-4 py-5 space-y-4">
+
+          {tournamentId && (
+            <Link
+              to={`/tournaments/${tournamentId}?tab=Evaluations`}
+              className="inline-flex items-center gap-1.5 text-sm font-semibold text-[#2D3270] hover:text-[#E85D26] transition-colors -mt-1"
+            >
+              <ChevronLeft size={16} />
+              Back to Evaluations
+            </Link>
+          )}
 
           {editingEvalId && (
             <div className="flex items-start gap-3 p-3 rounded-xl bg-amber-500/10 border border-amber-500/30">

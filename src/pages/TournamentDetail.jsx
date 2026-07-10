@@ -722,12 +722,17 @@ function EvaluationsTab({ tournamentId, tournament }) {
   const [genningDay, setGenningDay] = useState(null)   // day key currently generating the comments recap
   const [genningGroupDay, setGenningGroupDay] = useState(null) // day key currently generating the group debrief
 
-  // Flag referees with 2+ evaluations on the same day and compare them
+  // The true grouping key is the ACTUAL calendar date the evaluation was
+  // dated for (evalDate/evaluated_at) — not the tournament's "Day N" counter,
+  // which can be wrong/stale if it wasn't updated when the date was set.
+  const dateKeyOf = (ev) => (ev.evaluated_at ? ev.evaluated_at.slice(0, 10) : `day-${ev.day_number ?? 0}`)
+
+  // Flag referees with 2+ evaluations on the same (real) day and compare them
   // (improvement vs repeated errors).
   const dupInfo = useMemo(() => {
     const groups = {}
     for (const ev of evaluations) {
-      const key = `${ev.referee_id}::${ev.day_number ?? '-'}`
+      const key = `${ev.referee_id}::${dateKeyOf(ev)}`
       ;(groups[key] || (groups[key] = [])).push(ev)
     }
     const info = {}
@@ -746,18 +751,23 @@ function EvaluationsTab({ tournamentId, tournament }) {
     return info
   }, [evaluations])
 
-  // Group by DAY first (each day is its own section, with its own report
-  // buttons below), then within a day group by referee (dropdown if 2+).
+  // Group by actual DATE first (each real date is its own section, with its
+  // own report buttons below) — evaluations dated the same day never mix with
+  // a different date even if they share the same "Day N" counter. Within a
+  // date, group by referee (dropdown if 2+).
   const dayGroups = useMemo(() => {
-    const byDay = {}
+    const byDate = {}
     for (const ev of evaluations) {
-      const day = ev.day_number || 0
-      ;(byDay[day] || (byDay[day] = [])).push(ev)
+      const key = dateKeyOf(ev)
+      ;(byDate[key] || (byDate[key] = [])).push(ev)
     }
-    return Object.entries(byDay)
-      .map(([day, evals]) => {
-        const dayNum = Number(day)
-        const dateSample = evals.find((e) => e.evaluated_at)?.evaluated_at
+    return Object.entries(byDate)
+      .map(([dateKey, evals]) => {
+        // "Day N" label: the day_number most evaluations in this date agree on.
+        const counts = {}
+        for (const ev of evals) { const d = ev.day_number ?? 0; counts[d] = (counts[d] || 0) + 1 }
+        const dayNum = Number(Object.entries(counts).sort((a, b) => b[1] - a[1])[0]?.[0]) || 0
+        const hasRealDate = /^\d{4}-\d{2}-\d{2}$/.test(dateKey)
         const m = {}
         for (const ev of evals) {
           const rid = ev.referee_id || `x-${ev.id}`
@@ -770,15 +780,16 @@ function EvaluationsTab({ tournamentId, tournament }) {
         }))
         grouped.sort((a, b) => refereeName(a.referee || {}).localeCompare(refereeName(b.referee || {})))
         return {
-          key: String(dayNum),
+          key: dateKey,
           dayNum,
           label: dayNum ? `Day ${dayNum}` : 'Unassigned day',
-          date: dateSample ? formatDate(dateSample) : null,
+          date: hasRealDate ? formatDate(evals[0].evaluated_at) : null,
+          sortKey: hasRealDate ? dateKey : `zzzz-${String(dayNum).padStart(4, '0')}`,
           evals,
           grouped,
         }
       })
-      .sort((a, b) => a.dayNum - b.dayNum)
+      .sort((a, b) => a.sortKey.localeCompare(b.sortKey))
   }, [evaluations])
 
   async function makeRecapPdf(day) {

@@ -902,6 +902,9 @@ export default function Evaluate() {
   const [offcourtControl, setOffcourtControl] = useState(null) // 'attento' | 'superficiale' | 'non_attento'
   const [offcourtNote, setOffcourtNote] = useState('')
   const [offcourtEnabled, setOffcourtEnabled] = useState(true)
+  // Discipline Management is a 6th weighted criterion — its columns may not
+  // exist in older databases, so gate it behind a probe like the others.
+  const [disciplineEnabled, setDisciplineEnabled] = useState(true)
 
   // ── Post-save state ─────────────────────────────────────────────────────────
   const [saving, setSaving] = useState(false)
@@ -973,6 +976,10 @@ export default function Evaluate() {
         const { error } = await supabase.from('evaluations').select('offcourt_control').limit(1)
         if (alive && error) setOffcourtEnabled(false)
       } catch { if (alive) setOffcourtEnabled(false) }
+      try {
+        const { error } = await supabase.from('evaluations').select('score_discipline').limit(1)
+        if (alive && error) setDisciplineEnabled(false)
+      } catch { if (alive) setDisciplineEnabled(false) }
     })()
     return () => { alive = false }
   }, [])
@@ -1317,6 +1324,10 @@ export default function Evaluate() {
     CRITERIA.forEach((c) => {
       const cd = criteriaData[c.key]
       if (cd.na) return
+      if (c.optional || (c.key === 'discipline' && !disciplineEnabled)) {
+        if (cd.score) scoredCount++ // counts if scored, but never required
+        return
+      }
       if (!cd.score) errs[`score_${c.key}`] = 'Required'
       else scoredCount++
     })
@@ -1336,9 +1347,10 @@ export default function Evaluate() {
 
     const _selLjSave = referees.find((r) => r.id === refereeId)
     const _isLj = !!(_selLjSave && isLineJudge(_selLjSave))
-    const scoreOf  = (k) => (_isLj || criteriaData[k].na ? null : criteriaData[k].score)
-    const repeatOf = (k) => (_isLj ? false : (criteriaData[k].na ? false : criteriaData[k].repeat))
-    const noteOf   = (k) => (_isLj ? null : (criteriaData[k].note || null))
+    const _off = (k) => (k === 'discipline' && !disciplineEnabled) // discipline dropped until DB has the columns
+    const scoreOf  = (k) => (_isLj || criteriaData[k].na || _off(k) ? null : criteriaData[k].score)
+    const repeatOf = (k) => (_isLj || _off(k) ? false : (criteriaData[k].na ? false : criteriaData[k].repeat))
+    const noteOf   = (k) => (_isLj || _off(k) ? null : (criteriaData[k].note || null))
     const _scores  = Object.fromEntries(CRITERIA.map((c) => [c.key, scoreOf(c.key)]))
     const _repeats = Object.fromEntries(CRITERIA.map((c) => [c.key, repeatOf(c.key)]))
     const _calc = _isLj
@@ -1372,6 +1384,14 @@ export default function Evaluate() {
       repeat_penalty: _calc.penalty,
       general_notes: generalNotes || null,
       evaluated_at: new Date(`${evalDate}T12:00:00`).toISOString(),
+    }
+
+    // Discipline Management — 6th weighted criterion. Only sent if the DB has
+    // the columns (otherwise it stays in the local draft until the SQL is run).
+    if (disciplineEnabled) {
+      payload.score_discipline  = scoreOf('discipline')
+      payload.repeat_discipline = repeatOf('discipline')
+      payload.note_discipline   = noteOf('discipline')
     }
 
     // Leadership + R2 bench ratings — "Not evaluable" stored as 0.
@@ -1420,13 +1440,14 @@ export default function Evaluate() {
         return await persistOnce(pl)
       } catch (err) {
         const msg = (err?.message || '').toLowerCase()
-        if (/leadership_score|leadership_note|bench_score|bench_note|offcourt_control|offcourt_note|schema cache|could not find the/.test(msg)) {
+        if (/leadership_score|leadership_note|bench_score|bench_note|offcourt_control|offcourt_note|score_discipline|repeat_discipline|note_discipline|schema cache|could not find the/.test(msg)) {
           setLeadershipEnabled(false)
           setBenchEnabled(false)
           setOffcourtEnabled(false)
-          const { leadership_score, leadership_note, bench_score, bench_note, offcourt_control, offcourt_note, ...core } = pl
+          setDisciplineEnabled(false)
+          const { leadership_score, leadership_note, bench_score, bench_note, offcourt_control, offcourt_note, score_discipline, repeat_discipline, note_discipline, ...core } = pl
           const data = await persistOnce(core)
-          toast('Saved. The extra rating columns aren’t in the database yet — run the SQL to store those ratings.', 'info', 6500)
+          toast('Saved. Some newer rating columns aren’t in the database yet — run the SQL to store those ratings.', 'info', 6500)
           return data
         }
         if (/role/.test(msg) && /(constraint|check|invalid|violat|enum)/.test(msg)) {
@@ -1991,19 +2012,25 @@ export default function Evaluate() {
             </h2>
             <div className="space-y-3">
               {CRITERIA.map((criterion) => (
-                <CriterionCard
-                  key={criterion.key}
-                  criterion={criterion}
-                  score={criteriaData[criterion.key].score}
-                  repeat={criteriaData[criterion.key].repeat}
-                  note={criteriaData[criterion.key].note}
-                  na={criteriaData[criterion.key].na}
-                  onScore={(v) => setCriterion(criterion.key, 'score', v)}
-                  onRepeat={(v) => setCriterion(criterion.key, 'repeat', v)}
-                  onNote={(v) => setCriterion(criterion.key, 'note', v)}
-                  onNa={(v) => setCriterion(criterion.key, 'na', v)}
-                  error={!!errors[`score_${criterion.key}`]}
-                />
+                <div key={criterion.key}>
+                  <CriterionCard
+                    criterion={criterion}
+                    score={criteriaData[criterion.key].score}
+                    repeat={criteriaData[criterion.key].repeat}
+                    note={criteriaData[criterion.key].note}
+                    na={criteriaData[criterion.key].na}
+                    onScore={(v) => setCriterion(criterion.key, 'score', v)}
+                    onRepeat={(v) => setCriterion(criterion.key, 'repeat', v)}
+                    onNote={(v) => setCriterion(criterion.key, 'note', v)}
+                    onNa={(v) => setCriterion(criterion.key, 'na', v)}
+                    error={!!errors[`score_${criterion.key}`]}
+                  />
+                  {criterion.key === 'discipline' && !disciplineEnabled && (
+                    <p className="text-[11px] text-amber-600 leading-snug mt-1 px-1">
+                      Kept in your draft for now — a quick database update is needed before this rating is stored and counted in the score.
+                    </p>
+                  )}
+                </div>
               ))}
             </div>
           </div>

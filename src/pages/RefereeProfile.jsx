@@ -50,7 +50,8 @@ function hasRepeat(ev) {
     ev.repeat_signals ||
     ev.repeat_attitude ||
     ev.repeat_captain_comm ||
-    ev.repeat_presentation
+    ev.repeat_presentation ||
+    ev.repeat_discipline
   )
 }
 
@@ -61,6 +62,7 @@ function repeatCount(ev) {
     ev.repeat_attitude,
     ev.repeat_captain_comm,
     ev.repeat_presentation,
+    ev.repeat_discipline,
   ].filter(Boolean).length
 }
 
@@ -70,6 +72,7 @@ const CRITERION_SCORE_KEYS = {
   attitude:     'score_attitude',
   captain_comm: 'score_captain_comm',
   presentation: 'score_presentation',
+  discipline:   'score_discipline',
 }
 
 const CRITERION_REPEAT_KEYS = {
@@ -78,6 +81,7 @@ const CRITERION_REPEAT_KEYS = {
   attitude:     'repeat_attitude',
   captain_comm: 'repeat_captain_comm',
   presentation: 'repeat_presentation',
+  discipline:   'repeat_discipline',
 }
 
 // ─── CriterionBar (simple CSS bar) ───────────────────────────────────────────

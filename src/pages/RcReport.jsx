@@ -57,6 +57,7 @@ function CRITERION_SCORE_KEY(c) {
     attitude: 'score_attitude',
     captain_comm: 'score_captain_comm',
     presentation: 'score_presentation',
+    discipline: 'score_discipline',
   }
   return map[c.key]
 }
@@ -68,6 +69,7 @@ function CRITERION_REPEAT_KEY(c) {
     attitude: 'repeat_attitude',
     captain_comm: 'repeat_captain_comm',
     presentation: 'repeat_presentation',
+    discipline: 'repeat_discipline',
   }
   return map[c.key]
 }
@@ -92,6 +94,7 @@ function buildRefereeSummary(refId, tournamentEvals) {
         e.repeat_attitude,
         e.repeat_captain_comm,
         e.repeat_presentation,
+        e.repeat_discipline,
       ].filter(Boolean).length,
     0
   )

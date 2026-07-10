@@ -6,6 +6,7 @@ export const WEIGHTS = {
   attitude:      0.20,
   captain_comm:  0.15,
   presentation:  0.20,
+  discipline:    0.20,
 }
 
 export const SCORE_LABELS = {
@@ -24,7 +25,7 @@ export const GRADE_THRESHOLDS = [
   { min: 0,   grade: 'POOR',           color: 'text-red-400',     bg: 'bg-red-400/10' },
 ]
 
-export const CRIT_KEYS = ['positioning', 'signals', 'attitude', 'captain_comm', 'presentation']
+export const CRIT_KEYS = ['positioning', 'signals', 'attitude', 'captain_comm', 'presentation', 'discipline']
 
 // Match difficulty adjustment applied to the final score (1–5 scale).
 // Harder match → more credit; easier match → less. Medium is neutral.
@@ -126,5 +127,13 @@ export const CRITERIA = [
     weight: 20,
     description:
       'Pre-match appearance & protocol compliance. Composure, body language, professional demeanor during controversial/high-pressure moments.',
+  },
+  {
+    key: 'discipline',
+    label: 'Discipline Management',
+    weight: 20,
+    description:
+      'How the referee applies the sanction scale: correct and consistent use of the misconduct ladder (warning -> penalty -> expulsion -> disqualification). Timing and proportionality of sanctions; equal treatment of both teams. Managing unsporting conduct, delays, dissent and repeated minor offences. Prevention through presence and communication, de-escalation before sanctioning, and keeping the misconduct record (cards) correct.',
+    optional: true,
   },
 ]

@@ -240,6 +240,7 @@ function EvaluationDocument({ evaluation, referee, match, tournament, lang = 'en
       attitude:     evaluation.score_attitude,
       captain_comm: evaluation.score_captain_comm,
       presentation: evaluation.score_presentation,
+      discipline:   evaluation.score_discipline,
     }
     return map[key]
   }
@@ -251,6 +252,7 @@ function EvaluationDocument({ evaluation, referee, match, tournament, lang = 'en
       attitude:     evaluation.repeat_attitude,
       captain_comm: evaluation.repeat_captain_comm,
       presentation: evaluation.repeat_presentation,
+      discipline:   evaluation.repeat_discipline,
     }
     return map[key]
   }
@@ -262,6 +264,7 @@ function EvaluationDocument({ evaluation, referee, match, tournament, lang = 'en
       attitude:     evaluation.note_attitude,
       captain_comm: evaluation.note_captain_comm,
       presentation: evaluation.note_presentation,
+      discipline:   evaluation.note_discipline,
     }
     return map[key]
   }
@@ -1159,7 +1162,7 @@ export async function generateEvaluationPDF(evaluation, referee, match, tourname
   // translate again here as a safety net so no Italian leaks into the PDF.
   const ev = await translateFieldsToEnglish(evaluation, [
     'note_positioning', 'note_signals', 'note_attitude',
-    'note_captain_comm', 'note_presentation', 'general_notes', 'leadership_note', 'bench_note', 'offcourt_note',
+    'note_captain_comm', 'note_presentation', 'note_discipline', 'general_notes', 'leadership_note', 'bench_note', 'offcourt_note',
   ])
   const blob = await pdf(
     <EvaluationDocument
@@ -1390,7 +1393,7 @@ function CommentsRecapDocument({ tournament, byDay }) {
 export async function generateCommentsRecapPDF({ tournament, evaluations, dayLabel }) {
   const NOTE_KEYS = [
     'note_positioning', 'note_signals', 'note_attitude', 'note_captain_comm',
-    'note_presentation', 'general_notes', 'leadership_note', 'bench_note', 'offcourt_note',
+    'note_presentation', 'note_discipline', 'general_notes', 'leadership_note', 'bench_note', 'offcourt_note',
   ]
   // Ensure every comment is in English (notes are stored in the original language).
   const translated = await Promise.all(

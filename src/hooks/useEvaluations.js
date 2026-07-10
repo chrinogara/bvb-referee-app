@@ -31,6 +31,7 @@ export function useEvaluations(filter = {}) {
       attitude:     formData.score_attitude,
       captain_comm: formData.score_captain_comm,
       presentation: formData.score_presentation,
+      discipline:   formData.score_discipline,
     }
     const repeats = {
       positioning:  formData.repeat_positioning,
@@ -38,6 +39,7 @@ export function useEvaluations(filter = {}) {
       attitude:     formData.repeat_attitude,
       captain_comm: formData.repeat_captain_comm,
       presentation: formData.repeat_presentation,
+      discipline:   formData.repeat_discipline,
     }
 
     const { overall, penalty, grade } = computeScore(scores, repeats, formData.match_difficulty, OFFCOURT_ADJ[formData.offcourt_control] || 0)

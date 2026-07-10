@@ -719,8 +719,8 @@ function CourtsTab({ tournament }) {
 
 function EvaluationsTab({ tournamentId, tournament }) {
   const { evaluations, loading } = useEvaluations({ tournamentId })
-  const [genning, setGenning] = useState(false)
-  const [genningGroup, setGenningGroup] = useState(false)
+  const [genningDay, setGenningDay] = useState(null)   // day key currently generating the comments recap
+  const [genningGroupDay, setGenningGroupDay] = useState(null) // day key currently generating the group debrief
 
   // Flag referees with 2+ evaluations on the same day and compare them
   // (improvement vs repeated errors).
@@ -746,28 +746,46 @@ function EvaluationsTab({ tournamentId, tournament }) {
     return info
   }, [evaluations])
 
-  // Group by referee: one row per referee; multi-evaluation referees collapse
-  // into a dropdown instead of a flat list.
-  const grouped = useMemo(() => {
-    const m = {}
+  // Group by DAY first (each day is its own section, with its own report
+  // buttons below), then within a day group by referee (dropdown if 2+).
+  const dayGroups = useMemo(() => {
+    const byDay = {}
     for (const ev of evaluations) {
-      const rid = ev.referee_id || `x-${ev.id}`
-      if (!m[rid]) m[rid] = { rid, referee: ev.referees, evals: [] }
-      m[rid].evals.push(ev)
+      const day = ev.day_number || 0
+      ;(byDay[day] || (byDay[day] = [])).push(ev)
     }
-    const arr = Object.values(m).map((g) => ({
-      ...g,
-      evals: g.evals.slice().sort((a, b) => new Date(b.evaluated_at || 0) - new Date(a.evaluated_at || 0)),
-    }))
-    arr.sort((a, b) => refereeName(a.referee || {}).localeCompare(refereeName(b.referee || {})))
-    return arr
+    return Object.entries(byDay)
+      .map(([day, evals]) => {
+        const dayNum = Number(day)
+        const dateSample = evals.find((e) => e.evaluated_at)?.evaluated_at
+        const m = {}
+        for (const ev of evals) {
+          const rid = ev.referee_id || `x-${ev.id}`
+          if (!m[rid]) m[rid] = { rid, referee: ev.referees, evals: [] }
+          m[rid].evals.push(ev)
+        }
+        const grouped = Object.values(m).map((g) => ({
+          ...g,
+          evals: g.evals.slice().sort((a, b) => new Date(b.evaluated_at || 0) - new Date(a.evaluated_at || 0)),
+        }))
+        grouped.sort((a, b) => refereeName(a.referee || {}).localeCompare(refereeName(b.referee || {})))
+        return {
+          key: String(dayNum),
+          dayNum,
+          label: dayNum ? `Day ${dayNum}` : 'Unassigned day',
+          date: dateSample ? formatDate(dateSample) : null,
+          evals,
+          grouped,
+        }
+      })
+      .sort((a, b) => a.dayNum - b.dayNum)
   }, [evaluations])
 
-  async function makeRecapPdf() {
-    setGenning(true)
+  async function makeRecapPdf(day) {
+    setGenningDay(day.key)
     try {
-      const blob = await generateCommentsRecapPDF({ tournament, evaluations })
-      const fname = `Comments_recap_${(tournament?.name || 'tournament').replace(/\s+/g, '_')}.pdf`
+      const blob = await generateCommentsRecapPDF({ tournament, evaluations: day.evals })
+      const fname = `Comments_recap_${(tournament?.name || 'tournament').replace(/\s+/g, '_')}_Day${day.dayNum || 'X'}.pdf`
       if (navigator.share && navigator.canShare) {
         try { await sharePDFWhatsApp(blob, fname); return } catch { /* fall back to download */ }
       }
@@ -775,31 +793,25 @@ function EvaluationsTab({ tournamentId, tournament }) {
     } catch (e) {
       console.error('recap pdf failed', e)
     } finally {
-      setGenning(false)
+      setGenningDay(null)
     }
   }
 
-  async function makeGroupPdf() {
-    setGenningGroup(true)
+  async function makeGroupPdf(day) {
+    setGenningGroupDay(day.key)
     try {
-      // Anonymised observations grouped by day (no names).
-      const byDayMap = new Map()
-      for (const ev of evaluations) {
-        const obs = collectEvalComments(ev).map((c) => (c.label ? `${c.label}: ${c.text}` : c.text))
-        if (!obs.length) continue
-        const day = ev.day_number || 0
-        if (!byDayMap.has(day)) byDayMap.set(day, [])
-        byDayMap.get(day).push(...obs)
+      // Anonymised observations for this day only (no names).
+      const obs = []
+      for (const ev of day.evals) {
+        obs.push(...collectEvalComments(ev).map((c) => (c.label ? `${c.label}: ${c.text}` : c.text)))
       }
-      const days = [...byDayMap.entries()].sort((a, b) => a[0] - b[0])
-      const byDay = await Promise.all(days.map(async ([day, obs]) => {
-        let text = ''
+      let text = ''
+      if (obs.length) {
         try { text = await summarizeGroupFeedback(obs) } catch (e) { console.error('group summary AI failed', e) }
         if (!text) text = obs.map((o) => `- ${o}`).join('\n') // fallback: anonymised bullets
-        return { key: String(day), label: day ? `Day ${day}` : 'Overall', text }
-      }))
-      const blob = await generateGroupSummaryPDF({ tournament, byDay })
-      const fname = `Group_debrief_${(tournament?.name || 'tournament').replace(/\s+/g, '_')}.pdf`
+      }
+      const blob = await generateGroupSummaryPDF({ tournament, byDay: [{ key: day.key, label: day.label, text }] })
+      const fname = `Group_debrief_${(tournament?.name || 'tournament').replace(/\s+/g, '_')}_Day${day.dayNum || 'X'}.pdf`
       if (navigator.share && navigator.canShare) {
         try { await sharePDFWhatsApp(blob, fname); return } catch { /* fall back to download */ }
       }
@@ -807,7 +819,7 @@ function EvaluationsTab({ tournamentId, tournament }) {
     } catch (e) {
       console.error('group pdf failed', e)
     } finally {
-      setGenningGroup(false)
+      setGenningGroupDay(null)
     }
   }
 
@@ -843,36 +855,40 @@ function EvaluationsTab({ tournamentId, tournament }) {
         </div>
       )}
 
-      {!loading && evaluations.length > 0 && (
-        <div className="flex flex-col gap-2">
-          {grouped.map((g) => (
+      {!loading && dayGroups.map((day, i) => (
+        <div key={day.key} className={cn('flex flex-col gap-2', i > 0 && 'pt-4 border-t border-gray-200')}>
+          <div className="flex items-baseline gap-2 px-0.5">
+            <h3 className="text-sm font-bold uppercase tracking-wide text-[#2D3270]">{day.label}</h3>
+            {day.date && <span className="text-xs text-gray-400">{day.date}</span>}
+            <span className="text-xs text-gray-400">· {day.evals.length} evaluation{day.evals.length !== 1 ? 's' : ''}</span>
+          </div>
+
+          {day.grouped.map((g) => (
             <RefereeEvalGroup key={g.rid} referee={g.referee} evals={g.evals} dupInfo={dupInfo} />
           ))}
-        </div>
-      )}
 
-      {!loading && evaluations.length > 0 && (
-        <div className="flex flex-col gap-2 mt-1">
-          <button
-            type="button"
-            onClick={makeRecapPdf}
-            disabled={genning}
-            className="w-full py-3 rounded-xl bg-[#2D3270] text-white text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-50"
-          >
-            <FileText size={16} />
-            {genning ? 'Generating…' : 'Comments recap (PDF) — by day'}
-          </button>
-          <button
-            type="button"
-            onClick={makeGroupPdf}
-            disabled={genningGroup}
-            className="w-full py-3 rounded-xl border border-[#2D3270] text-[#2D3270] text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-50"
-          >
-            <Users size={16} />
-            {genningGroup ? 'Generating…' : 'Group debrief (PDF) — no names'}
-          </button>
+          <div className="flex flex-col gap-2 mt-1">
+            <button
+              type="button"
+              onClick={() => makeRecapPdf(day)}
+              disabled={genningDay === day.key}
+              className="w-full py-2.5 rounded-xl bg-[#2D3270] text-white text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-50"
+            >
+              <FileText size={16} />
+              {genningDay === day.key ? 'Generating…' : `Comments recap (PDF) — ${day.label}`}
+            </button>
+            <button
+              type="button"
+              onClick={() => makeGroupPdf(day)}
+              disabled={genningGroupDay === day.key}
+              className="w-full py-2.5 rounded-xl border border-[#2D3270] text-[#2D3270] text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-50"
+            >
+              <Users size={16} />
+              {genningGroupDay === day.key ? 'Generating…' : `Group debrief (PDF) — ${day.label}, no names`}
+            </button>
+          </div>
         </div>
-      )}
+      ))}
     </div>
   )
 }

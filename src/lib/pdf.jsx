@@ -1387,7 +1387,7 @@ function CommentsRecapDocument({ tournament, byDay }) {
   )
 }
 
-export async function generateCommentsRecapPDF({ tournament, evaluations }) {
+export async function generateCommentsRecapPDF({ tournament, evaluations, dayLabel }) {
   const NOTE_KEYS = [
     'note_positioning', 'note_signals', 'note_attitude', 'note_captain_comm',
     'note_presentation', 'general_notes', 'leadership_note', 'bench_note', 'offcourt_note',
@@ -1397,27 +1397,49 @@ export async function generateCommentsRecapPDF({ tournament, evaluations }) {
     (evaluations || []).map((ev) => translateFieldsToEnglish(ev, NOTE_KEYS).catch(() => ev))
   )
 
-  const map = new Map()
-  for (const ev of translated) {
-    const comments = collectEvalComments(ev)
-    if (comments.length === 0) continue
-    const day = ev.day_number || 0
-    if (!map.has(day)) map.set(day, [])
-    map.get(day).push({
-      name: ev.referees ? refereeName(ev.referees) : 'Unknown referee',
-      role: ev.role || '',
-      match: ev.match_description || '',
-      date: ev.evaluated_at ? formatDate(ev.evaluated_at) : '',
-      comments,
-    })
+  let byDay
+  if (dayLabel) {
+    // Caller already scoped `evaluations` to one real date and computed the
+    // correct chronological label — use it as-is, no re-grouping by the
+    // (possibly stale) stored day_number.
+    const items = []
+    for (const ev of translated) {
+      const comments = collectEvalComments(ev)
+      if (comments.length === 0) continue
+      items.push({
+        name: ev.referees ? refereeName(ev.referees) : 'Unknown referee',
+        role: ev.role || '',
+        match: ev.match_description || '',
+        date: ev.evaluated_at ? formatDate(ev.evaluated_at) : '',
+        comments,
+      })
+    }
+    byDay = [{ key: dayLabel, label: dayLabel, items: items.sort((a, b) => a.name.localeCompare(b.name)) }]
+  } else {
+    // Fallback (no explicit label given): group by the real calendar date.
+    const map = new Map()
+    for (const ev of translated) {
+      const comments = collectEvalComments(ev)
+      if (comments.length === 0) continue
+      const key = ev.evaluated_at ? ev.evaluated_at.slice(0, 10) : 'unassigned'
+      if (!map.has(key)) map.set(key, [])
+      map.get(key).push({
+        name: ev.referees ? refereeName(ev.referees) : 'Unknown referee',
+        role: ev.role || '',
+        match: ev.match_description || '',
+        date: ev.evaluated_at ? formatDate(ev.evaluated_at) : '',
+        comments,
+      })
+    }
+    const sortedKeys = [...map.keys()].filter((k) => k !== 'unassigned').sort()
+    byDay = [...map.entries()]
+      .sort((a, b) => (a[0] === 'unassigned' ? 1 : b[0] === 'unassigned' ? -1 : a[0].localeCompare(b[0])))
+      .map(([key, items]) => ({
+        key,
+        label: key === 'unassigned' ? 'Unassigned day' : `Day ${sortedKeys.indexOf(key) + 1}`,
+        items: items.sort((a, b) => a.name.localeCompare(b.name)),
+      }))
   }
-  const byDay = [...map.entries()]
-    .sort((a, b) => a[0] - b[0])
-    .map(([day, items]) => ({
-      key: String(day),
-      label: day ? `Day ${day}` : 'Unassigned day',
-      items: items.sort((a, b) => a.name.localeCompare(b.name)),
-    }))
 
   const blob = await pdf(<CommentsRecapDocument tournament={tournament} byDay={byDay} />).toBlob()
   return blob

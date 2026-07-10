@@ -753,21 +753,28 @@ function EvaluationsTab({ tournamentId, tournament }) {
 
   // Group by actual DATE first (each real date is its own section, with its
   // own report buttons below) — evaluations dated the same day never mix with
-  // a different date even if they share the same "Day N" counter. Within a
-  // date, group by referee (dropdown if 2+).
+  // a different date even if they share the same stored "day_number". The
+  // "Day N" label is derived purely from chronological order of the distinct
+  // real dates present (Day 1 = earliest date, Day 2 = next, …) — never from
+  // the stored day_number field, which can be stale/unedited.
   const dayGroups = useMemo(() => {
     const byDate = {}
     for (const ev of evaluations) {
       const key = dateKeyOf(ev)
       ;(byDate[key] || (byDate[key] = [])).push(ev)
     }
-    return Object.entries(byDate)
-      .map(([dateKey, evals]) => {
-        // "Day N" label: the day_number most evaluations in this date agree on.
-        const counts = {}
-        for (const ev of evals) { const d = ev.day_number ?? 0; counts[d] = (counts[d] || 0) + 1 }
-        const dayNum = Number(Object.entries(counts).sort((a, b) => b[1] - a[1])[0]?.[0]) || 0
-        const hasRealDate = /^\d{4}-\d{2}-\d{2}$/.test(dateKey)
+    const entries = Object.entries(byDate).map(([dateKey, evals]) => ({
+      dateKey,
+      evals,
+      hasRealDate: /^\d{4}-\d{2}-\d{2}$/.test(dateKey),
+    }))
+    // Rank the real dates chronologically to assign Day 1, Day 2, Day 3…
+    const realDatesSorted = entries.filter((e) => e.hasRealDate).map((e) => e.dateKey).sort()
+    const dayNumOf = (dateKey) => realDatesSorted.indexOf(dateKey) + 1
+
+    return entries
+      .map(({ dateKey, evals, hasRealDate }) => {
+        const dayNum = hasRealDate ? dayNumOf(dateKey) : 0
         const m = {}
         for (const ev of evals) {
           const rid = ev.referee_id || `x-${ev.id}`
@@ -782,9 +789,9 @@ function EvaluationsTab({ tournamentId, tournament }) {
         return {
           key: dateKey,
           dayNum,
-          label: dayNum ? `Day ${dayNum}` : 'Unassigned day',
+          label: hasRealDate ? `Day ${dayNum}` : 'Unassigned day',
           date: hasRealDate ? formatDate(evals[0].evaluated_at) : null,
-          sortKey: hasRealDate ? dateKey : `zzzz-${String(dayNum).padStart(4, '0')}`,
+          sortKey: hasRealDate ? dateKey : `zzzz-${dateKey}`,
           evals,
           grouped,
         }
@@ -795,7 +802,7 @@ function EvaluationsTab({ tournamentId, tournament }) {
   async function makeRecapPdf(day) {
     setGenningDay(day.key)
     try {
-      const blob = await generateCommentsRecapPDF({ tournament, evaluations: day.evals })
+      const blob = await generateCommentsRecapPDF({ tournament, evaluations: day.evals, dayLabel: day.label })
       const fname = `Comments_recap_${(tournament?.name || 'tournament').replace(/\s+/g, '_')}_Day${day.dayNum || 'X'}.pdf`
       if (navigator.share && navigator.canShare) {
         try { await sharePDFWhatsApp(blob, fname); return } catch { /* fall back to download */ }

@@ -597,6 +597,13 @@ function LiveScoreBar({ scores, repeats, difficulty, extraAdj = 0 }) {
 // arbitro+ruolo) e viene cancellata al salvataggio definitivo.
 const LAST_WIP_KEY = 'bvb_eval_wip_last'
 const wipKey = (t, d, r, ro) => `bvb_eval_wip::${t || '-'}::${d || '-'}::${r}::${ro}`
+
+// A blank criterion cell + a normaliser that guarantees EVERY current CRITERIA
+// key exists — protects against drafts saved before a new criterion (e.g.
+// discipline) was added, which would otherwise crash on `cell.na`.
+const EMPTY_CELL = { score: null, repeat: false, note: '', na: false }
+const fillCriteria = (partial) =>
+  Object.fromEntries(CRITERIA.map((c) => [c.key, { ...EMPTY_CELL, ...(partial?.[c.key] || {}) }]))
 function evalHasContent(cd, gn, extra = {}) {
   return Boolean(
     (gn && gn.trim()) ||
@@ -606,7 +613,7 @@ function evalHasContent(cd, gn, extra = {}) {
     (extra.benchNote && extra.benchNote.trim()) ||
     extra.offcourtControl != null ||
     (extra.offcourtNote && extra.offcourtNote.trim()) ||
-    CRITERIA.some((c) => cd[c.key].score || cd[c.key].repeat || (cd[c.key].note && cd[c.key].note.trim()))
+    CRITERIA.some((c) => { const x = cd[c.key]; return x && (x.score || x.repeat || (x.note && x.note.trim())) })
   )
 }
 
@@ -1014,7 +1021,7 @@ export default function Evaluate() {
       const raw = localStorage.getItem(wipKey(tournamentId, dayNumber, refereeId, role))
       if (raw) {
         const d = JSON.parse(raw)
-        if (d.criteriaData) setCriteriaData(d.criteriaData)
+        if (d.criteriaData) setCriteriaData(fillCriteria(d.criteriaData))
         if (d.difficulty) setDifficulty(d.difficulty)
         setGeneralNotes(d.generalNotes || '')
         if (d.courtNumber != null) setCourtNumber(d.courtNumber)
@@ -1266,21 +1273,24 @@ export default function Evaluate() {
   const scores = useMemo(
     () =>
       Object.fromEntries(CRITERIA.map((c) => {
-        const cd = criteriaData[c.key]
+        const cd = criteriaData[c.key] || EMPTY_CELL
         return [c.key, cd.na ? null : (cd.score ?? null)]
       })),
     [criteriaData]
   )
   const repeats = useMemo(
     () =>
-      Object.fromEntries(CRITERIA.map((c) => [c.key, criteriaData[c.key].na ? false : criteriaData[c.key].repeat])),
+      Object.fromEntries(CRITERIA.map((c) => {
+        const cd = criteriaData[c.key] || EMPTY_CELL
+        return [c.key, cd.na ? false : cd.repeat]
+      })),
     [criteriaData]
   )
 
   // ── Helpers to update criteria ───────────────────────────────────────────────
   function setCriterion(key, field, value) {
     setCriteriaData((prev) => {
-      const cur = prev[key]
+      const cur = prev[key] || EMPTY_CELL
       let next
       if (field === 'na' && value) {
         next = { ...cur, na: true, score: null, repeat: false }
@@ -1322,7 +1332,7 @@ export default function Evaluate() {
     }
     let scoredCount = 0
     CRITERIA.forEach((c) => {
-      const cd = criteriaData[c.key]
+      const cd = criteriaData[c.key] || EMPTY_CELL
       if (cd.na) return
       if (c.optional || (c.key === 'discipline' && !disciplineEnabled)) {
         if (cd.score) scoredCount++ // counts if scored, but never required
@@ -1348,9 +1358,10 @@ export default function Evaluate() {
     const _selLjSave = referees.find((r) => r.id === refereeId)
     const _isLj = !!(_selLjSave && isLineJudge(_selLjSave))
     const _off = (k) => (k === 'discipline' && !disciplineEnabled) // discipline dropped until DB has the columns
-    const scoreOf  = (k) => (_isLj || criteriaData[k].na || _off(k) ? null : criteriaData[k].score)
-    const repeatOf = (k) => (_isLj || _off(k) ? false : (criteriaData[k].na ? false : criteriaData[k].repeat))
-    const noteOf   = (k) => (_isLj || _off(k) ? null : (criteriaData[k].note || null))
+    const cellOf = (k) => criteriaData[k] || EMPTY_CELL
+    const scoreOf  = (k) => (_isLj || cellOf(k).na || _off(k) ? null : cellOf(k).score)
+    const repeatOf = (k) => (_isLj || _off(k) ? false : (cellOf(k).na ? false : cellOf(k).repeat))
+    const noteOf   = (k) => (_isLj || _off(k) ? null : (cellOf(k).note || null))
     const _scores  = Object.fromEntries(CRITERIA.map((c) => [c.key, scoreOf(c.key)]))
     const _repeats = Object.fromEntries(CRITERIA.map((c) => [c.key, repeatOf(c.key)]))
     const _calc = _isLj
@@ -2011,14 +2022,16 @@ export default function Evaluate() {
               Evaluation Criteria
             </h2>
             <div className="space-y-3">
-              {CRITERIA.map((criterion) => (
+              {CRITERIA.map((criterion) => {
+                const cell = criteriaData[criterion.key] || EMPTY_CELL
+                return (
                 <div key={criterion.key}>
                   <CriterionCard
                     criterion={criterion}
-                    score={criteriaData[criterion.key].score}
-                    repeat={criteriaData[criterion.key].repeat}
-                    note={criteriaData[criterion.key].note}
-                    na={criteriaData[criterion.key].na}
+                    score={cell.score}
+                    repeat={cell.repeat}
+                    note={cell.note}
+                    na={cell.na}
                     onScore={(v) => setCriterion(criterion.key, 'score', v)}
                     onRepeat={(v) => setCriterion(criterion.key, 'repeat', v)}
                     onNote={(v) => setCriterion(criterion.key, 'note', v)}
@@ -2031,7 +2044,8 @@ export default function Evaluate() {
                     </p>
                   )}
                 </div>
-              ))}
+                )
+              })}
             </div>
           </div>
           )}

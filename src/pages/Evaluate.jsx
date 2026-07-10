@@ -727,6 +727,10 @@ export default function Evaluate() {
     searchParams.get('tournamentId') || lastTournamentId || ''
   )
   const [dayNumber, setDayNumber] = useState(lastDayNumber || 1)
+  // Evaluation date — used for reports (recap PDFs, comparisons) so the date
+  // is explicit and correct rather than just "whenever Save was pressed".
+  const todayISO = () => new Date().toISOString().slice(0, 10)
+  const [evalDate, setEvalDate] = useState(todayISO)
 
   // When a tournament is selected, load ITS referees (roster). Falls back to the
   // full list when no tournament is chosen or the tournament has no roster yet.
@@ -752,7 +756,6 @@ export default function Evaluate() {
     [roster, referees]
   )
   const [courtNumber, setCourtNumber] = useState(null)
-  const [roundNumber, setRoundNumber] = useState(null)
   // Number of courts (3 or 4), shared with Assignments via localStorage.
   const [nCourts, setNCourts] = useState(() => {
     const v = parseInt(localStorage.getItem('bvb_courts') || '4', 10)
@@ -765,7 +768,7 @@ export default function Evaluate() {
   }
 
   // ── Round-aware selection (mirrors Assignments) ─────────────────────────────
-  const [pickMode, setPickMode] = useState('match') // 'match' (schedule games) | 'round' | 'manual'
+  const [pickMode, setPickMode] = useState('match') // 'match' (schedule games) | 'manual'
   const [assignments, setAssignments] = useState([]) // court_assignments rows for the day
   const [loadingAssign, setLoadingAssign] = useState(false)
 
@@ -922,6 +925,7 @@ export default function Evaluate() {
         setDifficulty(e.match_difficulty || 'medium')
         if (e.tournament_id) setTournamentId(e.tournament_id)
         if (e.day_number) setDayNumber(e.day_number)
+        if (e.evaluated_at) setEvalDate(e.evaluated_at.slice(0, 10))
         setOrigMatchDesc(e.match_description || null)
         setCriteriaData(Object.fromEntries(CRITERIA.map((c) => [c.key, {
           score: e[`score_${c.key}`] ?? null,
@@ -1006,7 +1010,7 @@ export default function Evaluate() {
         if (d.difficulty) setDifficulty(d.difficulty)
         setGeneralNotes(d.generalNotes || '')
         if (d.courtNumber != null) setCourtNumber(d.courtNumber)
-        if (d.roundNumber != null) setRoundNumber(d.roundNumber)
+        if (d.evalDate) setEvalDate(d.evalDate)
         if (d.schedMatchId != null) setSchedMatchId(d.schedMatchId)
         if (d.pickMode) setPickMode(d.pickMode)
         setLeadershipScore(d.leadershipScore ?? null)
@@ -1042,7 +1046,7 @@ export default function Evaluate() {
     try {
       if (evalHasContent(criteriaData, generalNotes, { leadershipScore, leadershipNa, leadershipNote, benchScore, benchNa, benchNote, offcourtControl, offcourtNote })) {
         const now = Date.now()
-        const draftObj = { criteriaData, generalNotes, leadershipScore, leadershipNa, leadershipNote, benchScore, benchNa, benchNote, offcourtControl, offcourtNote, courtNumber, roundNumber, schedMatchId, pickMode, difficulty, updatedAt: now }
+        const draftObj = { criteriaData, generalNotes, leadershipScore, leadershipNa, leadershipNote, benchScore, benchNa, benchNote, offcourtControl, offcourtNote, courtNumber, evalDate, schedMatchId, pickMode, difficulty, updatedAt: now }
         localStorage.setItem(key, JSON.stringify(draftObj))
         localStorage.setItem(LAST_WIP_KEY, JSON.stringify({ tournamentId, dayNumber, refereeId, role }))
         setDraftSavedAt(now)
@@ -1054,7 +1058,7 @@ export default function Evaluate() {
         deleteDraftServer(key)
       }
     } catch { /* ignore */ }
-  }, [criteriaData, generalNotes, leadershipScore, leadershipNa, leadershipNote, benchScore, benchNa, benchNote, offcourtControl, offcourtNote, courtNumber, roundNumber, schedMatchId, pickMode, difficulty, refereeId, role, tournamentId, dayNumber, savedEval]) // eslint-disable-line
+  }, [criteriaData, generalNotes, leadershipScore, leadershipNa, leadershipNote, benchScore, benchNa, benchNote, offcourtControl, offcourtNote, courtNumber, evalDate, schedMatchId, pickMode, difficulty, refereeId, role, tournamentId, dayNumber, savedEval]) // eslint-disable-line
 
   function clearWipDraft() {
     const key = wipKey(tournamentId, dayNumber, refereeId, role)
@@ -1073,7 +1077,7 @@ export default function Evaluate() {
     try {
       const now = Date.now()
       const key = wipKey(tournamentId, dayNumber, refereeId, role)
-      const draftObj = { criteriaData, generalNotes, leadershipScore, leadershipNa, leadershipNote, benchScore, benchNa, benchNote, offcourtControl, offcourtNote, courtNumber, roundNumber, schedMatchId, pickMode, difficulty, updatedAt: now }
+      const draftObj = { criteriaData, generalNotes, leadershipScore, leadershipNa, leadershipNote, benchScore, benchNa, benchNote, offcourtControl, offcourtNote, courtNumber, evalDate, schedMatchId, pickMode, difficulty, updatedAt: now }
       localStorage.setItem(key, JSON.stringify(draftObj))
       localStorage.setItem(LAST_WIP_KEY, JSON.stringify({ tournamentId, dayNumber, refereeId, role }))
       setDraftSavedAt(now)
@@ -1098,6 +1102,7 @@ export default function Evaluate() {
     setBenchNote('')
     setOffcourtControl(null)
     setOffcourtNote('')
+    setEvalDate(todayISO())
     toast('Draft discarded', 'info')
     refreshDrafts()
   }
@@ -1122,7 +1127,7 @@ export default function Evaluate() {
           role: ro,
           updatedAt: data.updatedAt || 0,
           courtNumber: data.courtNumber ?? null,
-          roundNumber: data.roundNumber ?? null,
+          evalDate: data.evalDate ?? null,
           schedMatchId: data.schedMatchId ?? null,
         })
       }
@@ -1246,7 +1251,6 @@ export default function Evaluate() {
     const m = d.schedMatchId ? schedMatches.find((x) => x.id === d.schedMatchId) : null
     if (m) return `#${m.match_number} · C${m.court}`
     if (d.courtNumber != null) return `Court ${d.courtNumber}`
-    if (d.roundNumber != null) return `Round ${d.roundNumber}`
     return '—'
   }
 
@@ -1293,7 +1297,6 @@ export default function Evaluate() {
   // ── Match label (schedule game · round · court) ─────────────────────────────
   function matchLabel() {
     if (schedMatch) return gameLabel(schedMatch)
-    if (roundNumber) return `Round ${roundNumber}${courtNumber ? ` · Court ${courtNumber}` : ''}`
     return courtNumber ? `Court ${courtNumber}` : null
   }
 
@@ -1367,7 +1370,7 @@ export default function Evaluate() {
       grade: _calc.grade ? _calc.grade.grade : null,
       repeat_penalty: _calc.penalty,
       general_notes: generalNotes || null,
-      evaluated_at: new Date().toISOString(),
+      evaluated_at: new Date(`${evalDate}T12:00:00`).toISOString(),
     }
 
     // Leadership + R2 bench ratings — "Not evaluable" stored as 0.
@@ -1385,10 +1388,10 @@ export default function Evaluate() {
       payload.offcourt_note = offcourtNote ? offcourtNote.trim() : null
     }
 
-    // Edit mode: keep the original match label and timestamp (don't reorder).
+    // Edit mode: keep the original match label (don't reorder), but the
+    // evaluation date IS editable — that's the point of this field.
     if (editingEvalId) {
       payload.match_description = origMatchDesc
-      delete payload.evaluated_at
     }
 
     // Offline fallback
@@ -1602,16 +1605,15 @@ export default function Evaluate() {
               </h2>
             </CardHeader>
             <CardBody className="space-y-4">
-              {/* Pick mode: by schedule game, by round (assignments), or manual */}
-              <div className="grid grid-cols-3 gap-2">
-                {[['match', 'By referee'], ['round', 'By round'], ['manual', 'Manual']].map(([m, label]) => (
+              {/* Pick mode: by schedule game/roster, or manual */}
+              <div className="grid grid-cols-2 gap-2">
+                {[['match', 'By referee'], ['manual', 'Manual']].map(([m, label]) => (
                   <button
                     key={m}
                     type="button"
                     onClick={() => {
                       setPickMode(m)
                       if (m !== 'match') { setSchedMatch(null); setSchedMatchId(null) }
-                      if (m !== 'round') setRoundNumber(null)
                     }}
                     className={cn(
                       'py-2 rounded-lg text-sm font-bold transition-all duration-150',
@@ -1634,7 +1636,6 @@ export default function Evaluate() {
                     onChange={(id) => {
                       setRefereeId(id)
                       setSchedMatch(null); setSchedMatchId(null)
-                      setRoundNumber(null)
                       setErrors((p) => { const n = { ...p }; delete n.refereeId; return n })
                     }}
                     error={errors.refereeId}
@@ -1672,7 +1673,6 @@ export default function Evaluate() {
                                 setSchedMatch(m)
                                 setSchedMatchId(m.id)
                                 setCourtNumber(m.court)
-                                setRoundNumber(null)
                                 setRole(m._role || 'R1')
                                 if (m.day_number) setDayNumber(m.day_number)
                               }}
@@ -1712,84 +1712,6 @@ export default function Evaluate() {
                 </div>
               )}
 
-              {/* ── By-round picker: mirrors the Assignments rounds ── */}
-              {pickMode === 'round' && (
-                <div className="space-y-3">
-                  {!tournamentId ? (
-                    <p className="text-xs text-gray-500">Select a tournament below to load its rounds.</p>
-                  ) : loadingAssign ? (
-                    <p className="text-xs text-gray-400">Loading rounds…</p>
-                  ) : rounds.length === 0 ? (
-                    <p className="text-xs text-gray-500">No assignments for this day yet. Create rounds in Assignments, or use Manual.</p>
-                  ) : (
-                    <>
-                      {/* Round selector */}
-                      <div className="flex flex-col gap-1">
-                        <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Round</label>
-                        <div className="flex flex-wrap gap-2">
-                          {rounds.map(({ round }) => (
-                            <button
-                              key={round}
-                              type="button"
-                              onClick={() => { setRoundNumber(round); setRefereeId(''); setCourtNumber(null) }}
-                              className={cn(
-                                'px-4 py-2 rounded-lg text-sm font-bold transition-all duration-150',
-                                roundNumber === round
-                                  ? 'bg-[#E85D26] text-white border border-[#E85D26]'
-                                  : 'bg-gray-50 text-gray-600 border border-gray-200 hover:border-gray-300'
-                              )}
-                            >
-                              Round {round}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* Courts of the selected round → tap a referee */}
-                      {roundNumber && (
-                        <div className="flex flex-col gap-1">
-                          <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">
-                            Tap the referee to evaluate
-                          </label>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                            {(rounds.find((r) => r.round === roundNumber)?.courts || []).map((row) => {
-                              const ref = row.referees || referees.find((r) => r.id === row.referee_id)
-                              const selected = refereeId === row.referee_id && courtNumber === row.court
-                              return (
-                                <button
-                                  key={`${row.court}-${row.referee_id}`}
-                                  type="button"
-                                  onClick={() => {
-                                    setRefereeId(row.referee_id)
-                                    setCourtNumber(row.court)
-                                    setRole('R1')
-                                    setSchedMatch(null); setSchedMatchId(null)
-                                    setErrors((p) => { const n = { ...p }; delete n.refereeId; return n })
-                                  }}
-                                  className={cn(
-                                    'flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl border text-left transition-all duration-150',
-                                    selected
-                                      ? 'bg-[#2D3270] text-white border-[#2D3270] ring-2 ring-[#2D3270]/30'
-                                      : 'bg-white text-gray-800 border-gray-200 hover:border-gray-300'
-                                  )}
-                                >
-                                  <span className="text-sm font-semibold truncate">
-                                    {ref ? refereeName(ref) : '—'}
-                                  </span>
-                                  <span className={cn('text-[11px] font-bold uppercase shrink-0', selected ? 'text-white/80' : 'text-[#E85D26]')}>
-                                    Court {row.court}
-                                  </span>
-                                </button>
-                              )
-                            })}
-                          </div>
-                        </div>
-                      )}
-                    </>
-                  )}
-                </div>
-              )}
-
               {/* Referee selector (manual mode, or to override) */}
               {pickMode === 'manual' && (
                 <RefereeSelector
@@ -1797,7 +1719,6 @@ export default function Evaluate() {
                   value={refereeId}
                   onChange={(id) => {
                     setRefereeId(id)
-                    setRoundNumber(null)
                     setSchedMatch(null); setSchedMatchId(null)
                     setErrors((p) => { const n = { ...p }; delete n.refereeId; return n })
                   }}
@@ -1853,7 +1774,7 @@ export default function Evaluate() {
                 </select>
               </div>
 
-              {/* Day + Match row */}
+              {/* Day + Evaluation date row */}
               <div className="grid grid-cols-2 gap-3">
                 <NumberStepper
                   label="Day"
@@ -1862,6 +1783,22 @@ export default function Evaluate() {
                   min={1}
                   max={5}
                 />
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+                    Evaluation date
+                  </label>
+                  <input
+                    type="date"
+                    value={evalDate}
+                    onChange={(e) => setEvalDate(e.target.value)}
+                    className={cn(
+                      'bg-gray-50 border border-gray-300 rounded-lg px-3 py-2.5',
+                      'text-gray-900 text-sm',
+                      'focus:outline-none focus:border-[#E85D26]/60 focus:ring-1 focus:ring-[#E85D26]/30',
+                      'transition-colors duration-150'
+                    )}
+                  />
+                </div>
               </div>
 
               {/* Court selector */}

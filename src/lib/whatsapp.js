@@ -1,5 +1,6 @@
 import { formatDate, refereeName } from './utils'
 import { dict, normalizePhone } from './i18n-docs'
+import { isLjRole, criterionLabel } from './scoring'
 
 /**
  * Build a WhatsApp-formatted designation message.
@@ -134,15 +135,29 @@ export function buildEvaluationMessage({ referee, evaluation, tournament, lang =
   if (evaluation.repeat_penalty > 0) {
     lines.push(`${d.repeatPenalty}: -${evaluation.repeat_penalty.toFixed(1)}`)
   }
-  lines.push('')
-  lines.push(`*${d.criteriaScores}*`)
-
   const keys = ['positioning', 'signals', 'attitude', 'captain_comm', 'presentation']
-  for (const key of keys) {
-    const score = evaluation[`score_${key}`]
-    const repeat = evaluation[`repeat_${key}`]
-    if (score != null) {
-      lines.push(`- ${d.criteria[key]}: *${score}/5*${repeat ? ' (!repeated fault)' : ''}`)
+
+  if (isLjRole(evaluation.role)) {
+    // Line judge: written observations per topic, no scores. Never print an
+    // empty "Criteria scores" heading.
+    const obs = keys
+      .map((key) => [criterionLabel(key, evaluation.role), evaluation[`note_${key}`]])
+      .filter(([, note]) => note && String(note).trim())
+    if (obs.length) {
+      lines.push('')
+      lines.push('*Line judge assessment*')
+      for (const [label, note] of obs) lines.push(`- ${label}: ${note}`)
+    }
+  } else {
+    const scored = keys.filter((key) => evaluation[`score_${key}`] != null)
+    if (scored.length) {
+      lines.push('')
+      lines.push(`*${d.criteriaScores}*`)
+      for (const key of scored) {
+        const score = evaluation[`score_${key}`]
+        const repeat = evaluation[`repeat_${key}`]
+        lines.push(`- ${d.criteria[key]}: *${score}/5*${repeat ? ' (!repeated fault)' : ''}`)
+      }
     }
   }
 
@@ -158,10 +173,23 @@ export function buildEvaluationMessage({ referee, evaluation, tournament, lang =
   return lines.join('\n')
 }
 
+/**
+ * Send a personal message to a referee's own WhatsApp chat.
+ * Without a phone number wa.me would open a generic "choose a contact" sheet,
+ * which looks like a successful send but reaches nobody — so we refuse and let
+ * the caller tell the coach the number is missing.
+ * @returns {boolean} true if WhatsApp was opened on the referee's chat.
+ */
+function _sendToReferee(referee, msg) {
+  if (!normalizePhone(referee?.phone)) return false
+  shareToWhatsAppPhone(referee.phone, msg)
+  return true
+}
+
 /** Open WhatsApp with an evaluation pre-filled, addressed to the referee's phone. */
 export async function shareEvaluationToReferee({ referee, evaluation, tournament, lang = 'en' }) {
   const msg = buildEvaluationMessage({ referee, evaluation, tournament, lang })
-  shareToWhatsAppPhone(referee?.phone, msg)
+  return _sendToReferee(referee, msg)
 }
 
 /** Build a per-referee personalized assignments message (DM). */
@@ -240,7 +268,8 @@ export function buildDayDigestMessage({ referee, tournament, dayNumber, digest, 
   const L = []
   L.push(`Hi ${name},`.trim())
   L.push('')
-  L.push(`Your Day ${dayNumber} summary${tournament?.name ? ` — *${tournament.name}*` : ''} (${digest.count} match${digest.count === 1 ? '' : 'es'}):`)
+  const ljTail = digest.ljCount ? ` + ${digest.ljCount} as line judge` : ''
+  L.push(`Your Day ${dayNumber} summary${tournament?.name ? ` — *${tournament.name}*` : ''} (${digest.count} match${digest.count === 1 ? '' : 'es'}${ljTail}):`)
   L.push('')
   L.push(`Day average: *${fmt1(digest.averages.overall)}/5*`)
   for (const [k, label] of DIG_CRIT) L.push(`- ${label}: ${fmt1(digest.averages.criteria[k])}`)
@@ -258,7 +287,8 @@ export function buildTournamentDigestMessage({ referee, tournament, evolution, a
   const L = []
   L.push(`Hi ${name},`.trim())
   L.push('')
-  L.push(`Your tournament evaluation${tournament?.name ? ` — *${tournament.name}*` : ''} (${evolution.count} match${evolution.count === 1 ? '' : 'es'}):`)
+  const ljTail = evolution.ljCount ? ` + ${evolution.ljCount} as line judge` : ''
+  L.push(`Your tournament evaluation${tournament?.name ? ` — *${tournament.name}*` : ''} (${evolution.count} match${evolution.count === 1 ? '' : 'es'}${ljTail}):`)
   L.push('')
   L.push(`Overall average: *${fmt1(evolution.overall.overall)}/5*`)
   if (ev && ev.overall != null) {
@@ -276,13 +306,11 @@ export function buildTournamentDigestMessage({ referee, tournament, evolution, a
 }
 
 export async function shareDayDigestToReferee(args) {
-  const msg = buildDayDigestMessage(args)
-  shareToWhatsAppPhone(args.referee?.phone, msg)
+  return _sendToReferee(args.referee, buildDayDigestMessage(args))
 }
 
 export async function shareTournamentDigestToReferee(args) {
-  const msg = buildTournamentDigestMessage(args)
-  shareToWhatsAppPhone(args.referee?.phone, msg)
+  return _sendToReferee(args.referee, buildTournamentDigestMessage(args))
 }
 
 // ─── Schedule-based designations (finals/bracket day) ─────────────────────────

@@ -91,6 +91,55 @@ export function getGradeBg(grade) {
   return GRADE_THRESHOLDS.find((t) => t.grade === grade)?.bg || 'bg-gray-400/10'
 }
 
+// ─── LINE JUDGE CRITERIA ─────────────────────────────────────────────────────
+// Line judges are NOT evaluated on the referee scale: their work is judged on
+// different competences, and giving them a numeric score would distort the
+// cross-tournament referee standing. They get a WRITTEN observation per topic.
+// The topics reuse the existing note_* columns (same slot, different meaning),
+// so no database change is needed — only the labels differ, and they are
+// re-labelled everywhere the role is LJ1/LJ2.
+export const LJ_CRITERIA = [
+  {
+    key: 'positioning',
+    label: 'Positioning & Readiness',
+    description:
+      'Correct base position at the corner, clear sight line along both lines, feet stable and ready before service. Moves only when required, never blocks the referee’s view or interferes with play.',
+  },
+  {
+    key: 'signals',
+    label: 'Flag Technique & Signals',
+    description:
+      'Correct FIVB flag signals (in, out, touch, antenna, foot fault, ball outside crossing space). Signal held long enough, clearly visible to R1, decisive and without hesitation or self-correction.',
+  },
+  {
+    key: 'attitude',
+    label: 'Focus & Consistency',
+    description:
+      'Concentration maintained for the whole match, including long rallies and dead time. Consistent judgement on close calls from first to last point. No distraction, no phone, no conversation with players or public.',
+  },
+  {
+    key: 'captain_comm',
+    label: 'Cooperation with the Referees',
+    description:
+      'Reacts to R1/R2 requests, confirms or repeats a signal when asked, does not overrule or anticipate the referee. Correct behaviour on ball mark protocol, challenges and interruptions.',
+  },
+  {
+    key: 'presentation',
+    label: 'Presentation & Protocol',
+    description:
+      'Uniform correct and complete, punctual at the court, correct entrance/exit protocol, professional posture and body language throughout the match.',
+  },
+]
+
+export const LJ_ROLES = ['LJ1', 'LJ2']
+export const isLjRole = (role) => LJ_ROLES.includes(role)
+
+/** Label for a criterion key, switching to the line-judge wording when needed. */
+export function criterionLabel(key, role) {
+  const set = isLjRole(role) ? LJ_CRITERIA : CRITERIA
+  return set.find((c) => c.key === key)?.label || key
+}
+
 export const CRITERIA = [
   {
     key: 'positioning',

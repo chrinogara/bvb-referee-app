@@ -705,12 +705,13 @@ export default function RefereeProfile() {
                           onClick={async () => {
                             const lang = await requestLanguage()
                             if (!lang) return
-                            shareEvaluationToReferee({
+                            const sent = await shareEvaluationToReferee({
                               referee,
                               evaluation: ev,
                               tournament: ev.tournaments,
                               lang,
                             })
+                            if (!sent) toast.error(`No WhatsApp number saved for ${refereeName(referee)} — add it above, then send again.`, 7000)
                           }}
                           className="p-1.5 rounded-lg hover:bg-emerald-100 text-gray-500 hover:text-emerald-700 transition-colors"
                           aria-label="Send via WhatsApp"

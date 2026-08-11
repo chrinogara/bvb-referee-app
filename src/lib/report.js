@@ -221,10 +221,16 @@ export function evalAverages(evals) {
 }
 
 // One referee's day: per-round list + day averages
+// A line-judge duty is not a refereed match: it carries no score, so counting
+// it as one would understate the referee's day average ("3 matches" when only
+// two were refereed). It is reported separately instead.
+const _isLjEval = (e) => e?.role === 'LJ1' || e?.role === 'LJ2'
+
 export function refereeDayDigest(evals) {
   const sorted = [...evals].sort((a, b) => new Date(a.evaluated_at) - new Date(b.evaluated_at))
   return {
-    count: sorted.length,
+    count: sorted.filter((e) => !_isLjEval(e)).length,
+    ljCount: sorted.filter(_isLjEval).length,
     averages: evalAverages(sorted),
     matches: sorted.map((e) => ({
       id: e.id,
@@ -266,7 +272,13 @@ export function refereeEvolution(evals) {
       ),
     }
   }
-  return { perDay, evolution, overall: evalAverages(evals), count: evals.length }
+  return {
+    perDay,
+    evolution,
+    overall: evalAverages(evals),
+    count: evals.filter((e) => !_isLjEval(e)).length,
+    ljCount: evals.filter(_isLjEval).length,
+  }
 }
 
 // Auto summary + advice for ONE referee across the tournament (English)

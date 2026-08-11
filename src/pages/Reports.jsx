@@ -158,9 +158,10 @@ function DigestPanel({ tournament, evals }) {
       downloadPDF(blob, `BVB_Day${day}_${refereeName(referee).replace(/\s+/g, '_')}.pdf`)
     } catch (e) { toast.error('PDF failed: ' + e.message) } finally { setBusy(null) }
   }
-  function whatsappFor(refId) {
+  async function whatsappFor(refId) {
     const { referee, evals: re } = byRef[refId]
-    shareDayDigestToReferee({ referee, tournament, dayNumber: day, digest: refereeDayDigest(re), coachComment: notes[`${refId}:${day}`] })
+    const sent = await shareDayDigestToReferee({ referee, tournament, dayNumber: day, digest: refereeDayDigest(re), coachComment: notes[`${refId}:${day}`] })
+    if (!sent) toast.error(`No WhatsApp number saved for ${refereeName(referee)} — add it on the Referees page.`, 7000)
   }
 
   async function downloadCombined(refId) {
@@ -293,9 +294,10 @@ function FinalPanel({ tournament, evals }) {
       downloadPDF(blob, `BVB_Tournament_${refereeName(referee).replace(/\s+/g, '_')}.pdf`)
     } catch (e) { toast.error('PDF failed: ' + e.message) } finally { setBusy(null) }
   }
-  function whatsappFor(refId) {
+  async function whatsappFor(refId) {
     const { referee, evals: re } = byRef[refId]
-    shareTournamentDigestToReferee({ referee, tournament, evolution: refereeEvolution(re), advice: refereeTournamentAdvice(re), coachComment: notes[`${refId}:0`] })
+    const sent = await shareTournamentDigestToReferee({ referee, tournament, evolution: refereeEvolution(re), advice: refereeTournamentAdvice(re), coachComment: notes[`${refId}:0`] })
+    if (!sent) toast.error(`No WhatsApp number saved for ${refereeName(referee)} — add it on the Referees page.`, 7000)
   }
 
   return (

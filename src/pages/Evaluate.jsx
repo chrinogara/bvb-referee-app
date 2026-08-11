@@ -7,7 +7,7 @@ import { useEvaluations } from '../hooks/useEvaluations'
 import { evaluationService } from '../lib/supabase'
 import { supabase, courtAssignmentService, matchService, designationService, tournamentService, draftService } from '../lib/supabase'
 import { useAppStore } from '../store/appStore'
-import { CRITERIA, computeScore, SCORE_LABELS, getGrade, OFFCOURT_ADJ } from '../lib/scoring'
+import { CRITERIA, LJ_CRITERIA, isLjRole, computeScore, SCORE_LABELS, getGrade, OFFCOURT_ADJ } from '../lib/scoring'
 import { generateEvaluationPDF, downloadPDF, sharePDFWhatsApp } from '../lib/pdf'
 import { shareEvaluationToReferee } from '../lib/whatsapp'
 import { translateToEnglish, lookupRuleReference } from '../lib/anthropic'
@@ -1324,9 +1324,13 @@ export default function Evaluate() {
     if (!refereeId) errs.refereeId = 'Referee is required'
     if (!role) errs.role = 'Role is required'
     // Line judges: written evaluation only — no numeric criteria required.
+    // Accept either a filled LJ topic or the overall written evaluation.
     const _selLj = referees.find((r) => r.id === refereeId)
-    if (_selLj && isLineJudge(_selLj)) {
-      if (!generalNotes || !generalNotes.trim()) errs.noScore = 'Write the line judge evaluation'
+    if (isLjRole(role) || (_selLj && isLineJudge(_selLj))) {
+      const anyTopic = LJ_CRITERIA.some((c) => (criteriaData[c.key]?.note || '').trim())
+      if (!anyTopic && !(generalNotes || '').trim()) {
+        errs.noScore = 'Write at least one line-judge observation'
+      }
       setErrors(errs)
       return Object.keys(errs).length === 0
     }
@@ -1356,12 +1360,14 @@ export default function Evaluate() {
     }
 
     const _selLjSave = referees.find((r) => r.id === refereeId)
-    const _isLj = !!(_selLjSave && isLineJudge(_selLjSave))
+    const _isLj = isLjRole(role) || !!(_selLjSave && isLineJudge(_selLjSave))
     const _off = (k) => (k === 'discipline' && !disciplineEnabled) // discipline dropped until DB has the columns
     const cellOf = (k) => criteriaData[k] || EMPTY_CELL
     const scoreOf  = (k) => (_isLj || cellOf(k).na || _off(k) ? null : cellOf(k).score)
     const repeatOf = (k) => (_isLj || _off(k) ? false : (cellOf(k).na ? false : cellOf(k).repeat))
-    const noteOf   = (k) => (_isLj || _off(k) ? null : (cellOf(k).note || null))
+    // Line judges keep their written observations: the note_* columns hold the
+    // LJ topics (same slot, LJ labels applied on display). Only scores are null.
+    const noteOf   = (k) => (_off(k) ? null : (cellOf(k).note || null))
     const _scores  = Object.fromEntries(CRITERIA.map((c) => [c.key, scoreOf(c.key)]))
     const _repeats = Object.fromEntries(CRITERIA.map((c) => [c.key, repeatOf(c.key)]))
     const _calc = _isLj
@@ -1540,8 +1546,11 @@ export default function Evaluate() {
 
   // Arbitro selezionato (per invio valutazione al suo numero)
   const selectedReferee = referees.find((r) => r.id === refereeId)
-  // Line judges are evaluated with a written comment only — no numeric criteria.
-  const ljMode = !!(selectedReferee && isLineJudge(selectedReferee))
+  // Line-judge mode. Driven by the ROLE picked for THIS evaluation (LJ1/LJ2) —
+  // at finals the same official can referee one match and line-judge the next,
+  // so it can't depend on the referee record alone. A referee whose record is
+  // flagged "Line judge" still switches the form automatically.
+  const ljMode = isLjRole(role) || !!(selectedReferee && isLineJudge(selectedReferee))
 
   // ── Invia il riepilogo valutazione su WhatsApp AL NUMERO dell'arbitro valutato ──
   async function sendEvalToReferee() {
@@ -1549,7 +1558,8 @@ export default function Evaluate() {
     if (!lang) return
     const tournament = tournaments.find((t) => t.id === tournamentId)
     if (!selectedReferee) { toast.error('Referee not found'); return }
-    shareEvaluationToReferee({ referee: selectedReferee, evaluation: savedEval, tournament, lang })
+    const sent = await shareEvaluationToReferee({ referee: selectedReferee, evaluation: savedEval, tournament, lang })
+    if (!sent) toast.error(`No WhatsApp number saved for ${refereeName(selectedReferee)} — add it on the Referees page, then send again.`, 7000)
   }
 
   // ── Sorted tournaments ────────────────────────────────────────────────────────
@@ -1679,15 +1689,19 @@ export default function Evaluate() {
                     onChange={(id) => {
                       setRefereeId(id)
                       setSchedMatch(null); setSchedMatchId(null)
+                      // Someone registered as a line judge starts on LJ1; anyone
+                      // else can still be switched to LJ1/LJ2 by hand for a duty.
+                      const picked = referees.find((r) => r.id === id)
+                      if (picked && isLineJudge(picked) && !isLjRole(role)) setRole('LJ1')
                       setErrors((p) => { const n = { ...p }; delete n.refereeId; return n })
                     }}
                     error={errors.refereeId}
                   />
 
-                  {selectedReferee && isLineJudge(selectedReferee) && (
+                  {selectedReferee && ljMode && (
                     <div className="rounded-xl bg-gray-100 border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-600 flex items-center gap-2">
                       <span className="text-[9px] font-bold uppercase text-white bg-gray-500 rounded px-1.5 py-0.5">LJ</span>
-                      Line judge — {refereeName(selectedReferee)} · written evaluation only, no score
+                      Line judge — {refereeName(selectedReferee)} · written assessment, no score
                     </div>
                   )}
 
@@ -1791,6 +1805,9 @@ export default function Evaluate() {
                     </button>
                   ))}
                 </div>
+                <p className="text-[11px] text-gray-500 mt-0.5">
+                  LJ1 / LJ2 = line judge — switches the form to the line-judge assessment (written, no score).
+                </p>
               </div>
 
               {/* Tournament */}
@@ -2013,6 +2030,37 @@ export default function Evaluate() {
                 )}
               </CardBody>
             </Card>
+          )}
+
+          {/* ── Section 2b: Line judge topics (replaces the referee criteria) ── */}
+          {ljMode && (
+          <div>
+            <h2 className="font-display text-base font-bold uppercase tracking-wide text-[#2D3270] mb-1 px-1">
+              Line Judge Assessment
+            </h2>
+            <p className="text-[11px] text-gray-500 mb-3 px-1">
+              Line judges are assessed on their own competences — written observations, no numeric score,
+              so a line-judge duty never affects the referee standing. Fill in what you observed; leave the rest empty.
+            </p>
+            <div className="space-y-3">
+              {LJ_CRITERIA.map((c) => (
+                <Card key={c.key}>
+                  <CardBody className="space-y-2">
+                    <div>
+                      <p className="text-sm font-bold text-[#2D3270]">{c.label}</p>
+                      <p className="text-[11px] text-gray-500 leading-snug mt-0.5">{c.description}</p>
+                    </div>
+                    <NoteField
+                      value={(criteriaData[c.key] || EMPTY_CELL).note}
+                      onChange={(v) => setCriterion(c.key, 'note', v)}
+                      placeholder="Observation (optional)…"
+                      rows={2}
+                    />
+                  </CardBody>
+                </Card>
+              ))}
+            </div>
+          </div>
           )}
 
           {/* ── Section 2: The 5 Criteria (hidden for line judges) ────────── */}

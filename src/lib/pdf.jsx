@@ -9,7 +9,7 @@ import {
   pdf,
 } from '@react-pdf/renderer'
 import { formatDate, formatDateTime, refereeName } from './utils'
-import { CRITERIA, getGrade } from './scoring'
+import { CRITERIA, LJ_CRITERIA, isLjRole, getGrade } from './scoring'
 import { BBT_LOGO } from './logo'
 import { readLegend, LEGEND_ORDER } from './criteriaLegend'
 import { translateFieldsToEnglish, translateToEnglishSafe } from './anthropic'
@@ -232,6 +232,11 @@ const PDF_T = {
 function EvaluationDocument({ evaluation, referee, match, tournament, lang = 'en' }) {
   const t = PDF_T[lang] || PDF_T.en
   const grade = getGrade(evaluation.overall_score)
+  // Line judges are assessed on their own competences, in writing, with no
+  // score: the scored criteria table and the overall box are dropped, and the
+  // note_* slots are re-labelled with the line-judge topics.
+  const isLj = isLjRole(evaluation.role)
+  const CRIT_SET = isLj ? LJ_CRITERIA : CRITERIA
 
   const scoreForKey = (key) => {
     const map = {
@@ -269,14 +274,14 @@ function EvaluationDocument({ evaluation, referee, match, tournament, lang = 'en
     return map[key]
   }
 
-  const hasNotes = CRITERIA.some((c) => noteForKey(c.key))
+  const hasNotes = CRIT_SET.some((c) => noteForKey(c.key))
 
   return (
     <Document>
       <Page size="A4" style={styles.page}>
         {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>{t.evalTitle}</Text>
+          <Text style={styles.headerTitle}>{isLj ? 'BVB LINE JUDGE EVALUATION REPORT' : t.evalTitle}</Text>
           <Text style={styles.headerSubtitle}>Belgian Beach Tour 2026</Text>
           <View style={styles.headerAccent} />
           <HeaderLogo />
@@ -308,9 +313,9 @@ function EvaluationDocument({ evaluation, referee, match, tournament, lang = 'en
           </Text>
         </View>
 
-        {/* Criteria Scores */}
-        <Text style={styles.sectionTitle}>{t.criteriaScores}</Text>
-        {CRITERIA.map((c, i) => (
+        {/* Criteria Scores — referees only */}
+        {!isLj && <Text style={styles.sectionTitle}>{t.criteriaScores}</Text>}
+        {!isLj && CRITERIA.map((c, i) => (
           <View
             key={c.key}
             style={[styles.criteriaRow, i % 2 === 1 && styles.criteriaRowAlt]}
@@ -339,7 +344,8 @@ function EvaluationDocument({ evaluation, referee, match, tournament, lang = 'en
           </View>
         ))}
 
-        {/* Overall Score */}
+        {/* Overall Score — referees only */}
+        {!isLj && (
         <View style={styles.summaryBox}>
           <Text style={styles.summaryScore}>
             {evaluation.overall_score?.toFixed(1)}/5.0
@@ -353,6 +359,7 @@ function EvaluationDocument({ evaluation, referee, match, tournament, lang = 'en
             )}
           </View>
         </View>
+        )}
 
         {/* Leadership & Example to colleagues */}
         {(evaluation.leadership_score != null || evaluation.leadership_note) && (
@@ -402,8 +409,8 @@ function EvaluationDocument({ evaluation, referee, match, tournament, lang = 'en
         {/* Observations */}
         {hasNotes && (
           <>
-            <Text style={styles.sectionTitle}>{t.observations}</Text>
-            {CRITERIA.map((c) => {
+            <Text style={styles.sectionTitle}>{isLj ? 'Line Judge Assessment' : t.observations}</Text>
+            {CRIT_SET.map((c) => {
               const note = noteForKey(c.key)
               if (!note) return null
               return (
@@ -1330,7 +1337,9 @@ export function collectEvalComments(ev) {
   } else if (ev.offcourt_note && String(ev.offcourt_note).trim()) {
     out.push({ label: 'Off-court control', text: String(ev.offcourt_note).trim() })
   }
-  for (const c of CRITERIA) {
+  // Line-judge notes live in the same note_* slots but mean different things,
+  // so they must carry the line-judge labels in the recap and group debrief.
+  for (const c of (isLjRole(ev.role) ? LJ_CRITERIA : CRITERIA)) {
     const n = ev[`note_${c.key}`]
     if (n && String(n).trim()) out.push({ label: c.label, text: String(n).trim() })
   }
@@ -1707,7 +1716,7 @@ function RefereeDayDigestDocument({ referee, tournament, dayNumber, digest, coac
           <HeaderLogo />
         </View>
 
-        <Text style={reportStyles.sectionTitle}>Day average ({digest.count} match{digest.count === 1 ? '' : 'es'})</Text>
+        <Text style={reportStyles.sectionTitle}>Day average ({digest.count} match{digest.count === 1 ? '' : 'es'}{digest.ljCount ? ` + ${digest.ljCount} as line judge` : ''})</Text>
         <AvgStrip averages={digest.averages} label="Day avg" />
 
         <Text style={reportStyles.sectionTitle}>Matches</Text>
@@ -1758,7 +1767,7 @@ function RefereeTournamentDigestDocument({ referee, tournament, evolution, advic
           <HeaderLogo />
         </View>
 
-        <Text style={reportStyles.sectionTitle}>Tournament average ({evolution.count} match{evolution.count === 1 ? '' : 'es'})</Text>
+        <Text style={reportStyles.sectionTitle}>Tournament average ({evolution.count} match{evolution.count === 1 ? '' : 'es'}{evolution.ljCount ? ` + ${evolution.ljCount} as line judge` : ''})</Text>
         <AvgStrip averages={evolution.overall} label="Overall" />
 
         <Text style={reportStyles.sectionTitle}>Day-by-day</Text>
@@ -1843,7 +1852,7 @@ function RefereeMultiDayDigestDocument({ referee, tournament, dayDigests }) {
 
         {dayDigests.map((d, i) => (
           <View key={d.dayNumber} break={i > 0}>
-            <Text style={reportStyles.sectionTitle}>Day {d.dayNumber} — average ({d.digest.count} match{d.digest.count === 1 ? '' : 'es'})</Text>
+            <Text style={reportStyles.sectionTitle}>Day {d.dayNumber} — average ({d.digest.count} match{d.digest.count === 1 ? '' : 'es'}{d.digest.ljCount ? ` + ${d.digest.ljCount} as line judge` : ''})</Text>
             <AvgStrip averages={d.digest.averages} label={`Day ${d.dayNumber} avg`} />
 
             <Text style={reportStyles.sectionTitle}>Day {d.dayNumber} — matches</Text>

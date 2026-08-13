@@ -17,6 +17,15 @@ export function needsTwoRefs(m) {
   return !!m.is_final || (m.series === 'PRO' && /semi/i.test(m.round || ''))
 }
 
+// How many line judges a match needs (0 or 2). Explicit per-match value wins;
+// with no value set nothing is assumed, because line judges are the exception,
+// not the rule: only the finals day of a tournament normally uses them.
+export function ljNeeded(m) {
+  const n = m.line_judges_needed
+  if (n == null) return 0
+  return Math.max(0, Math.min(2, n))
+}
+
 // Prestige order for finals: PRO before CHALLENGE, Men (M) before Women (F).
 function finalPrestige(m) {
   return (m.series === 'PRO' ? 0 : 1) * 2 + (m.gender === 'M' ? 0 : 1)
@@ -54,7 +63,7 @@ export function autoAssignSchedule(matches, presentRanked, maxConsec = MAX_CONSE
 
   const { slotsMap, order } = buildSlots(matches)
 
-  const r1 = {}, r2 = {}
+  const r1 = {}, r2 = {}, lj1 = {}, lj2 = {}
   const slotUsed = {}                                  // slotKey -> Set(refId)
   const useIn = (k, id) => { (slotUsed[k] || (slotUsed[k] = new Set())).add(id) }
   const usedIn = (k, id) => slotUsed[k] && slotUsed[k].has(id)
@@ -87,13 +96,45 @@ export function autoAssignSchedule(matches, presentRanked, maxConsec = MAX_CONSE
   // ── Rotation for the rest: R1 of non-finals, then R2 of non-final 2-ref games ─
   const consec = {}; refIds.forEach((r) => { consec[r] = 0 })
   const load = {}; refIds.forEach((r) => { load[r] = 0 })
+  // The finals were handed out above, before the rotation runs. Their slots are
+  // the LAST of the day, so unless the rotation knows about them from the start
+  // it spends the day loading up the very referees already booked for the
+  // finals, and the day ends lopsided. Seed the load with those duties (and
+  // don't count them twice when their slot comes round).
+  for (const m of finals) {
+    for (const id of [r1[m.id], r2[m.id]]) if (id) load[id] += 1
+  }
+  const preAssigned = {}
+  for (const m of finals) {
+    const k = slotKeyOf(m)
+    const set = preAssigned[k] || (preAssigned[k] = new Set())
+    for (const id of [r1[m.id], r2[m.id]]) if (id) set.add(id)
+  }
+  // Flag duty is tracked separately so it can be spread evenly: over a finals
+  // day everyone should take a turn on the line, not the same two people.
+  const ljLoad = {}; refIds.forEach((r) => { ljLoad[r] = 0 })
   const rotPick = (key, exclude) => {
     const cand = refIds.filter((r) => !usedIn(key, r) && r !== exclude)
     if (cand.length === 0) return null
     const under = cand.filter((r) => consec[r] < maxConsec)
     const pool = under.length ? under : cand
-    pool.sort((a, b) => (load[a] - load[b]) || (consec[a] - consec[b]) || (rankIndex[a] - rankIndex[b]))
+    // Among equally busy referees, whoever has been flagging most gets the
+    // whistle next — otherwise the same pair spends the whole finals day on the
+    // line while the others never leave the stand.
+    pool.sort((a, b) => (load[a] - load[b]) || (consec[a] - consec[b]) ||
+      (ljLoad[b] - ljLoad[a]) || (rankIndex[a] - rankIndex[b]))
     return pool[0]
+  }
+
+  const ljPick = (key, excludes) => {
+    const cand = refIds.filter((r) => !usedIn(key, r) && !excludes.includes(r))
+    if (cand.length === 0) return null
+    // Least busy overall first, so a finals day does not end with some officials
+    // on court five times and others three; then fewest flag duties, so the
+    // line-judge turns are spread; then reverse ranking, keeping the strongest
+    // referees free for the whistle.
+    cand.sort((a, b) => (load[a] - load[b]) || (ljLoad[a] - ljLoad[b]) || (rankIndex[b] - rankIndex[a]))
+    return cand[0]
   }
 
   for (const key of order) {
@@ -108,12 +149,24 @@ export function autoAssignSchedule(matches, presentRanked, maxConsec = MAX_CONSE
       const r = rotPick(key, r1[m.id])
       if (r != null) { r2[m.id] = r; useIn(key, r) }
     }
+    for (const m of slot) {                            // LJ1/LJ2 where required
+      const n = ljNeeded(m)
+      if (n < 1) continue
+      const ex = [r1[m.id], r2[m.id]].filter(Boolean)
+      const a = ljPick(key, ex)
+      if (a != null) { lj1[m.id] = a; useIn(key, a); ljLoad[a] += 1 }
+      if (n >= 2) {
+        const b = ljPick(key, [...ex, a].filter(Boolean))
+        if (b != null) { lj2[m.id] = b; useIn(key, b); ljLoad[b] += 1 }
+      }
+    }
     const worked = slotUsed[key] || new Set()          // accrue consec/load
+    const pre = preAssigned[key]
     for (const r of refIds) {
-      if (worked.has(r)) { consec[r] += 1; load[r] += 1 } else consec[r] = 0
+      if (worked.has(r)) { consec[r] += 1; if (!(pre && pre.has(r))) load[r] += 1 } else consec[r] = 0
     }
   }
-  return { r1, r2 }
+  return { r1, r2, lj1, lj2 }
 }
 
 /**
@@ -121,7 +174,7 @@ export function autoAssignSchedule(matches, presentRanked, maxConsec = MAX_CONSE
  * slots (workload + consecutive-on cap) read from the assignments already saved.
  * Returns R1 (+R2 where needed) for the matches of THIS slot only.
  */
-export function autoAssignSlot(allMatches, slotKey, presentRanked, existingAssign = {}, existingAssign2 = {}, maxConsec = MAX_CONSEC) {
+export function autoAssignSlot(allMatches, slotKey, presentRanked, existingAssign = {}, existingAssign2 = {}, maxConsec = MAX_CONSEC, existingLj1 = {}, existingLj2 = {}) {
   allMatches = allMatches.filter((m) => m.referees_needed !== 0) // skip self-refereed
   const refIds = presentRanked.map((r) => r.id)
   if (refIds.length === 0) return { r1: {}, r2: {} }
@@ -131,12 +184,13 @@ export function autoAssignSlot(allMatches, slotKey, presentRanked, existingAssig
 
   const consec = {}; refIds.forEach((r) => { consec[r] = 0 })
   const load = {}; refIds.forEach((r) => { load[r] = 0 })
+  const ljLoad = {}; refIds.forEach((r) => { ljLoad[r] = 0 })
 
   for (const key of order) {
     const slot = slotsMap.get(key)
     if (key === slotKey) {
       const used = new Set()
-      const r1 = {}, r2 = {}
+      const r1 = {}, r2 = {}, lj1 = {}, lj2 = {}
       const usedIn = (id) => used.has(id)
       // finals in this slot → best-evaluated available (R1 then R2), prestige order
       const finalsHere = slot.filter((m) => m.is_final)
@@ -160,35 +214,63 @@ export function autoAssignSlot(allMatches, slotKey, presentRanked, existingAssig
       }
       for (const m of slot) { if (r1[m.id]) continue; const r = rotPick(null); if (r != null) { r1[m.id] = r; used.add(r) } }
       for (const m of slot) { if (r2[m.id] || !needsTwoRefs(m)) continue; const r = rotPick(r1[m.id]); if (r != null) { r2[m.id] = r; used.add(r) } }
-      return { r1, r2 }
+      const ljPick = (excludes) => {
+        const cand = refIds.filter((r) => !used.has(r) && !excludes.includes(r))
+        if (!cand.length) return null
+        cand.sort((a, b) => (load[a] - load[b]) || (ljLoad[a] - ljLoad[b]) || (rankIndex[b] - rankIndex[a]))
+        return cand[0]
+      }
+      for (const m of slot) {
+        const n = ljNeeded(m)
+        if (n < 1) continue
+        const ex = [r1[m.id], r2[m.id]].filter(Boolean)
+        const a = ljPick(ex)
+        if (a != null) { lj1[m.id] = a; used.add(a); ljLoad[a] += 1 }
+        if (n >= 2) {
+          const b = ljPick([...ex, a].filter(Boolean))
+          if (b != null) { lj2[m.id] = b; used.add(b); ljLoad[b] += 1 }
+        }
+      }
+      return { r1, r2, lj1, lj2 }
     }
-    // prior slot: accrue load + consecutive-on from saved assignments (R1 + R2)
+    // prior slot: accrue load + consecutive-on from saved assignments (all roles)
     const used = new Set()
     for (const m of slot) {
-      for (const r of [existingAssign[m.id], existingAssign2[m.id]]) if (r && refIds.includes(r)) used.add(r)
+      for (const r of [existingAssign[m.id], existingAssign2[m.id], existingLj1[m.id], existingLj2[m.id]]) {
+        if (r && refIds.includes(r)) used.add(r)
+      }
+      for (const r of [existingLj1[m.id], existingLj2[m.id]]) if (r && refIds.includes(r)) ljLoad[r] += 1
     }
     for (const r of refIds) { if (used.has(r)) { consec[r] += 1; load[r] += 1 } else consec[r] = 0 }
   }
-  return { r1: {}, r2: {} }
+  return { r1: {}, r2: {}, lj1: {}, lj2: {} }
 }
 
 // Detect referees double-booked within the same time slot (R1 only — manual
 // overrides can create conflicts the auto-assign never would).
-export function findSlotConflicts(matches, assignMap) {
+export function findSlotConflicts(matches, assignMap, ...otherMaps) {
+  // Count every duty a referee holds in a time slot, across all roles: on a
+  // finals day the clash is usually "whistling one court while flagging the
+  // next", which a R1-only check would never see.
+  const maps = [assignMap, ...otherMaps].filter(Boolean)
   const bySlot = {}
   for (const m of matches) {
-    const refId = assignMap[m.id]
-    if (!refId) continue
     const key = slotKeyOf(m)
-    bySlot[key] = bySlot[key] || {}
-    bySlot[key][refId] = (bySlot[key][refId] || 0) + 1
+    for (const map of maps) {
+      const refId = map[m.id]
+      if (!refId) continue
+      bySlot[key] = bySlot[key] || {}
+      bySlot[key][refId] = (bySlot[key][refId] || 0) + 1
+    }
   }
   const conflicted = new Set()
   for (const m of matches) {
-    const refId = assignMap[m.id]
-    if (!refId) continue
     const key = slotKeyOf(m)
-    if (bySlot[key][refId] > 1) conflicted.add(m.id)
+    for (const map of maps) {
+      const refId = map[m.id]
+      if (!refId) continue
+      if (bySlot[key][refId] > 1) conflicted.add(m.id)
+    }
   }
   return conflicted
 }

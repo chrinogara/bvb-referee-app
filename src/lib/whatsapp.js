@@ -325,7 +325,22 @@ function _hhmm(t) {
 }
 
 /** General broadcast: full day designations grouped by time slot. */
-export function buildScheduleGeneralMessage({ tournamentName, dayLabel, matches, refNameById, ref2NameById }) {
+// One line per match: referees first, line judges after, so the officials read
+// their duty in the order they take the court.
+function _officialsLine(m, refNameById, ref2NameById, lj1NameById, lj2NameById) {
+  const ref = (refNameById && refNameById[m.id]) || '-'
+  const ref2 = ref2NameById && ref2NameById[m.id]
+  const l1 = lj1NameById && lj1NameById[m.id]
+  const l2 = lj2NameById && lj2NameById[m.id]
+  let out = ref2 ? `R1: *${ref}* · R2: *${ref2}*` : `*${ref}*`
+  if (l1 || l2) {
+    const ljs = [l1 && `LJ1: ${l1}`, l2 && `LJ2: ${l2}`].filter(Boolean).join(' · ')
+    out += ` | ${ljs}`
+  }
+  return out
+}
+
+export function buildScheduleGeneralMessage({ tournamentName, dayLabel, matches, refNameById, ref2NameById, lj1NameById, lj2NameById }) {
   const L = []
   L.push(`*${tournamentName || 'Tournament'} — ${dayLabel || ''}*`.trim())
   L.push('Assignments')
@@ -333,10 +348,8 @@ export function buildScheduleGeneralMessage({ tournamentName, dayLabel, matches,
   for (const m of matches) {
     const t = _hhmm(m.scheduled_time)
     if (t !== curr) { curr = t; L.push(''); L.push(`*${t}*`) }
-    const ref = refNameById[m.id] || '-'
-    const ref2 = ref2NameById && ref2NameById[m.id]
     const head = `C${m.court} · #${m.match_number} ${_matchTag(m)}`
-    L.push(ref2 ? `${head} -> R1: *${ref}* · R2: *${ref2}*` : `${head} -> *${ref}*`)
+    L.push(`${head} -> ${_officialsLine(m, refNameById, ref2NameById, lj1NameById, lj2NameById)}`)
   }
   L.push('')
   L.push('Christian Nogara')
@@ -345,7 +358,7 @@ export function buildScheduleGeneralMessage({ tournamentName, dayLabel, matches,
 }
 
 /** Individual message for one referee: only their matches. */
-export function buildRefereeScheduleMessage({ referee, tournamentName, dayLabel, matches }) {
+export function buildRefereeScheduleMessage({ referee, tournamentName, dayLabel, matches, ljCount = 0 }) {
   const name = referee?.first_name || ''
   const L = []
   L.push(`*${tournamentName || 'Tournament'} — ${dayLabel || ''}*`.trim())
@@ -356,23 +369,24 @@ export function buildRefereeScheduleMessage({ referee, tournamentName, dayLabel,
     L.push(`*${_hhmm(m.scheduled_time)}* · C${m.court} · #${m.match_number} ${_matchTag(m)}${roleP}`)
   }
   L.push('')
-  L.push(`Total: *${matches.length}* match${matches.length === 1 ? '' : 'es'}.`)
+  const refCount = matches.length - ljCount
+  L.push(ljCount
+    ? `Total: *${refCount}* match${refCount === 1 ? '' : 'es'} as referee + *${ljCount}* as line judge.`
+    : `Total: *${matches.length}* match${matches.length === 1 ? '' : 'es'}.`)
   L.push('Christian Nogara')
   L.push('CEV Referee Coach')
   return L.join('\n')
 }
 
 /** Message for a SINGLE time slot: only the matches starting at that time. */
-export function buildSlotScheduleMessage({ tournamentName, dayLabel, slotTime, matches, refNameById, ref2NameById }) {
+export function buildSlotScheduleMessage({ tournamentName, dayLabel, slotTime, matches, refNameById, ref2NameById, lj1NameById, lj2NameById }) {
   const L = []
   L.push(`*${tournamentName || 'Tournament'} — ${dayLabel || ''}*`.trim())
   L.push(`Assignments · ${_hhmm(slotTime)}`)
   L.push('')
   for (const m of matches) {
-    const ref = (refNameById && refNameById[m.id]) || '-'
-    const ref2 = ref2NameById && ref2NameById[m.id]
     const head = `C${m.court} · #${m.match_number} ${_matchTag(m)}`
-    L.push(ref2 ? `${head} -> R1: *${ref}* · R2: *${ref2}*` : `${head} -> *${ref}*`)
+    L.push(`${head} -> ${_officialsLine(m, refNameById, ref2NameById, lj1NameById, lj2NameById)}`)
   }
   L.push('')
   L.push('Christian Nogara')

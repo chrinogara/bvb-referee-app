@@ -9,7 +9,7 @@ import { useTournaments } from '../hooks/useTournaments'
 import { useRanking } from '../hooks/useRanking'
 import { matchService, attendanceService, designationService } from '../lib/supabase'
 import { trackSave } from '../lib/saveTracker'
-import { autoAssignSchedule, autoAssignSlot, findSlotConflicts, needsTwoRefs } from '../lib/scheduleAssign'
+import { autoAssignSchedule, autoAssignSlot, findSlotConflicts, needsTwoRefs, ljNeeded } from '../lib/scheduleAssign'
 import { ensureWolvertemReferees, loadWolvertemMatches, computeWolvertemRefCount } from '../lib/wolvertemSetup'
 import { shareScheduleGeneral, shareSlotSchedule, shareRefereeSchedule, shareSlotScheduleToPhone } from '../lib/whatsapp'
 import { refereeName } from '../lib/utils'
@@ -136,34 +136,56 @@ export default function ScheduleDesignations() {
   // ── Existing designations ────────────────────────────────────────────────────
   const [assignMap, setAssignMap] = useState({})
   const [assignR2, setAssignR2] = useState({})
+  const [assignLj1, setAssignLj1] = useState({})
+  const [assignLj2, setAssignLj2] = useState({})
   const loadDes = useCallback(async () => {
-    if (!tournamentId) { setAssignMap({}); setAssignR2({}); return }
+    if (!tournamentId) { setAssignMap({}); setAssignR2({}); setAssignLj1({}); setAssignLj2({}); return }
     const { data } = await designationService.getByTournament(tournamentId)
-    const m = {}, m2 = {}
+    const m = {}, m2 = {}, l1 = {}, l2 = {}
     ;(data || []).forEach((d) => {
       if (!d.match_id) return
       if (d.role === 'R2') m2[d.match_id] = d.referee_id
+      else if (d.role === 'LJ1') l1[d.match_id] = d.referee_id
+      else if (d.role === 'LJ2') l2[d.match_id] = d.referee_id
       else m[d.match_id] = d.referee_id
     })
-    setAssignMap(m); setAssignR2(m2)
+    setAssignMap(m); setAssignR2(m2); setAssignLj1(l1); setAssignLj2(l2)
   }, [tournamentId])
   useEffect(() => { loadDes() }, [loadDes])
 
-  const conflicts = useMemo(() => findSlotConflicts(matches, assignMap), [matches, assignMap])
+  const conflicts = useMemo(
+    () => findSlotConflicts(matches, assignMap, assignR2, assignLj1, assignLj2),
+    [matches, assignMap, assignR2, assignLj1, assignLj2]
+  )
   const workload = useMemo(() => {
     const w = {}
     matches.forEach((m) => {
-      const r1 = assignMap[m.id]; if (r1) w[r1] = (w[r1] || 0) + 1
-      const r2 = assignR2[m.id]; if (r2) w[r2] = (w[r2] || 0) + 1
+      for (const r of [assignMap[m.id], assignR2[m.id], assignLj1[m.id], assignLj2[m.id]]) {
+        if (r) w[r] = (w[r] || 0) + 1
+      }
     })
     return w
-  }, [matches, assignMap, assignR2])
+  }, [matches, assignMap, assignR2, assignLj1, assignLj2])
+  // Line-judge duties, shown apart: they are work, but not refereed matches.
+  const ljWorkload = useMemo(() => {
+    const w = {}
+    matches.forEach((m) => {
+      for (const r of [assignLj1[m.id], assignLj2[m.id]]) if (r) w[r] = (w[r] || 0) + 1
+    })
+    return w
+  }, [matches, assignLj1, assignLj2])
   const refNameById = useMemo(() => {
     const m = {}; matches.forEach((mt) => { const r = assignMap[mt.id]; if (r && refById[r]) m[mt.id] = refereeName(refById[r]) }); return m
   }, [matches, assignMap, refById])
   const ref2NameById = useMemo(() => {
     const m = {}; matches.forEach((mt) => { const r = assignR2[mt.id]; if (r && refById[r]) m[mt.id] = refereeName(refById[r]) }); return m
   }, [matches, assignR2, refById])
+  const lj1NameById = useMemo(() => {
+    const m = {}; matches.forEach((mt) => { const r = assignLj1[mt.id]; if (r && refById[r]) m[mt.id] = refereeName(refById[r]) }); return m
+  }, [matches, assignLj1, refById])
+  const lj2NameById = useMemo(() => {
+    const m = {}; matches.forEach((mt) => { const r = assignLj2[mt.id]; if (r && refById[r]) m[mt.id] = refereeName(refById[r]) }); return m
+  }, [matches, assignLj2, refById])
 
   // ── Actions ──────────────────────────────────────────────────────────────────
   const [busy, setBusy] = useState(false)
@@ -184,16 +206,19 @@ export default function ScheduleDesignations() {
     if (!rankedRoster.length) { toast.error('Nessun arbitro disponibile'); return }
     setBusy(true)
     try {
-      const { r1, r2 } = autoAssignSchedule(matches, rankedRoster)
+      const { r1, r2, lj1, lj2 } = autoAssignSchedule(matches, rankedRoster)
       const rows = []
       matches.forEach((m) => {
         if (r1[m.id]) rows.push({ match_id: m.id, referee_id: r1[m.id], role: 'R1' })
         if (r2[m.id]) rows.push({ match_id: m.id, referee_id: r2[m.id], role: 'R2' })
+        if (lj1[m.id]) rows.push({ match_id: m.id, referee_id: lj1[m.id], role: 'LJ1' })
+        if (lj2[m.id]) rows.push({ match_id: m.id, referee_id: lj2[m.id], role: 'LJ2' })
       })
       await trackSave(() => Promise.all(rows.map((row) => designationService.upsert(row))))
-      setAssignMap(r1); setAssignR2(r2)
+      setAssignMap(r1); setAssignR2(r2); setAssignLj1(lj1); setAssignLj2(lj2)
       const two = Object.keys(r2).length
-      toast.success(`Designazioni generate (${Object.keys(r1).length} partite${two ? `, ${two} con 2° arbitro` : ''})`)
+      const nlj = Object.keys(lj1).length + Object.keys(lj2).length
+      toast.success(`Designazioni generate (${Object.keys(r1).length} partite${two ? `, ${two} con 2° arbitro` : ''}${nlj ? `, ${nlj} giudici di linea` : ''})`)
     } catch (e) { toast.error('Errore: ' + (e?.message || '')) } finally { setBusy(false) }
   }
 
@@ -203,15 +228,19 @@ export default function ScheduleDesignations() {
     if (!slotMatches.length) return
     setSlotBusy(slotKey)
     try {
-      const { r1, r2 } = autoAssignSlot(matches, slotKey, rankedRoster, assignMap, assignR2)
+      const { r1, r2, lj1, lj2 } = autoAssignSlot(matches, slotKey, rankedRoster, assignMap, assignR2, undefined, assignLj1, assignLj2)
       const rows = []
       slotMatches.forEach((m) => {
         if (r1[m.id]) rows.push({ match_id: m.id, referee_id: r1[m.id], role: 'R1' })
         if (r2[m.id]) rows.push({ match_id: m.id, referee_id: r2[m.id], role: 'R2' })
+        if (lj1[m.id]) rows.push({ match_id: m.id, referee_id: lj1[m.id], role: 'LJ1' })
+        if (lj2[m.id]) rows.push({ match_id: m.id, referee_id: lj2[m.id], role: 'LJ2' })
       })
       await trackSave(() => Promise.all(rows.map((row) => designationService.upsert(row))))
       setAssignMap((prev) => ({ ...prev, ...r1 }))
       setAssignR2((prev) => ({ ...prev, ...r2 }))
+      setAssignLj1((prev) => ({ ...prev, ...lj1 }))
+      setAssignLj2((prev) => ({ ...prev, ...lj2 }))
       toast.success(`Fascia ${hhmm(slotMatches[0].scheduled_time)} · ${rows.length} designazioni`)
     } catch (e) { toast.error('Errore: ' + (e?.message || '')) } finally { setSlotBusy(null) }
   }
@@ -226,6 +255,8 @@ export default function ScheduleDesignations() {
       await trackSave(() => designationService.deleteByMatches(matches.map((m) => m.id)))
       setAssignMap((prev) => { const next = { ...prev }; matches.forEach((m) => { delete next[m.id] }); return next })
       setAssignR2((prev) => { const next = { ...prev }; matches.forEach((m) => { delete next[m.id] }); return next })
+      setAssignLj1((prev) => { const next = { ...prev }; matches.forEach((m) => { delete next[m.id] }); return next })
+      setAssignLj2((prev) => { const next = { ...prev }; matches.forEach((m) => { delete next[m.id] }); return next })
       toast.success(`Designazioni Day ${day} azzerate`)
     } catch (e) { toast.error('Errore: ' + (e?.message || '')) } finally { setBusy(false) }
   }
@@ -251,13 +282,29 @@ export default function ScheduleDesignations() {
     }
   }
 
+  // Manual override for the line judges — same behaviour as the referee pickers.
+  function makeLjSetter(role, setter) {
+    return async function setLj(matchId, refId) {
+      let prev
+      setter((m) => { prev = m[matchId]; return { ...m, [matchId]: refId || undefined } })
+      try {
+        if (refId) await trackSave(() => designationService.upsert({ match_id: matchId, referee_id: refId, role }))
+      } catch (e) {
+        setter((m) => ({ ...m, [matchId]: prev }))
+        toast.error('Errore salvataggio: ' + (e?.message || ''))
+      }
+    }
+  }
+  const setLj1 = makeLjSetter('LJ1', setAssignLj1)
+  const setLj2 = makeLjSetter('LJ2', setAssignLj2)
+
   function sendGeneral() {
     if (!matches.length) return
-    shareScheduleGeneral({ tournamentName: tournament?.name, dayLabel: `Day ${day}`, matches, refNameById, ref2NameById })
+    shareScheduleGeneral({ tournamentName: tournament?.name, dayLabel: `Day ${day}`, matches, refNameById, ref2NameById, lj1NameById, lj2NameById })
   }
   function sendSlot(slot) {
     if (!slot?.items?.length) return
-    shareSlotSchedule({ tournamentName: tournament?.name, dayLabel: `Day ${day}`, slotTime: slot.time, matches: slot.items, refNameById, ref2NameById })
+    shareSlotSchedule({ tournamentName: tournament?.name, dayLabel: `Day ${day}`, slotTime: slot.time, matches: slot.items, refNameById, ref2NameById, lj1NameById, lj2NameById })
   }
   function sendSlotToManager(slot) {
     if (!slot?.items?.length) return
@@ -267,21 +314,35 @@ export default function ScheduleDesignations() {
       if (!v || !v.trim()) return
       phone = v.trim(); setManagerPhone(phone); setManagerPhoneLS(tournamentId, phone)
     }
-    shareSlotScheduleToPhone({ tournamentName: tournament?.name, dayLabel: `Day ${day}`, slotTime: slot.time, matches: slot.items, refNameById, ref2NameById }, phone)
+    shareSlotScheduleToPhone({ tournamentName: tournament?.name, dayLabel: `Day ${day}`, slotTime: slot.time, matches: slot.items, refNameById, ref2NameById, lj1NameById, lj2NameById }, phone)
   }
   function sendIndividual(ref) {
+    // A referee's personal schedule must include the matches where they are on
+    // the flag: on a finals day those are half their duties, and turning up
+    // unaware is the one mistake this message exists to prevent.
+    const roleOf = (m) => (
+      assignMap[m.id] === ref.id ? 'R1'
+        : assignR2[m.id] === ref.id ? 'R2'
+        : assignLj1[m.id] === ref.id ? 'LJ1'
+        : assignLj2[m.id] === ref.id ? 'LJ2'
+        : null
+    )
     const mine = matches
-      .filter((m) => assignMap[m.id] === ref.id || assignR2[m.id] === ref.id)
+      .filter((m) => roleOf(m))
       .sort(byTime)
       .map((m) => {
-        if (!needsTwoRefs(m)) return m
-        const isR1 = assignMap[m.id] === ref.id
-        const partnerId = isR1 ? assignR2[m.id] : assignMap[m.id]
+        const role = roleOf(m)
+        const partnerId = role === 'R1' ? assignR2[m.id]
+          : role === 'R2' ? assignMap[m.id]
+          : role === 'LJ1' ? assignLj2[m.id]
+          : assignLj1[m.id]
         const partner = partnerId && refById[partnerId] ? refereeName(refById[partnerId]) : null
-        return { ...m, _role: isR1 ? 'R1' : 'R2', _partner: partner }
+        const showRole = needsTwoRefs(m) || ljNeeded(m) > 0
+        return showRole ? { ...m, _role: role, _partner: partner } : m
       })
     if (!mine.length) { toast.error('Nessuna partita per questo arbitro'); return }
-    shareRefereeSchedule({ referee: ref, tournamentName: tournament?.name, dayLabel: `Day ${day}`, matches: mine })
+    const nLj = mine.filter((m) => m._role === 'LJ1' || m._role === 'LJ2').length
+    shareRefereeSchedule({ referee: ref, tournamentName: tournament?.name, dayLabel: `Day ${day}`, matches: mine, ljCount: nLj })
   }
 
   // ── Render helpers ────────────────────────────────────────────────────────────
@@ -302,11 +363,11 @@ export default function ScheduleDesignations() {
 
   // Workload a barre: TUTTI gli arbitri presenti, ordinati per n° partite (desc).
   const workloadBars = useMemo(() => {
-    const rows = roster.map((r) => ({ r, n: workload[r.id] || 0 }))
+    const rows = roster.map((r) => ({ r, n: workload[r.id] || 0, lj: ljWorkload[r.id] || 0 }))
     rows.sort((a, b) => (b.n - a.n) || refereeName(a.r).localeCompare(refereeName(b.r)))
     const max = Math.max(1, ...rows.map((x) => x.n))
     return { rows, max }
-  }, [roster, workload])
+  }, [roster, workload, ljWorkload])
 
   return (
     <div className="flex flex-col h-full">
@@ -504,7 +565,20 @@ export default function ScheduleDesignations() {
                   const conflict = conflicts.has(m.id)
                   const selfRef = m.referees_needed === 0
                   const two = needsTwoRefs(m)
+                  const nLj = ljNeeded(m)
                   const r2Dup = two && assignR2[m.id] && assignR2[m.id] === assignMap[m.id]
+                  // Same person twice on one match is always a mistake, whatever
+                  // the two roles are — flag it wherever it appears.
+                  const onMatch = [assignMap[m.id], assignR2[m.id], assignLj1[m.id], assignLj2[m.id]].filter(Boolean)
+                  const dupOnMatch = (id) => id && onMatch.filter((x) => x === id).length > 1
+                  const ljOpts = (
+                    <>
+                      <option value="">— giudice di linea —</option>
+                      {rosterByName.map((r) => (
+                        <option key={r.id} value={r.id}>{refereeName(r)}</option>
+                      ))}
+                    </>
+                  )
                   const opts = (
                     <>
                       <option value="">— arbitro —</option>
@@ -526,31 +600,47 @@ export default function ScheduleDesignations() {
                       </div>
                       {selfRef ? (
                         <span className="shrink-0 text-[11px] font-semibold text-gray-400 bg-gray-100 rounded-lg px-2.5 py-1.5">Auto-arbitrata</span>
-                      ) : two ? (
+                      ) : (
                         <div className="shrink-0 flex flex-col gap-1 items-end">
                           <div className="flex items-center gap-1.5">
-                            <span className="text-[10px] font-bold text-gray-400 w-4 text-right">R1</span>
+                            <span className="text-[10px] font-bold text-gray-400 w-6 text-right">{two || nLj ? 'R1' : ''}</span>
                             <select
                               value={assignMap[m.id] || ''}
                               onChange={(e) => setRef(m.id, e.target.value)}
-                              className={`w-36 min-w-0 rounded-lg border px-2 py-1.5 text-sm ${conflict ? 'border-red-400 bg-red-50 text-red-700' : 'border-gray-300'}`}
+                              className={`w-36 min-w-0 rounded-lg border px-2 py-1.5 text-sm ${conflict || dupOnMatch(assignMap[m.id]) ? 'border-red-400 bg-red-50 text-red-700' : 'border-gray-300'}`}
                             >{opts}</select>
                           </div>
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-[10px] font-bold text-gray-400 w-4 text-right">R2</span>
-                            <select
-                              value={assignR2[m.id] || ''}
-                              onChange={(e) => setRef2(m.id, e.target.value)}
-                              className={`w-36 min-w-0 rounded-lg border px-2 py-1.5 text-sm ${r2Dup ? 'border-red-400 bg-red-50 text-red-700' : 'border-gray-300'}`}
-                            >{opts}</select>
-                          </div>
+                          {two && (
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[10px] font-bold text-gray-400 w-6 text-right">R2</span>
+                              <select
+                                value={assignR2[m.id] || ''}
+                                onChange={(e) => setRef2(m.id, e.target.value)}
+                                className={`w-36 min-w-0 rounded-lg border px-2 py-1.5 text-sm ${r2Dup || dupOnMatch(assignR2[m.id]) ? 'border-red-400 bg-red-50 text-red-700' : 'border-gray-300'}`}
+                              >{opts}</select>
+                            </div>
+                          )}
+                          {nLj >= 1 && (
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[10px] font-bold w-6 text-right" style={{ color: NAVY }}>LJ1</span>
+                              <select
+                                value={assignLj1[m.id] || ''}
+                                onChange={(e) => setLj1(m.id, e.target.value)}
+                                className={`w-36 min-w-0 rounded-lg border px-2 py-1.5 text-sm ${dupOnMatch(assignLj1[m.id]) ? 'border-red-400 bg-red-50 text-red-700' : 'border-gray-300 bg-gray-50'}`}
+                              >{ljOpts}</select>
+                            </div>
+                          )}
+                          {nLj >= 2 && (
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[10px] font-bold w-6 text-right" style={{ color: NAVY }}>LJ2</span>
+                              <select
+                                value={assignLj2[m.id] || ''}
+                                onChange={(e) => setLj2(m.id, e.target.value)}
+                                className={`w-36 min-w-0 rounded-lg border px-2 py-1.5 text-sm ${dupOnMatch(assignLj2[m.id]) ? 'border-red-400 bg-red-50 text-red-700' : 'border-gray-300 bg-gray-50'}`}
+                              >{ljOpts}</select>
+                            </div>
+                          )}
                         </div>
-                      ) : (
-                        <select
-                          value={assignMap[m.id] || ''}
-                          onChange={(e) => setRef(m.id, e.target.value)}
-                          className={`shrink-0 w-36 rounded-lg border px-2 py-1.5 text-sm ${conflict ? 'border-red-400 bg-red-50 text-red-700' : 'border-gray-300'}`}
-                        >{opts}</select>
                       )}
                     </div>
                   )
@@ -566,13 +656,15 @@ export default function ScheduleDesignations() {
                 Referee workload · {matches.length} partite
               </div>
               <div className="rounded-2xl bg-white border border-gray-200 p-3 space-y-2">
-                {workloadBars.rows.map(({ r, n }) => (
+                {workloadBars.rows.map(({ r, n, lj }) => (
                   <div key={r.id} className="flex items-center gap-3">
                     <span className="w-28 text-sm font-semibold shrink-0 truncate">{refereeName(r)}</span>
-                    <div className="flex-1 bg-gray-100 rounded-full h-5 overflow-hidden">
-                      <div className="h-full rounded-full" style={{ width: `${(n / workloadBars.max) * 100}%`, background: NAVY }} />
+                    <div className="flex-1 bg-gray-100 rounded-full h-5 overflow-hidden flex">
+                      <div className="h-full" style={{ width: `${((n - lj) / workloadBars.max) * 100}%`, background: NAVY }} />
+                      <div className="h-full" style={{ width: `${(lj / workloadBars.max) * 100}%`, background: '#9CA3AF' }} />
                     </div>
                     <span className="text-sm font-bold tabular-nums w-6 text-right">{n}</span>
+                    {lj > 0 && <span className="text-[10px] font-bold text-gray-500 w-10 text-right">{lj} LJ</span>}
                   </div>
                 ))}
               </div>
